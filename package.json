@@ -1,0 +1,24 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "King Sparkon Tracker Backend is a Spring Boot API for managing barcoded product stock, worker activity, owner oversight, transaction history, and inventory reporting. It is designed for a small business flow where the owner controls the catalogue and reporting, while workers record day-to-day stock movements from sales and purchases.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/leonard1thecoder/king-sparkon-tracker-backend.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/leonard1thecoder/king-sparkon-tracker-backend/issues"
+  },
+  "homepage": "https://github.com/leonard1thecoder/king-sparkon-tracker-backend#readme"
+}
