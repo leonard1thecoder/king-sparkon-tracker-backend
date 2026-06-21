@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>New King Sparkon Tracker contact inquiry</title>
+</head>
+<body style="margin:0;background:#000510;font-family:Arial,Helvetica,sans-serif;color:#ffffff;">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#000510;padding:32px 16px;">
+    <tr>
+        <td align="center">
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:680px;background:#1e2229;border:1px solid rgba(255,255,255,0.10);border-radius:22px;overflow:hidden;">
+                <tr>
+                    <td style="padding:34px;">
+                        <p style="margin:0 0 12px;color:#99e39e;font-size:14px;font-weight:bold;">New contact inquiry</p>
+                        <h1 style="margin:0 0 24px;color:#ffffff;font-size:28px;line-height:1.25;" th:text="${businessName}">Business name</h1>
+                        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="color:#d8dbdb;font-size:15px;line-height:1.7;">
+                            <tr><td style="padding:8px 0;color:#d8dbdb99;">Contact</td><td style="padding:8px 0;color:#ffffff;" th:text="${contactName}">Name</td></tr>
+                            <tr><td style="padding:8px 0;color:#d8dbdb99;">Email</td><td style="padding:8px 0;color:#ffffff;" th:text="${emailAddress}">email@example.com</td></tr>
+                            <tr><td style="padding:8px 0;color:#d8dbdb99;">Phone</td><td style="padding:8px 0;color:#ffffff;" th:text="${phoneNumber}">Phone</td></tr>
+                        </table>
+                        <div style="margin-top:24px;padding:18px;border-radius:14px;background:#000510;border:1px solid rgba(255,255,255,0.10);">
+                            <p style="margin:0 0 8px;color:#99e39e;font-size:13px;font-weight:bold;">Message</p>
+                            <p style="margin:0;color:#d8dbdb;font-size:15px;line-height:1.7;white-space:pre-wrap;" th:text="${inquiryMessage}">Inquiry message</p>
+                        </div>
+                    </td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+</table>
+</body>
+</html>

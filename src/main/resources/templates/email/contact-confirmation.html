@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>King Sparkon Tracker inquiry received</title>
+</head>
+<body style="margin:0;background:#000510;font-family:Arial,Helvetica,sans-serif;color:#ffffff;">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#000510;padding:32px 16px;">
+    <tr>
+        <td align="center">
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:620px;background:#1e2229;border:1px solid rgba(255,255,255,0.10);border-radius:22px;overflow:hidden;">
+                <tr>
+                    <td style="padding:34px 34px 12px;">
+                        <p style="margin:0 0 12px;color:#99e39e;font-size:14px;font-weight:bold;">King Sparkon Tracker</p>
+                        <h1 style="margin:0;color:#ffffff;font-size:28px;line-height:1.25;">We received your message.</h1>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding:10px 34px 34px;color:#d8dbdb;font-size:15px;line-height:1.7;">
+                        <p style="margin:0 0 18px;">Hi <span th:text="${contactName}">there</span>,</p>
+                        <p style="margin:0 0 18px;">
+                            Thanks for contacting King Sparkon Tracker for <strong th:text="${businessName}" style="color:#ffffff;">your business</strong>.
+                            Your inquiry is saved, and our team will review it.
+                        </p>
+                        <p style="margin:0 0 24px;">
+                            We help businesses manage barcoded products, worker barcode assignment, product movement, claims, reporting, and billing workflows.
+                        </p>
+                        <p style="margin:0;color:#d8dbdb99;">Need to add anything else? Reply to this email or contact <span th:text="${supportEmail}">support@king-sparkon-tracker.com</span>.</p>
+                    </td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+</table>
+</body>
+</html>
