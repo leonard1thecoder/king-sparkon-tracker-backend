@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head><meta charset="UTF-8"><title>Returnable barcode claimed</title></head>
+<body style="margin:0;background:#f4f7fb;font-family:Arial,Helvetica,sans-serif;color:#111827;">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f4f7fb;padding:32px 16px;"><tr><td align="center">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:620px;background:#ffffff;border:1px solid #e5e7eb;border-radius:18px;overflow:hidden;">
+        <tr><td style="background:#111827;color:#ffffff;padding:28px 32px;"><p style="margin:0 0 10px;font-size:13px;letter-spacing:.08em;text-transform:uppercase;">King Sparkon Tracker</p><h1 style="margin:0;font-size:26px;">Returnable barcode claimed</h1></td></tr>
+        <tr><td style="padding:30px 32px;font-size:15px;line-height:1.7;color:#374151;">
+            <p style="margin:0 0 16px;">Hi <strong th:text="${ownerUsername}">owner</strong>,</p>
+            <p style="margin:0 0 16px;">A returnable barcode was claimed in <strong th:text="${businessName}">Business</strong>.</p>
+            <p style="margin:0 0 8px;">Product: <strong th:text="${productName}">Product</strong></p>
+            <p style="margin:0 0 8px;">Barcode: <strong th:text="${barcode}">barcode</strong></p>
+            <p style="margin:0 0 8px;">Reference: <strong th:text="${reference}">reference</strong></p>
+            <p style="margin:0;">Actor: <strong th:text="${actorUsername}">worker</strong></p>
+        </td></tr>
+    </table>
+</td></tr></table>
+</body>
+</html>

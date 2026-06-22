@@ -58,6 +58,9 @@ class TrackerUserServiceTest {
 	@Mock
 	private BusinessAccessService businessAccessService;
 
+	@Mock
+	private AppEmailService appEmailService;
+
 	@InjectMocks
 	private TrackerUserService userService;
 
@@ -224,6 +227,34 @@ class TrackerUserServiceTest {
 		assertThat(result.getEmailAddress()).isEqualTo("worker@example.com");
 		assertThat(result.getPrivilege()).isSameAs(workerPrivilege);
 		assertThat(result.getBusiness()).isSameAs(business);
+		verify(appEmailService).sendWorkerCreatedEmail(result, business);
+	}
+
+	@Test
+	void createWorkerContinuesWhenWorkerCreatedEmailFails() {
+		Privilege workerPrivilege = new Privilege(PrivilegeRole.Worker);
+		Business business = business();
+		when(userRepository.findByUsername("owner")).thenReturn(Optional.of(business.getOwner()));
+		when(userRepository.countByBusiness_IdAndPrivilege_Name(1L, PrivilegeRole.Worker)).thenReturn(1L);
+		when(userRepository.existsByUsername("worker")).thenReturn(false);
+		when(userRepository.existsByEmailAddress("worker@example.com")).thenReturn(false);
+		when(privilegeService.createPrivilege(PrivilegeRole.Worker)).thenReturn(workerPrivilege);
+		when(passwordEncoder.encode("secret")).thenReturn("encoded-secret");
+		when(userRepository.save(any(TrackerUser.class))).thenAnswer(invocation -> invocation.getArgument(0));
+		when(appEmailService.sendWorkerCreatedEmail(any(TrackerUser.class), eq(business)))
+				.thenThrow(new IllegalStateException("smtp down"));
+
+		TrackerUser result = userService.createWorker(
+				new CreateWorkerRequest("worker", "worker@example.com", "secret"), "owner");
+
+		assertThat(result.getUsername()).isEqualTo("worker");
+		verify(auditLogService).record(
+				eq("WORKER_CREATED"),
+				eq("TrackerUser"),
+				any(),
+				eq("owner"),
+				any(),
+				eq(business));
 	}
 
 	@Test

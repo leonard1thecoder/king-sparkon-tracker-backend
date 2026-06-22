@@ -3,6 +3,7 @@ package com.king_sparkon_tracker.backend.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
@@ -57,6 +58,9 @@ class TransactionServiceTest {
 	@Mock
 	private ProductBarcodeRepository productBarcodeRepository;
 
+	@Mock
+	private AppEmailService appEmailService;
+
 	private TransactionService transactionService;
 	private Business business;
 
@@ -103,6 +107,60 @@ class TransactionServiceTest {
 		assertThat(result.getItems().getFirst().getUnitPrice()).isEqualByComparingTo("18.50");
 		assertThat(result.getItems().getFirst().getBarcodes()).containsExactly("6001", "6002", "6003");
 		verify(productService).applyStockMovement(product, TransactionType.SELL, 3);
+		verify(appEmailService).sendTransactionCreatedOwnerEmail(result);
+	}
+
+	@Test
+	void createTransactionSendsWorkerCopyOnlyWhenActorIsDifferentWorker() {
+		TrackerUser employee = user("worker", PrivilegeRole.Worker);
+		TrackerUser owner = user("owner", PrivilegeRole.Owner);
+		Product product = product("Beer", ProductCategory.Alcohol);
+		when(userService.businessForActor("owner")).thenReturn(business);
+		when(userService.getUserById(2L)).thenReturn(employee);
+		when(userService.getUserById(1L)).thenReturn(owner);
+		when(productService.getProductForStockUpdate(9L, 1L)).thenReturn(product);
+		when(transactionRepository.save(any(InventoryTransaction.class)))
+				.thenAnswer(invocation -> invocation.getArgument(0));
+
+		InventoryTransaction result = transactionService.createTransaction(new CreateTransactionRequest(
+				TransactionType.BUY,
+				2L,
+				1L,
+				List.of(new TransactionItemRequest(9L, 1, null))),
+				"owner");
+
+		verify(appEmailService).sendTransactionCreatedOwnerEmail(result);
+		verify(appEmailService).sendTransactionCreatedWorkerEmail(result);
+	}
+
+	@Test
+	void createTransactionContinuesWhenOwnerEmailFails() {
+		TrackerUser employee = user("worker", PrivilegeRole.Worker);
+		TrackerUser owner = user("owner", PrivilegeRole.Owner);
+		Product product = product("Beer", ProductCategory.Alcohol);
+		when(userService.getUserById(2L)).thenReturn(employee);
+		when(userService.getUserById(1L)).thenReturn(owner);
+		when(productService.getProductForStockUpdate(9L, 1L)).thenReturn(product);
+		when(transactionRepository.save(any(InventoryTransaction.class)))
+				.thenAnswer(invocation -> invocation.getArgument(0));
+		when(appEmailService.sendTransactionCreatedOwnerEmail(any(InventoryTransaction.class)))
+				.thenThrow(new IllegalStateException("smtp down"));
+
+		InventoryTransaction result = transactionService.createTransaction(new CreateTransactionRequest(
+				TransactionType.BUY,
+				2L,
+				1L,
+				List.of(new TransactionItemRequest(9L, 1, null))),
+				"worker");
+
+		assertThat(result.getItems()).hasSize(1);
+		verify(auditLogService).record(
+				eq("TRANSACTION_CREATED"),
+				eq("InventoryTransaction"),
+				any(),
+				eq("worker"),
+				eq("Transaction type: BUY, items: 1"),
+				eq(business));
 	}
 
 	@Test
@@ -378,7 +436,8 @@ class TransactionServiceTest {
 				userService,
 				auditLogService,
 				new ProductPricingService(fixedClock),
-				productBarcodeRepository);
+				productBarcodeRepository,
+				appEmailService);
 	}
 
 	private TrackerUser user(String username, PrivilegeRole role) {

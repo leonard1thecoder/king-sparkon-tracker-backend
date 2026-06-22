@@ -18,6 +18,7 @@ import com.king_sparkon_tracker.backend.model.Business;
 import com.king_sparkon_tracker.backend.model.ProductBarcode;
 import com.king_sparkon_tracker.backend.model.ProductBarcodeStatus;
 import com.king_sparkon_tracker.backend.repository.ProductBarcodeRepository;
+import com.king_sparkon_tracker.backend.repository.ProductBarcodeRepository.ReturnableBarcodeExpiryDigest;
 
 @Service
 @Transactional
@@ -30,16 +31,19 @@ public class ProductBarcodeService {
 	private final AuditLogService auditLogService;
 	private final Clock clock;
 	private final TrackerUserService userService;
+	private final AppEmailService appEmailService;
 
 	public ProductBarcodeService(
 			ProductBarcodeRepository productBarcodeRepository,
 			AuditLogService auditLogService,
 			Clock clock,
-			TrackerUserService userService) {
+			TrackerUserService userService,
+			AppEmailService appEmailService) {
 		this.productBarcodeRepository = productBarcodeRepository;
 		this.auditLogService = auditLogService;
 		this.clock = clock;
 		this.userService = userService;
+		this.appEmailService = appEmailService;
 	}
 
 	/**
@@ -111,6 +115,9 @@ public class ProductBarcodeService {
 			return 0;
 		}
 		Business business = "system".equals(actorUsername) ? null : userService.businessForActor(actorUsername);
+		List<ReturnableBarcodeExpiryDigest> systemDigest = business == null
+				? productBarcodeRepository.countReturnableExpiryDigestByBusiness(ProductBarcodeStatus.NOT_CLAIMED)
+				: List.of();
 		int expired = business == null
 				? productBarcodeRepository.updateStatusForReturnableProducts(
 						ProductBarcodeStatus.NOT_CLAIMED,
@@ -132,6 +139,11 @@ public class ProductBarcodeService {
 					expired,
 					business == null ? null : business.getId(),
 					actorUsername);
+			if (business == null) {
+				sendSystemReturnableExpiredDigest(systemDigest, actorUsername);
+			} else {
+				sendReturnableExpiredDigest(business, expired, actorUsername);
+			}
 		}
 		return expired;
 	}
@@ -157,6 +169,7 @@ public class ProductBarcodeService {
 				barcode.getBarcode(),
 				barcode.getReferencee(),
 				actorUsername);
+		sendBarcodeClaimedNotification(barcode, actorUsername);
 		return barcode;
 	}
 
@@ -192,5 +205,42 @@ public class ProductBarcodeService {
 			throw new IllegalArgumentException(message);
 		}
 		return value;
+	}
+
+	private void sendBarcodeClaimedNotification(ProductBarcode barcode, String actorUsername) {
+		Business business = barcode.getProduct().getBusiness();
+		try {
+			appEmailService.sendBarcodeClaimedEmail(barcode, actorUsername);
+		} catch (RuntimeException exception) {
+			log.warn(
+					"barcode_claimed_email_failed_non_blocking recipient={} businessId={} barcodeId={} actor={} reason={}",
+					AppEmailService.maskEmail(business.getOwner().getEmailAddress()),
+					business.getId(),
+					barcode.getId(),
+					actorUsername,
+					exception.getMessage());
+		}
+	}
+
+	private void sendSystemReturnableExpiredDigest(
+			List<ReturnableBarcodeExpiryDigest> digest,
+			String actorUsername) {
+		for (ReturnableBarcodeExpiryDigest entry : digest) {
+			sendReturnableExpiredDigest(entry.getBusiness(), entry.getExpiredCount(), actorUsername);
+		}
+	}
+
+	private void sendReturnableExpiredDigest(Business business, long expiredCount, String actorUsername) {
+		try {
+			appEmailService.sendReturnableBarcodesExpiredEmail(business, expiredCount, actorUsername);
+		} catch (RuntimeException exception) {
+			log.warn(
+					"returnable_barcodes_expired_email_failed_non_blocking recipient={} businessId={} expiredCount={} actor={} reason={}",
+					AppEmailService.maskEmail(business.getOwner().getEmailAddress()),
+					business.getId(),
+					expiredCount,
+					actorUsername,
+					exception.getMessage());
+		}
 	}
 }

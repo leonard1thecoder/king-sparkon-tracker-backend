@@ -46,6 +46,7 @@ public class TransactionService {
 	private final AuditLogService auditLogService;
 	private final ProductPricingService productPricingService;
 	private final ProductBarcodeRepository productBarcodeRepository;
+	private final AppEmailService appEmailService;
 
 	public TransactionService(
 			InventoryTransactionRepository transactionRepository,
@@ -53,13 +54,15 @@ public class TransactionService {
 			TrackerUserService userService,
 			AuditLogService auditLogService,
 			ProductPricingService productPricingService,
-			ProductBarcodeRepository productBarcodeRepository) {
+			ProductBarcodeRepository productBarcodeRepository,
+			AppEmailService appEmailService) {
 		this.transactionRepository = transactionRepository;
 		this.productService = productService;
 		this.userService = userService;
 		this.auditLogService = auditLogService;
 		this.productPricingService = productPricingService;
 		this.productBarcodeRepository = productBarcodeRepository;
+		this.appEmailService = appEmailService;
 	}
 
 	public InventoryTransaction createTransaction(CreateTransactionRequest request) {
@@ -131,6 +134,8 @@ public class TransactionService {
 				owner.getId(),
 				savedTransaction.getItems().size(),
 				actorUsername);
+
+		sendTransactionCreatedNotifications(savedTransaction, actorUsername);
 
 		return savedTransaction;
 	}
@@ -343,5 +348,35 @@ public class TransactionService {
 		}
 
 		return value;
+	}
+
+	private void sendTransactionCreatedNotifications(InventoryTransaction transaction, String actorUsername) {
+		try {
+			appEmailService.sendTransactionCreatedOwnerEmail(transaction);
+		} catch (RuntimeException exception) {
+			log.warn(
+					"transaction_created_owner_email_failed_non_blocking recipient={} transactionId={} businessId={} actor={} reason={}",
+					AppEmailService.maskEmail(transaction.getOwner().getEmailAddress()),
+					transaction.getId(),
+					transaction.getBusiness() == null ? null : transaction.getBusiness().getId(),
+					actorUsername,
+					exception.getMessage());
+		}
+
+		if (Objects.equals(transaction.getEmployee().getUsername(), actorUsername)) {
+			return;
+		}
+
+		try {
+			appEmailService.sendTransactionCreatedWorkerEmail(transaction);
+		} catch (RuntimeException exception) {
+			log.warn(
+					"transaction_created_worker_email_failed_non_blocking recipient={} transactionId={} businessId={} actor={} reason={}",
+					AppEmailService.maskEmail(transaction.getEmployee().getEmailAddress()),
+					transaction.getId(),
+					transaction.getBusiness() == null ? null : transaction.getBusiness().getId(),
+					actorUsername,
+					exception.getMessage());
+		}
 	}
 }

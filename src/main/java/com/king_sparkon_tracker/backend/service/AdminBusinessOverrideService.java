@@ -3,6 +3,8 @@ package com.king_sparkon_tracker.backend.service;
 import java.time.Clock;
 import java.time.LocalDateTime;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,20 +23,25 @@ import com.king_sparkon_tracker.backend.repository.BusinessSubscriptionRepositor
 @Transactional
 public class AdminBusinessOverrideService {
 
+	private static final Logger log = LoggerFactory.getLogger(AdminBusinessOverrideService.class);
+
 	private final BusinessRepository businessRepository;
 	private final BusinessSubscriptionRepository subscriptionRepository;
 	private final BillingAuditService billingAuditService;
 	private final Clock clock;
+	private final AppEmailService appEmailService;
 
 	public AdminBusinessOverrideService(
 			BusinessRepository businessRepository,
 			BusinessSubscriptionRepository subscriptionRepository,
 			BillingAuditService billingAuditService,
-			Clock clock) {
+			Clock clock,
+			AppEmailService appEmailService) {
 		this.businessRepository = businessRepository;
 		this.subscriptionRepository = subscriptionRepository;
 		this.billingAuditService = billingAuditService;
 		this.clock = clock;
+		this.appEmailService = appEmailService;
 	}
 
 	public BusinessBillingResponse overrideBusiness(
@@ -54,6 +61,8 @@ public class AdminBusinessOverrideService {
 		Business savedBusiness = businessRepository.save(business);
 		BusinessSubscription subscription = subscriptionRepository.findTopByBusiness_IdOrderByCreatedDateDesc(savedBusiness.getId())
 				.orElse(null);
+
+		sendAdminBusinessStatusChangedNotification(savedBusiness, request, actorUsername);
 
 		return BusinessBillingResponse.from(savedBusiness, subscription);
 	}
@@ -127,5 +136,26 @@ public class AdminBusinessOverrideService {
 		}
 
 		return base + ". Reason: " + reason;
+	}
+
+	private void sendAdminBusinessStatusChangedNotification(
+			Business business,
+			AdminBusinessOverrideRequest request,
+			String actorUsername) {
+		try {
+			appEmailService.sendAdminBusinessStatusChangedEmail(
+					business,
+					request.action(),
+					request.reason(),
+					actorUsername);
+		} catch (RuntimeException exception) {
+			log.warn(
+					"admin_business_status_changed_email_failed_non_blocking recipient={} businessId={} action={} actor={} reason={}",
+					AppEmailService.maskEmail(business.getOwner().getEmailAddress()),
+					business.getId(),
+					request.action(),
+					actorUsername,
+					exception.getMessage());
+		}
 	}
 }

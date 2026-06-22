@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -22,6 +23,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import com.king_sparkon_tracker.backend.dto.BusinessBillingResponse;
 import com.king_sparkon_tracker.backend.dto.CreateBusinessSubscriptionRequest;
+import com.king_sparkon_tracker.backend.dto.CreateStripeCheckoutSessionResponse;
 import com.king_sparkon_tracker.backend.exception.ResourceNotFoundException;
 import com.king_sparkon_tracker.backend.model.TrackerUser;
 import com.king_sparkon_tracker.backend.model.BillingAuditAction;
@@ -53,7 +55,13 @@ class BusinessBillingServiceTest {
 	private PayPalBillingClient payPalBillingClient;
 
 	@Mock
+	private StripeBillingClient stripeBillingClient;
+
+	@Mock
 	private BillingAuditService billingAuditService;
+
+	@Mock
+	private AppEmailService appEmailService;
 
 	private BusinessBillingService service;
 	private Clock fixedClock;
@@ -67,8 +75,10 @@ class BusinessBillingServiceTest {
 				userRepository,
 				new BusinessPlanPolicyService(),
 				payPalBillingClient,
+				stripeBillingClient,
 				billingAuditService,
-				fixedClock);
+				fixedClock,
+				appEmailService);
 	}
 
 	@Test
@@ -117,6 +127,34 @@ class BusinessBillingServiceTest {
 	}
 
 	@Test
+	void createStripeCheckoutSessionCreatesHostedCheckoutForPaidPlan() {
+		TrackerUser owner = owner();
+		when(userRepository.findByUsername("owner")).thenReturn(Optional.of(owner));
+		when(subscriptionRepository.save(any(BusinessSubscription.class)))
+				.thenAnswer(invocation -> invocation.getArgument(0));
+		when(stripeBillingClient.createCheckoutSession(eq(owner.getBusiness()), any(BusinessSubscription.class)))
+				.thenReturn(new StripeBillingClient.CreatedStripeCheckoutSession(
+						"cs_live_123",
+						"https://checkout.stripe.com/c/pay/cs_live_123",
+						"PLUS-MONTHLY-1"));
+
+		CreateStripeCheckoutSessionResponse response = service.createStripeCheckoutSession(
+				"owner",
+				new CreateBusinessSubscriptionRequest(BusinessPlan.PLUS, BillingInterval.MONTHLY, null));
+
+		assertThat(response.checkoutSessionId()).isEqualTo("cs_live_123");
+		assertThat(response.checkoutUrl()).isEqualTo("https://checkout.stripe.com/c/pay/cs_live_123");
+		assertThat(response.paymentStatus()).isEqualTo(SubscriptionPaymentStatus.APPROVAL_PENDING);
+		verify(billingAuditService).record(
+				owner.getBusiness(),
+				BillingAuditAction.PLAN_APPROVAL_PENDING,
+				"owner",
+				null,
+				"cs_live_123",
+				"Stripe checkout pending for PLUS");
+	}
+
+	@Test
 	void activateApprovedSubscriptionActivatesBusinessAndSubscription() {
 		TrackerUser owner = owner();
 		BusinessSubscription subscription = subscription(owner.getBusiness(), BusinessPlan.PRO, BillingInterval.MONTHLY, null);
@@ -144,6 +182,30 @@ class BusinessBillingServiceTest {
 				null,
 				"I-SUB-123",
 				"Manual approval activation");
+		verify(appEmailService).sendBillingActivatedEmail(
+				owner.getBusiness(),
+				subscription,
+				"Manual approval activation");
+	}
+
+	@Test
+	void activateApprovedSubscriptionContinuesWhenActivatedEmailFails() {
+		TrackerUser owner = owner();
+		BusinessSubscription subscription = subscription(owner.getBusiness(), BusinessPlan.PRO, BillingInterval.MONTHLY, null);
+		ReflectionTestUtils.setField(subscription, "id", 99L);
+		subscription.markApprovalPending("I-SUB-123", "I-SUB-123", "P-PRO-MONTH", "https://paypal.example/approve");
+		when(userRepository.findByUsername("owner")).thenReturn(Optional.of(owner));
+		when(subscriptionRepository.findById(99L)).thenReturn(Optional.of(subscription));
+		when(payPalBillingClient.subscriptionStatus("I-SUB-123")).thenReturn("ACTIVE");
+		when(businessRepository.save(owner.getBusiness())).thenReturn(owner.getBusiness());
+		when(subscriptionRepository.save(subscription)).thenReturn(subscription);
+		doThrow(new IllegalStateException("smtp down"))
+				.when(appEmailService)
+				.sendBillingActivatedEmail(owner.getBusiness(), subscription, "Manual approval activation");
+
+		BusinessBillingResponse response = service.activateApprovedSubscription("owner", 99L);
+
+		assertThat(response.businessStatus()).isEqualTo(BusinessStatus.ACTIVE);
 	}
 
 	@Test
@@ -195,6 +257,200 @@ class BusinessBillingServiceTest {
 				"EVT-FAILED",
 				"I-SUB-123",
 				"PayPal subscription payment failed. Business marked PAST_DUE");
+		verify(appEmailService).sendBillingPaymentFailedEmail(
+				owner.getBusiness(),
+				subscription,
+				"PayPal subscription payment failed. Business marked PAST_DUE");
+	}
+
+	@Test
+	void handlePayPalSubscriptionActivatedSendsActivatedEmail() {
+		TrackerUser owner = owner();
+		BusinessSubscription subscription = subscription(owner.getBusiness(), BusinessPlan.PLUS, BillingInterval.MONTHLY, null);
+		subscription.markApprovalPending("I-SUB-123", "I-SUB-123", "P-PLUS-MONTH", null);
+		when(subscriptionRepository.findByPaypalSubscriptionId("I-SUB-123")).thenReturn(Optional.of(subscription));
+		when(businessRepository.save(owner.getBusiness())).thenReturn(owner.getBusiness());
+		when(subscriptionRepository.save(subscription)).thenReturn(subscription);
+
+		service.handlePayPalSubscriptionActivated("I-SUB-123", "EVT-ACTIVE");
+
+		verify(appEmailService).sendBillingActivatedEmail(
+				owner.getBusiness(),
+				subscription,
+				"PayPal subscription activated");
+	}
+
+	@Test
+	void handleStripeCheckoutSessionCompletedActivatesBusinessAndSubscription() {
+		TrackerUser owner = owner();
+		BusinessSubscription subscription = subscription(owner.getBusiness(), BusinessPlan.PLUS, BillingInterval.MONTHLY, null);
+		ReflectionTestUtils.setField(subscription, "id", 77L);
+		subscription.markStripeCheckoutPending("cs_live_123", "PLUS-MONTHLY-1", "https://checkout.stripe.com/c/pay/cs_live_123");
+		when(subscriptionRepository.findByStripeCheckoutSessionId("cs_live_123")).thenReturn(Optional.of(subscription));
+		when(businessRepository.save(owner.getBusiness())).thenReturn(owner.getBusiness());
+		when(subscriptionRepository.save(subscription)).thenReturn(subscription);
+
+		service.handleStripeCheckoutSessionCompleted("cs_live_123", "sub_live_123", "evt_123");
+
+		assertThat(subscription.getStripeSubscriptionId()).isEqualTo("sub_live_123");
+		assertThat(subscription.getStatus()).isEqualTo(SubscriptionPaymentStatus.ACTIVE);
+		assertThat(owner.getBusiness().getStripeSubscriptionId()).isEqualTo("sub_live_123");
+		assertThat(owner.getBusiness().getCurrentBillingPeriodEndDate())
+				.isEqualTo(java.time.LocalDateTime.of(2026, 7, 1, 12, 0));
+		verify(billingAuditService).record(
+				owner.getBusiness(),
+				BillingAuditAction.PLAN_ACTIVATED,
+				"stripe-webhook",
+				"evt_123",
+				"sub_live_123",
+				"Stripe checkout completed");
+		verify(appEmailService).sendBillingActivatedEmail(
+				owner.getBusiness(),
+				subscription,
+				"Stripe checkout completed");
+	}
+
+	@Test
+	void handleStripeInvoicePaymentSucceededOnlyAuditsWhenAlreadyCurrent() {
+		TrackerUser owner = owner();
+		BusinessSubscription subscription = subscription(owner.getBusiness(), BusinessPlan.PLUS, BillingInterval.MONTHLY, null);
+		subscription.markStripeCheckoutPending("cs_live_123", "PLUS-MONTHLY-1", "https://checkout.stripe.com/c/pay/cs_live_123");
+		subscription.markStripeSubscription("sub_live_123");
+		subscription.activate(
+				java.time.LocalDateTime.of(2026, 6, 1, 12, 0),
+				java.time.LocalDateTime.of(2026, 7, 1, 12, 0));
+		owner.getBusiness().activateStripePaidPlan(
+				BusinessPlan.PLUS,
+				java.time.LocalDateTime.of(2026, 6, 1, 12, 0),
+				java.time.LocalDateTime.of(2026, 7, 1, 12, 0),
+				"sub_live_123",
+				"PLUS-MONTHLY-1");
+		when(subscriptionRepository.findByStripeSubscriptionId("sub_live_123")).thenReturn(Optional.of(subscription));
+
+		service.handleStripeInvoicePaymentSucceeded("sub_live_123", "evt_paid");
+
+		verify(billingAuditService).record(
+				owner.getBusiness(),
+				BillingAuditAction.PAYMENT_SUCCESS,
+				"stripe-webhook",
+				"evt_paid",
+				"sub_live_123",
+				"Stripe subscription payment confirmed");
+	}
+
+	@Test
+	void handlePayPalPaymentCompletedSendsActivatedEmail() {
+		TrackerUser owner = owner();
+		BusinessSubscription subscription = subscription(owner.getBusiness(), BusinessPlan.PLUS, BillingInterval.MONTHLY, null);
+		subscription.markApprovalPending("I-SUB-123", "I-SUB-123", "P-PLUS-MONTH", null);
+		when(subscriptionRepository.findByPaypalSubscriptionId("I-SUB-123")).thenReturn(Optional.of(subscription));
+		when(businessRepository.save(owner.getBusiness())).thenReturn(owner.getBusiness());
+		when(subscriptionRepository.save(subscription)).thenReturn(subscription);
+
+		service.handlePayPalPaymentCompleted("I-SUB-123", "EVT-PAID");
+
+		verify(appEmailService).sendBillingActivatedEmail(
+				owner.getBusiness(),
+				subscription,
+				"PayPal subscription payment completed");
+	}
+
+	@Test
+	void handlePayPalSubscriptionCancelledSendsCancelledEmail() {
+		TrackerUser owner = owner();
+		BusinessSubscription subscription = subscription(owner.getBusiness(), BusinessPlan.PLUS, BillingInterval.MONTHLY, null);
+		subscription.markApprovalPending("I-SUB-123", "I-SUB-123", "P-PLUS-MONTH", null);
+		when(subscriptionRepository.findByPaypalSubscriptionId("I-SUB-123")).thenReturn(Optional.of(subscription));
+		when(subscriptionRepository.save(subscription)).thenReturn(subscription);
+		when(businessRepository.save(owner.getBusiness())).thenReturn(owner.getBusiness());
+
+		service.handlePayPalSubscriptionCancelled("I-SUB-123", "EVT-CANCEL");
+
+		verify(appEmailService).sendBillingCancelledEmail(
+				owner.getBusiness(),
+				subscription,
+				"PayPal subscription cancelled. Business deactivated");
+	}
+
+	@Test
+	void handleStripeInvoicePaymentFailedMarksBusinessPastDue() {
+		TrackerUser owner = owner();
+		BusinessSubscription subscription = subscription(owner.getBusiness(), BusinessPlan.PLUS, BillingInterval.MONTHLY, null);
+		subscription.markStripeCheckoutPending("cs_live_123", "PLUS-MONTHLY-1", "https://checkout.stripe.com/c/pay/cs_live_123");
+		subscription.markStripeSubscription("sub_live_123");
+		when(subscriptionRepository.findByStripeSubscriptionId("sub_live_123")).thenReturn(Optional.of(subscription));
+		when(subscriptionRepository.save(subscription)).thenReturn(subscription);
+		when(businessRepository.save(owner.getBusiness())).thenReturn(owner.getBusiness());
+
+		service.handleStripeInvoicePaymentFailed("sub_live_123", "evt_failed");
+
+		assertThat(subscription.getStatus()).isEqualTo(SubscriptionPaymentStatus.PAYMENT_FAILED);
+		assertThat(owner.getBusiness().getBusinessStatus()).isEqualTo(BusinessStatus.PAST_DUE);
+		verify(billingAuditService).record(
+				owner.getBusiness(),
+				BillingAuditAction.PAYMENT_FAILED,
+				"stripe-webhook",
+				"evt_failed",
+				"sub_live_123",
+				"Stripe subscription payment failed. Business marked PAST_DUE");
+		verify(appEmailService).sendBillingPaymentFailedEmail(
+				owner.getBusiness(),
+				subscription,
+				"Stripe subscription payment failed. Business marked PAST_DUE");
+	}
+
+	@Test
+	void handleStripeSubscriptionCancelledDeactivatesBusiness() {
+		TrackerUser owner = owner();
+		BusinessSubscription subscription = subscription(owner.getBusiness(), BusinessPlan.PLUS, BillingInterval.MONTHLY, null);
+		subscription.markStripeCheckoutPending("cs_live_123", "PLUS-MONTHLY-1", "https://checkout.stripe.com/c/pay/cs_live_123");
+		subscription.markStripeSubscription("sub_live_123");
+		when(subscriptionRepository.findByStripeSubscriptionId("sub_live_123")).thenReturn(Optional.of(subscription));
+		when(subscriptionRepository.save(subscription)).thenReturn(subscription);
+		when(businessRepository.save(owner.getBusiness())).thenReturn(owner.getBusiness());
+
+		service.handleStripeSubscriptionCancelled("sub_live_123", "evt_deleted");
+
+		assertThat(subscription.getStatus()).isEqualTo(SubscriptionPaymentStatus.CANCELLED);
+		assertThat(owner.getBusiness().getBusinessStatus()).isEqualTo(BusinessStatus.DEACTIVATED);
+		verify(appEmailService).sendBillingCancelledEmail(
+				owner.getBusiness(),
+				subscription,
+				"Stripe subscription cancelled. Business deactivated");
+	}
+
+	@Test
+	void handlePayPalSubscriptionSuspendedSendsSuspendedEmail() {
+		TrackerUser owner = owner();
+		BusinessSubscription subscription = subscription(owner.getBusiness(), BusinessPlan.PLUS, BillingInterval.MONTHLY, null);
+		subscription.markApprovalPending("I-SUB-123", "I-SUB-123", "P-PLUS-MONTH", null);
+		when(subscriptionRepository.findByPaypalSubscriptionId("I-SUB-123")).thenReturn(Optional.of(subscription));
+		when(subscriptionRepository.save(subscription)).thenReturn(subscription);
+		when(businessRepository.save(owner.getBusiness())).thenReturn(owner.getBusiness());
+
+		service.handlePayPalSubscriptionSuspended("I-SUB-123", "EVT-SUSPEND");
+
+		verify(appEmailService).sendBillingSuspendedEmail(
+				owner.getBusiness(),
+				subscription,
+				"PayPal subscription suspended. Business deactivated");
+	}
+
+	@Test
+	void handlePayPalSubscriptionExpiredSendsExpiredEmail() {
+		TrackerUser owner = owner();
+		BusinessSubscription subscription = subscription(owner.getBusiness(), BusinessPlan.PLUS, BillingInterval.MONTHLY, null);
+		subscription.markApprovalPending("I-SUB-123", "I-SUB-123", "P-PLUS-MONTH", null);
+		when(subscriptionRepository.findByPaypalSubscriptionId("I-SUB-123")).thenReturn(Optional.of(subscription));
+		when(subscriptionRepository.save(subscription)).thenReturn(subscription);
+		when(businessRepository.save(owner.getBusiness())).thenReturn(owner.getBusiness());
+
+		service.handlePayPalSubscriptionExpired("I-SUB-123", "EVT-EXPIRED");
+
+		verify(appEmailService).sendBillingExpiredEmail(
+				owner.getBusiness(),
+				subscription,
+				"PayPal subscription expired. Business deactivated");
 	}
 
 	@Test
@@ -230,6 +486,28 @@ class BusinessBillingServiceTest {
 				eq(null),
 				eq(null),
 				eq("Billing period expired without confirmed payment. Business deactivated"));
+		verify(appEmailService).sendBusinessDeactivatedEmail(expiredTrial, "Free trial expired. Business deactivated");
+		verify(appEmailService).sendBusinessDeactivatedEmail(expiredActive, "Billing period expired without confirmed payment. Business deactivated");
+	}
+
+	@Test
+	void deactivateExpiredTrialsContinuesWhenDeactivatedEmailFails() {
+		Business expiredTrial = business("Trial Store", 1L);
+		expiredTrial.setBusinessStatus(BusinessStatus.TRIAL);
+		when(businessRepository.findByBusinessStatusAndTrialEndDateBefore(
+				eq(BusinessStatus.TRIAL),
+				any(java.time.LocalDateTime.class))).thenReturn(List.of(expiredTrial));
+		when(businessRepository.findByBusinessStatusAndCurrentBillingPeriodEndDateBefore(
+				eq(BusinessStatus.ACTIVE),
+				any(java.time.LocalDateTime.class))).thenReturn(List.of());
+		when(businessRepository.save(expiredTrial)).thenReturn(expiredTrial);
+		doThrow(new IllegalStateException("smtp down"))
+				.when(appEmailService)
+				.sendBusinessDeactivatedEmail(expiredTrial, "Free trial expired. Business deactivated");
+
+		service.deactivateExpiredTrialsAndUnpaidBusinesses();
+
+		assertThat(expiredTrial.getBusinessStatus()).isEqualTo(BusinessStatus.DEACTIVATED);
 	}
 
 	@Test
@@ -240,12 +518,28 @@ class BusinessBillingServiceTest {
 	}
 
 	@Test
+	void handleStripeCheckoutRequiresSubscriptionId() {
+		assertThatThrownBy(() -> service.handleStripeCheckoutSessionCompleted("cs_live_123", " ", "evt_123"))
+				.isInstanceOf(IllegalArgumentException.class)
+				.hasMessage("Stripe subscription id is required");
+	}
+
+	@Test
 	void handlePayPalSubscriptionThrowsWhenUnknown() {
 		when(subscriptionRepository.findByPaypalSubscriptionId("I-MISSING")).thenReturn(Optional.empty());
 
 		assertThatThrownBy(() -> service.handlePayPalSubscriptionActivated("I-MISSING", "EVT-1"))
 				.isInstanceOf(ResourceNotFoundException.class)
 				.hasMessage("Subscription not found for PayPal id: I-MISSING");
+	}
+
+	@Test
+	void handleStripeSubscriptionThrowsWhenUnknown() {
+		when(subscriptionRepository.findByStripeSubscriptionId("sub_missing")).thenReturn(Optional.empty());
+
+		assertThatThrownBy(() -> service.handleStripeInvoicePaymentSucceeded("sub_missing", "evt_1"))
+				.isInstanceOf(ResourceNotFoundException.class)
+				.hasMessage("Subscription not found for Stripe id: sub_missing");
 	}
 
 	private TrackerUser owner() {

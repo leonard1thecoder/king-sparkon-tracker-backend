@@ -20,13 +20,15 @@ public record BusinessBillingResponse(
 		LocalDateTime currentBillingPeriodStartDate,
 		LocalDateTime currentBillingPeriodEndDate,
 		String paypalSubscriptionId,
+		String stripeSubscriptionId,
 		Long subscriptionId,
 		BillingInterval billingInterval,
 		Integer termYears,
 		BigDecimal amount,
 		String currency,
 		SubscriptionPaymentStatus paymentStatus,
-		String paypalApprovalUrl
+		String paypalApprovalUrl,
+		String stripeCheckoutUrl
 ) {
 
 	public static BusinessBillingResponse from(Business business, BusinessSubscription subscription) {
@@ -40,13 +42,15 @@ public record BusinessBillingResponse(
 				business.getCurrentBillingPeriodStartDate(),
 				business.getCurrentBillingPeriodEndDate(),
 				business.getPaypalSubscriptionId(),
+				business.getStripeSubscriptionId(),
 				subscription == null ? null : subscription.getId(),
 				subscription == null ? null : subscription.getBillingInterval(),
 				subscription == null ? null : subscription.getTermYears(),
 				subscription == null ? null : subscription.getAmount(),
 				subscription == null ? null : subscription.getCurrency(),
 				subscription == null ? null : subscription.getStatus(),
-				subscription == null ? null : subscription.getPaypalApprovalUrl()
+				subscription == null ? null : subscription.getPaypalApprovalUrl(),
+				subscription == null ? null : subscription.getStripeCheckoutUrl()
 		);
 	}
 }

@@ -80,6 +80,7 @@ public class SecurityConfig {
 						.requestMatchers(HttpMethod.GET, "/api/auth/verify-email").permitAll()
 						.requestMatchers(HttpMethod.POST, "/api/contact-inquiries").permitAll()
 						.requestMatchers(HttpMethod.POST, "/api/paypal/webhooks").permitAll()
+						.requestMatchers(HttpMethod.POST, "/api/stripe/webhooks").permitAll()
 						.requestMatchers("/h2-console/**").access((authentication, context) -> h2ConsoleEnabled
 								? new org.springframework.security.authorization.AuthorizationDecision(true)
 								: new org.springframework.security.authorization.AuthorizationDecision(false))

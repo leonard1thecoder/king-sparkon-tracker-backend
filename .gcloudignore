@@ -1,0 +1,14 @@
+.gcloudignore
+.git/
+.idea/
+.agents/
+.codex/
+.env
+.env.*
+target/
+mvnw
+mvnw.cmd
+*.log
+hs_err_pid*.log
+replay_pid*.log
+node_modules/
