@@ -43,6 +43,7 @@ public class TrackerUserService {
 	private final EmailVerificationService emailVerificationService;
 	private final BusinessPlanPolicyService businessPlanPolicyService;
 	private final BusinessAccessService businessAccessService;
+	private final AppEmailService appEmailService;
 
 	public TrackerUserService(
 			TrackerUserRepository userRepository,
@@ -52,7 +53,8 @@ public class TrackerUserService {
 			AuditLogService auditLogService,
 			EmailVerificationService emailVerificationService,
 			BusinessPlanPolicyService businessPlanPolicyService,
-			BusinessAccessService businessAccessService) {
+			BusinessAccessService businessAccessService,
+			AppEmailService appEmailService) {
 		this.userRepository = userRepository;
 		this.emailVerificationService = emailVerificationService;
 		this.businessRepository = businessRepository;
@@ -61,6 +63,7 @@ public class TrackerUserService {
 		this.auditLogService = auditLogService;
 		this.businessPlanPolicyService = businessPlanPolicyService;
 		this.businessAccessService = businessAccessService;
+		this.appEmailService = appEmailService;
 	}
 
 	public TrackerUser registerOwner(RegisterUserRequest request) {
@@ -158,6 +161,8 @@ public class TrackerUserService {
 				workerLimitLabel(businessPlanPolicyService.maxWorkers(business)),
 				actorUsername
 		);
+
+		sendWorkerCreatedNotification(worker, business);
 
 		return worker;
 	}
@@ -371,5 +376,18 @@ public class TrackerUserService {
 
 	private String workerLimitLabel(int workerLimit) {
 		return workerLimit == BusinessPlanPolicyService.UNLIMITED ? "UNLIMITED" : String.valueOf(workerLimit);
+	}
+
+	private void sendWorkerCreatedNotification(TrackerUser worker, Business business) {
+		try {
+			appEmailService.sendWorkerCreatedEmail(worker, business);
+		} catch (RuntimeException exception) {
+			log.warn(
+					"worker_created_email_failed_non_blocking recipient={} businessId={} workerId={} reason={}",
+					AppEmailService.maskEmail(worker.getEmailAddress()),
+					business.getId(),
+					worker.getId(),
+					exception.getMessage());
+		}
 	}
 }

@@ -44,6 +44,9 @@ class ProductBarcodeServiceTest {
 	@Mock
 	private TrackerUserService userService;
 
+	@Mock
+	private AppEmailService appEmailService;
+
 	private Business business;
 
 	@BeforeEach
@@ -84,6 +87,7 @@ class ProductBarcodeServiceTest {
 				"worker",
 				"Expired not claimed returnable barcodes: 3",
 				business);
+		verify(appEmailService).sendReturnableBarcodesExpiredEmail(business, 3, "worker");
 	}
 
 	@Test
@@ -119,6 +123,41 @@ class ProductBarcodeServiceTest {
 				"worker",
 				"Returnable barcode claimed by reference: 0821234567",
 				business);
+		verify(appEmailService).sendBarcodeClaimedEmail(barcode, "worker");
+	}
+
+	@Test
+	void claimByReferenceContinuesWhenClaimEmailFails() {
+		ProductBarcode barcode = barcode(14L, true, ProductBarcodeStatus.NOT_CLAIMED);
+		when(productBarcodeRepository.findByReference("0821234567", 1L)).thenReturn(List.of(barcode));
+		when(productBarcodeRepository.updateStatus(14L, ProductBarcodeStatus.CLAIMED)).thenReturn(1);
+		when(appEmailService.sendBarcodeClaimedEmail(barcode, "worker"))
+				.thenThrow(new IllegalStateException("smtp down"));
+
+		ProductBarcode result = serviceAt(LocalDateTime.of(2026, 6, 1, 10, 0))
+				.claimByReference("0821234567", "worker");
+
+		assertThat(result.getStatus()).isEqualTo(ProductBarcodeStatus.CLAIMED);
+	}
+
+	@Test
+	void expireReturnableBarcodesAtSystemCutoffSendsDigestPerBusiness() {
+		Business otherBusiness = business("Other Store", 2L);
+		ReturnableDigest firstDigest = new ReturnableDigest(business, 3L);
+		ReturnableDigest secondDigest = new ReturnableDigest(otherBusiness, 2L);
+		when(productBarcodeRepository.countReturnableExpiryDigestByBusiness(ProductBarcodeStatus.NOT_CLAIMED))
+				.thenReturn(List.of(firstDigest, secondDigest));
+		when(productBarcodeRepository.updateStatusForReturnableProducts(
+				ProductBarcodeStatus.NOT_CLAIMED,
+				ProductBarcodeStatus.EXPIRED))
+				.thenReturn(5);
+
+		int expired = serviceAt(LocalDateTime.of(2026, 6, 5, 17, 0))
+				.expireReturnableBarcodesIfNeeded("system");
+
+		assertThat(expired).isEqualTo(5);
+		verify(appEmailService).sendReturnableBarcodesExpiredEmail(business, 3L, "system");
+		verify(appEmailService).sendReturnableBarcodesExpiredEmail(otherBusiness, 2L, "system");
 	}
 
 	@Test
@@ -180,7 +219,7 @@ class ProductBarcodeServiceTest {
 
 	private ProductBarcodeService serviceAt(LocalDateTime dateTime) {
 		Clock clock = Clock.fixed(dateTime.atZone(BUSINESS_ZONE).toInstant(), BUSINESS_ZONE);
-		return new ProductBarcodeService(productBarcodeRepository, auditLogService, clock, userService);
+		return new ProductBarcodeService(productBarcodeRepository, auditLogService, clock, userService, appEmailService);
 	}
 
 	private ProductBarcode barcode(Long id, boolean bottleReturnable, ProductBarcodeStatus status) {
@@ -198,5 +237,30 @@ class ProductBarcodeServiceTest {
 		ReflectionTestUtils.setField(product, "id", 9L);
 		ReflectionTestUtils.setField(barcode, "id", id);
 		return barcode;
+	}
+
+	private Business business(String name, Long id) {
+		TrackerUser owner = new TrackerUser(
+				name.toLowerCase().replace(" ", "-"),
+				name.toLowerCase().replace(" ", "-") + "@example.com",
+				"encoded",
+				new com.king_sparkon_tracker.backend.model.Privilege(com.king_sparkon_tracker.backend.model.PrivilegeRole.Owner));
+		Business business = new Business(name, owner);
+		ReflectionTestUtils.setField(business, "id", id);
+		owner.setBusiness(business);
+		return business;
+	}
+
+	private record ReturnableDigest(Business business, long expiredCount)
+			implements com.king_sparkon_tracker.backend.repository.ProductBarcodeRepository.ReturnableBarcodeExpiryDigest {
+		@Override
+		public Business getBusiness() {
+			return business;
+		}
+
+		@Override
+		public long getExpiredCount() {
+			return expiredCount;
+		}
 	}
 }

@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head><meta charset="UTF-8"><title>Transaction recorded</title></head>
+<body style="margin:0;background:#f4f7fb;font-family:Arial,Helvetica,sans-serif;color:#111827;">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f4f7fb;padding:32px 16px;"><tr><td align="center">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:620px;background:#ffffff;border:1px solid #e5e7eb;border-radius:18px;overflow:hidden;">
+        <tr><td style="background:#0f172a;color:#ffffff;padding:28px 32px;"><p style="margin:0 0 10px;font-size:13px;letter-spacing:.08em;text-transform:uppercase;">King Sparkon Tracker</p><h1 style="margin:0;font-size:26px;">Transaction recorded</h1></td></tr>
+        <tr><td style="padding:30px 32px;font-size:15px;line-height:1.7;color:#374151;">
+            <p style="margin:0 0 16px;">Hi <strong th:text="${employeeUsername}">worker</strong>,</p>
+            <p style="margin:0 0 16px;">A <strong th:text="${transactionType}">SELL</strong> transaction was recorded for you in <strong th:text="${businessName}">Business</strong>.</p>
+            <p style="margin:0 0 8px;">Date: <strong th:text="${transactionDate}">date</strong></p>
+            <p style="margin:0;">Items: <strong th:text="${itemCount}">0</strong></p>
+        </td></tr>
+        <tr><td style="padding:20px 32px;background:#f9fafb;border-top:1px solid #e5e7eb;color:#6b7280;font-size:13px;">Need help? Contact <span th:text="${supportEmail}">support@example.com</span>.</td></tr>
+    </table>
+</td></tr></table>
+</body>
+</html>

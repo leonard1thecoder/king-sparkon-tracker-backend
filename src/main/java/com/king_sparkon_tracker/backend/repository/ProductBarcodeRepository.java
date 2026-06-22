@@ -11,6 +11,7 @@ import org.springframework.data.repository.query.Param;
 
 import com.king_sparkon_tracker.backend.model.ProductBarcode;
 import com.king_sparkon_tracker.backend.model.ProductBarcodeStatus;
+import com.king_sparkon_tracker.backend.model.Business;
 
 public interface ProductBarcodeRepository extends JpaRepository<ProductBarcode, Long> {
 
@@ -54,6 +55,16 @@ public interface ProductBarcodeRepository extends JpaRepository<ProductBarcode, 
 	long countByProduct_Id(Long productId);
 
 	long countByStatus(ProductBarcodeStatus status);
+
+	@Query("""
+			select barcode.product.business as business, count(barcode) as expiredCount
+			from ProductBarcode barcode
+			where barcode.status = :status
+			and barcode.product.returnableEnabled = true
+			group by barcode.product.business
+			""")
+	List<ReturnableBarcodeExpiryDigest> countReturnableExpiryDigestByBusiness(
+			@Param("status") ProductBarcodeStatus status);
 
 	@Modifying(clearAutomatically = true, flushAutomatically = true)
 	@Query("update ProductBarcode barcode set barcode.status = :status where barcode.id = :id")
@@ -104,4 +115,10 @@ public interface ProductBarcodeRepository extends JpaRepository<ProductBarcode, 
 			@Param("businessId") Long businessId,
 			@Param("oldStatus") ProductBarcodeStatus oldStatus,
 			@Param("newStatus") ProductBarcodeStatus newStatus);
+
+	interface ReturnableBarcodeExpiryDigest {
+		Business getBusiness();
+
+		long getExpiredCount();
+	}
 }

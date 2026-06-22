@@ -3,6 +3,7 @@ package com.king_sparkon_tracker.backend.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -45,6 +46,9 @@ class AdminBusinessOverrideServiceTest {
 	@Mock
 	private BillingAuditService billingAuditService;
 
+	@Mock
+	private AppEmailService appEmailService;
+
 	private AdminBusinessOverrideService service;
 
 	@BeforeEach
@@ -54,7 +58,8 @@ class AdminBusinessOverrideServiceTest {
 				businessRepository,
 				subscriptionRepository,
 				billingAuditService,
-				clock);
+				clock,
+				appEmailService);
 	}
 
 	@Test
@@ -84,6 +89,11 @@ class AdminBusinessOverrideServiceTest {
 				null,
 				null,
 				"Admin reactivated business. Reason: manual payment confirmed");
+		verify(appEmailService).sendAdminBusinessStatusChangedEmail(
+				business,
+				AdminBusinessOverrideAction.REACTIVATE,
+				"manual payment confirmed",
+				"admin");
 	}
 
 	@Test
@@ -110,6 +120,37 @@ class AdminBusinessOverrideServiceTest {
 				null,
 				null,
 				"Admin deactivated business. Reason: trial abuse");
+		verify(appEmailService).sendAdminBusinessStatusChangedEmail(
+				business,
+				AdminBusinessOverrideAction.DEACTIVATE,
+				"trial abuse",
+				"admin");
+	}
+
+	@Test
+	void overrideBusinessContinuesWhenAdminStatusEmailFails() {
+		Business business = business();
+		when(businessRepository.findById(1L)).thenReturn(Optional.of(business));
+		when(businessRepository.save(business)).thenReturn(business);
+		when(subscriptionRepository.findTopByBusiness_IdOrderByCreatedDateDesc(1L)).thenReturn(Optional.empty());
+		doThrow(new IllegalStateException("smtp down"))
+				.when(appEmailService)
+				.sendAdminBusinessStatusChangedEmail(
+						business,
+						AdminBusinessOverrideAction.DEACTIVATE,
+						"trial abuse",
+						"admin");
+
+		BusinessBillingResponse response = service.overrideBusiness(
+				1L,
+				new AdminBusinessOverrideRequest(
+						AdminBusinessOverrideAction.DEACTIVATE,
+						null,
+						null,
+						"trial abuse"),
+				"admin");
+
+		assertThat(response.businessStatus()).isEqualTo(BusinessStatus.DEACTIVATED);
 	}
 
 	@Test
@@ -144,6 +185,11 @@ class AdminBusinessOverrideServiceTest {
 				eq(null),
 				eq(null),
 				eq("Admin marked business past due"));
+		verify(appEmailService).sendAdminBusinessStatusChangedEmail(
+				business,
+				AdminBusinessOverrideAction.MARK_PAST_DUE,
+				null,
+				"admin");
 	}
 
 	private Business business() {

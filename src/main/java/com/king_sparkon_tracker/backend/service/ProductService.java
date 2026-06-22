@@ -40,18 +40,21 @@ public class ProductService {
 	private final AuditLogService auditLogService;
 	private final TrackerUserService userService;
 	private final BusinessAccessService businessAccessService;
+	private final AppEmailService appEmailService;
 
 	public ProductService(
 			ProductRepository productRepository,
 			ProductBarcodeRepository productBarcodeRepository,
 			AuditLogService auditLogService,
 			TrackerUserService userService,
-			BusinessAccessService businessAccessService) {
+			BusinessAccessService businessAccessService,
+			AppEmailService appEmailService) {
 		this.productRepository = productRepository;
 		this.productBarcodeRepository = productBarcodeRepository;
 		this.auditLogService = auditLogService;
 		this.userService = userService;
 		this.businessAccessService = businessAccessService;
+		this.appEmailService = appEmailService;
 	}
 
 	public Product createProduct(ProductRequest request) {
@@ -237,6 +240,8 @@ public class ProductService {
 				business
 		);
 
+		sendProductApprovalRequestNotification(business, savedProduct, actorUsername, existingBarcodeCount);
+
 		return productRepository.findWithBarcodesByIdAndBusiness_Id(id, business.getId())
 				.orElseThrow(() -> new ResourceNotFoundException("Product not found: " + id));
 	}
@@ -388,5 +393,23 @@ public class ProductService {
 		}
 
 		return requireNonNegative(requirePresent(value, requiredMessage), negativeMessage);
+	}
+
+	private void sendProductApprovalRequestNotification(
+			Business business,
+			Product product,
+			String actorUsername,
+			long barcodeCount) {
+		try {
+			appEmailService.sendProductApprovalRequestEmail(business, product, actorUsername, barcodeCount);
+		} catch (RuntimeException exception) {
+			log.warn(
+					"product_approval_request_email_failed_non_blocking recipient={} businessId={} productId={} actor={} reason={}",
+					AppEmailService.maskEmail(business.getOwner().getEmailAddress()),
+					business.getId(),
+					product.getId(),
+					actorUsername,
+					exception.getMessage());
+		}
 	}
 }

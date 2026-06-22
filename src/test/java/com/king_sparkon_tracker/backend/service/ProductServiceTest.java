@@ -3,6 +3,7 @@ package com.king_sparkon_tracker.backend.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -51,6 +52,9 @@ class ProductServiceTest {
 
 	@Mock
 	private BusinessAccessService businessAccessService;
+
+	@Mock
+	private AppEmailService appEmailService;
 
 	@InjectMocks
 	private ProductService productService;
@@ -256,6 +260,31 @@ class ProductServiceTest {
 
 		assertThat(result.getStatus()).isEqualTo(ProductStatus.PENDING_APPROVAL);
 		verify(productRepository).save(product);
+		verify(appEmailService).sendProductApprovalRequestEmail(business, product, "worker", 2L);
+	}
+
+	@Test
+	void submitProductForApprovalContinuesWhenApprovalEmailFails() {
+		Business business = business();
+		Product product = product("Water", ProductCategory.NonAlcohol, 2);
+		when(userService.businessForActor("worker")).thenReturn(business);
+		when(productRepository.findLockedByIdAndBusiness_Id(7L, business.getId())).thenReturn(Optional.of(product));
+		when(productBarcodeRepository.countByProduct_Id(7L)).thenReturn(2L);
+		when(productRepository.save(product)).thenReturn(product);
+		when(productRepository.findWithBarcodesByIdAndBusiness_Id(7L, business.getId())).thenReturn(Optional.of(product));
+		when(appEmailService.sendProductApprovalRequestEmail(business, product, "worker", 2L))
+				.thenThrow(new IllegalStateException("smtp down"));
+
+		Product result = productService.submitProductForApproval(7L, "worker");
+
+		assertThat(result.getStatus()).isEqualTo(ProductStatus.PENDING_APPROVAL);
+		verify(auditLogService).record(
+				eq("PRODUCT_SUBMITTED_FOR_APPROVAL"),
+				eq("Product"),
+				any(),
+				eq("worker"),
+				eq("Product submitted for approval with barcode count: 2"),
+				eq(business));
 	}
 
 	@Test

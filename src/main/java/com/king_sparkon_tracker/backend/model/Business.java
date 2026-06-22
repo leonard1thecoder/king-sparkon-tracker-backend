@@ -68,6 +68,12 @@ public class Business {
 	@Column(name = "paypal_plan_id")
 	private String paypalPlanId;
 
+	@Column(name = "stripe_subscription_id")
+	private String stripeSubscriptionId;
+
+	@Column(name = "stripe_price_id")
+	private String stripePriceId;
+
 	@Column(name = "last_payment_date")
 	private LocalDateTime lastPaymentDate;
 
@@ -146,6 +152,24 @@ public class Business {
 		this.paypalSubscriptionId = paypalSubscriptionId;
 		this.paypalSubscriptionToken = paypalSubscriptionToken;
 		this.paypalPlanId = paypalPlanId;
+	}
+
+	public void activateStripePaidPlan(
+			BusinessPlan plan,
+			LocalDateTime periodStart,
+			LocalDateTime periodEnd,
+			String stripeSubscriptionId,
+			String stripePriceId) {
+		this.businessPlan = plan;
+		this.businessStatus = BusinessStatus.ACTIVE;
+		this.subscriptionStartDate = periodStart;
+		this.subscriptionEndDate = periodEnd;
+		this.currentBillingPeriodStartDate = periodStart;
+		this.currentBillingPeriodEndDate = periodEnd;
+		this.lastPaymentDate = periodStart;
+		this.nextBillingDate = periodEnd;
+		this.stripeSubscriptionId = stripeSubscriptionId;
+		this.stripePriceId = stripePriceId;
 	}
 
 	public void extendBillingPeriod(LocalDateTime periodStart, LocalDateTime periodEnd) {
@@ -274,6 +298,22 @@ public class Business {
 
 	public void setPaypalPlanId(String paypalPlanId) {
 		this.paypalPlanId = paypalPlanId;
+	}
+
+	public String getStripeSubscriptionId() {
+		return stripeSubscriptionId;
+	}
+
+	public void setStripeSubscriptionId(String stripeSubscriptionId) {
+		this.stripeSubscriptionId = stripeSubscriptionId;
+	}
+
+	public String getStripePriceId() {
+		return stripePriceId;
+	}
+
+	public void setStripePriceId(String stripePriceId) {
+		this.stripePriceId = stripePriceId;
 	}
 
 	public LocalDateTime getLastPaymentDate() {

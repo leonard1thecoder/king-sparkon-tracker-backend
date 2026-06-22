@@ -16,5 +16,9 @@ public interface BusinessSubscriptionRepository extends JpaRepository<BusinessSu
 
 	Optional<BusinessSubscription> findByPaypalSubscriptionId(String paypalSubscriptionId);
 
+	Optional<BusinessSubscription> findByStripeCheckoutSessionId(String stripeCheckoutSessionId);
+
+	Optional<BusinessSubscription> findByStripeSubscriptionId(String stripeSubscriptionId);
+
 	List<BusinessSubscription> findByStatus(SubscriptionPaymentStatus status);
 }

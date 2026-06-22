@@ -62,6 +62,18 @@ public class BusinessSubscription {
 	@Column(name = "paypal_approval_url", length = 2048)
 	private String paypalApprovalUrl;
 
+	@Column(name = "stripe_checkout_session_id")
+	private String stripeCheckoutSessionId;
+
+	@Column(name = "stripe_subscription_id")
+	private String stripeSubscriptionId;
+
+	@Column(name = "stripe_price_id")
+	private String stripePriceId;
+
+	@Column(name = "stripe_checkout_url", length = 2048)
+	private String stripeCheckoutUrl;
+
 	@Column(name = "period_start_date")
 	private LocalDateTime periodStartDate;
 
@@ -119,6 +131,17 @@ public class BusinessSubscription {
 		this.paypalPlanId = paypalPlanId;
 		this.paypalApprovalUrl = paypalApprovalUrl;
 		this.status = SubscriptionPaymentStatus.APPROVAL_PENDING;
+	}
+
+	public void markStripeCheckoutPending(String stripeCheckoutSessionId, String stripePriceId, String stripeCheckoutUrl) {
+		this.stripeCheckoutSessionId = stripeCheckoutSessionId;
+		this.stripePriceId = stripePriceId;
+		this.stripeCheckoutUrl = stripeCheckoutUrl;
+		this.status = SubscriptionPaymentStatus.APPROVAL_PENDING;
+	}
+
+	public void markStripeSubscription(String stripeSubscriptionId) {
+		this.stripeSubscriptionId = stripeSubscriptionId;
 	}
 
 	public void activate(LocalDateTime periodStartDate, LocalDateTime periodEndDate) {
@@ -185,6 +208,22 @@ public class BusinessSubscription {
 
 	public String getPaypalApprovalUrl() {
 		return paypalApprovalUrl;
+	}
+
+	public String getStripeCheckoutSessionId() {
+		return stripeCheckoutSessionId;
+	}
+
+	public String getStripeSubscriptionId() {
+		return stripeSubscriptionId;
+	}
+
+	public String getStripePriceId() {
+		return stripePriceId;
+	}
+
+	public String getStripeCheckoutUrl() {
+		return stripeCheckoutUrl;
 	}
 
 	public LocalDateTime getPeriodStartDate() {

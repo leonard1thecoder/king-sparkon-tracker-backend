@@ -17,6 +17,7 @@ import com.king_sparkon_tracker.backend.dto.BillingDashboardResponse;
 import com.king_sparkon_tracker.backend.dto.BillingPlanResponse;
 import com.king_sparkon_tracker.backend.dto.BusinessBillingResponse;
 import com.king_sparkon_tracker.backend.dto.CreateBusinessSubscriptionRequest;
+import com.king_sparkon_tracker.backend.dto.CreateStripeCheckoutSessionResponse;
 import com.king_sparkon_tracker.backend.service.BusinessBillingService;
 
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -54,6 +55,14 @@ public class BusinessBillingController {
 			@Valid @RequestBody CreateBusinessSubscriptionRequest request,
 			Principal principal) {
 		return businessBillingService.createSubscription(principal.getName(), request);
+	}
+
+	@PostMapping("/stripe/checkout-sessions")
+	@ResponseStatus(HttpStatus.CREATED)
+	public CreateStripeCheckoutSessionResponse createStripeCheckoutSession(
+			@Valid @RequestBody CreateBusinessSubscriptionRequest request,
+			Principal principal) {
+		return businessBillingService.createStripeCheckoutSession(principal.getName(), request);
 	}
 
 	@PostMapping("/subscriptions/{subscriptionId}/activate")
