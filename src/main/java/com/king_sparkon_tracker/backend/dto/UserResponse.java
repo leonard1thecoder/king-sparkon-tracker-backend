@@ -34,7 +34,28 @@ public record UserResponse(
 		String businessName,
 
 		@Schema(description = "User localization country.", example = "SOUTH_AFRICA")
-		LocalizationCountry localizationCountry
+		LocalizationCountry localizationCountry,
+
+		@Schema(description = "User physical address captured during onboarding.")
+		String physicalAddress,
+
+		@Schema(description = "User cellphone number captured during onboarding.")
+		String cellphoneNumber,
+
+		@Schema(description = "Worker job title.", example = "Cashier")
+		String jobTitle,
+
+		@Schema(description = "Whether the user still needs to complete first-login onboarding.", example = "true")
+		boolean onboardingRequired,
+
+		@Schema(description = "Whether onboarding details have been completed.", example = "false")
+		boolean onboardingCompleted,
+
+		@Schema(description = "Whether this worker has a static tip QR code enabled.", example = "true")
+		boolean tipQrCodeEnabled,
+
+		@Schema(description = "Static QR code URL linked to the worker tip payment flow.")
+		String tipQrCodeUrl
 ) {
 
 	public static UserResponse from(TrackerUser user) {
@@ -47,7 +68,14 @@ public record UserResponse(
 				user.getPrivilege().getName(),
 				user.getBusiness() == null ? null : user.getBusiness().getId(),
 				user.getBusiness() == null ? null : user.getBusiness().getName(),
-				user.getLocalizationCountry()
+				user.getLocalizationCountry(),
+				user.getPhysicalAddress(),
+				user.getCellphoneNumber(),
+				user.getJobTitle(),
+				user.isOnboardingRequired(),
+				user.isOnboardingCompleted(),
+				user.isTipQrCodeEnabled(),
+				user.getTipQrCodeUrl()
 		);
 	}
 }

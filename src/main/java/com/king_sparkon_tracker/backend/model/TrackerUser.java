@@ -61,6 +61,24 @@ public class TrackerUser {
 	@Column(name = "email_verified_at")
 	private LocalDateTime emailVerifiedAt;
 
+	@Column(name = "physical_address", length = 1024)
+	private String physicalAddress;
+
+	@Column(name = "cellphone_number", length = 32)
+	private String cellphoneNumber;
+
+	@Column(name = "job_title", length = 120)
+	private String jobTitle;
+
+	@Column(name = "onboarding_completed", nullable = false)
+	private boolean onboardingCompleted;
+
+	@Column(name = "tip_qr_code_enabled", nullable = false)
+	private boolean tipQrCodeEnabled;
+
+	@Column(name = "tip_qr_code_url", length = 2048)
+	private String tipQrCodeUrl;
+
 	protected TrackerUser() {
 	}
 
@@ -97,6 +115,24 @@ public class TrackerUser {
 		this.emailVerifiedAt = LocalDateTime.now();
 	}
 
+	public void completeOnboarding(String physicalAddress, String cellphoneNumber) {
+		this.physicalAddress = physicalAddress;
+		this.cellphoneNumber = cellphoneNumber;
+		this.onboardingCompleted = true;
+	}
+
+	public void updateWorkerProfile(String jobTitle, boolean tipQrCodeEnabled) {
+		this.jobTitle = jobTitle;
+		this.tipQrCodeEnabled = tipQrCodeEnabled;
+		if (!tipQrCodeEnabled) {
+			this.tipQrCodeUrl = null;
+		}
+	}
+
+	public void assignTipQrCodeUrl(String tipQrCodeUrl) {
+		this.tipQrCodeUrl = tipQrCodeUrl;
+	}
+
 	@PrePersist
 	void beforeCreate() {
 		LocalDateTime now = LocalDateTime.now();
@@ -108,6 +144,9 @@ public class TrackerUser {
 		if (localizationCountry == null) {
 			localizationCountry = LocalizationCountry.SOUTH_AFRICA;
 		}
+		if (physicalAddress != null && cellphoneNumber != null && !physicalAddress.isBlank() && !cellphoneNumber.isBlank()) {
+			onboardingCompleted = true;
+		}
 
 		modifiedDate = now;
 	}
@@ -116,6 +155,9 @@ public class TrackerUser {
 	void beforeUpdate() {
 		if (localizationCountry == null) {
 			localizationCountry = LocalizationCountry.SOUTH_AFRICA;
+		}
+		if (physicalAddress != null && cellphoneNumber != null && !physicalAddress.isBlank() && !cellphoneNumber.isBlank()) {
+			onboardingCompleted = true;
 		}
 
 		modifiedDate = LocalDateTime.now();
@@ -181,5 +223,33 @@ public class TrackerUser {
 		this.localizationCountry = localizationCountry == null
 				? LocalizationCountry.SOUTH_AFRICA
 				: localizationCountry;
+	}
+
+	public String getPhysicalAddress() {
+		return physicalAddress;
+	}
+
+	public String getCellphoneNumber() {
+		return cellphoneNumber;
+	}
+
+	public String getJobTitle() {
+		return jobTitle;
+	}
+
+	public boolean isOnboardingCompleted() {
+		return onboardingCompleted;
+	}
+
+	public boolean isOnboardingRequired() {
+		return !onboardingCompleted;
+	}
+
+	public boolean isTipQrCodeEnabled() {
+		return tipQrCodeEnabled;
+	}
+
+	public String getTipQrCodeUrl() {
+		return tipQrCodeUrl;
 	}
 }

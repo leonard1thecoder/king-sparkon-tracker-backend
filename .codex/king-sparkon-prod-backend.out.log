@@ -1,0 +1,203 @@
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v4.0.6)
+
+2026-06-17T08:34:09.544+02:00 INFO  [main] requestId= c.k.backend.BackendApplication - Starting BackendApplication v0.0.1-SNAPSHOT using Java 26.0.1 with PID 9236 (C:\Users\thand\Downloads\backend\backend\target\backend-0.0.1-SNAPSHOT.jar started by thand in C:\Users\thand\Downloads\backend\backend)
+2026-06-17T08:34:09.569+02:00 INFO  [main] requestId= c.k.backend.BackendApplication - No active profile set, falling back to 1 default profile: "default"
+2026-06-17T08:35:28.160+02:00 INFO  [main] requestId= o.s.d.r.c.RepositoryConfigurationDelegate - Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-06-17T08:35:31.533+02:00 INFO  [main] requestId= o.s.d.r.c.RepositoryConfigurationDelegate - Finished Spring Data repository scanning in 2988 ms. Found 13 JPA repository interfaces.
+2026-06-17T08:36:36.490+02:00 INFO  [main] requestId= o.s.boot.tomcat.TomcatWebServer - Tomcat initialized with port 8080 (http)
+2026-06-17T08:36:40.374+02:00 INFO  [main] requestId= o.a.catalina.core.StandardService - Starting service [Tomcat]
+2026-06-17T08:36:40.377+02:00 INFO  [main] requestId= o.a.catalina.core.StandardEngine - Starting Servlet engine: [Apache Tomcat/11.0.21]
+2026-06-17T08:36:43.860+02:00 INFO  [main] requestId= o.s.b.w.c.s.WebApplicationContextInitializer - Root WebApplicationContext: initialization completed in 151932 ms
+2026-06-17T08:37:03.741+02:00 INFO  [main] requestId= com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Starting...
+2026-06-17T08:37:10.472+02:00 INFO  [main] requestId= com.zaxxer.hikari.pool.HikariPool - HikariPool-1 - Added connection conn0: url=jdbc:h2:mem:feae6ab7-96a4-4747-a255-1d20fcf93e75 user=SA
+2026-06-17T08:37:10.485+02:00 INFO  [main] requestId= com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Start completed.
+2026-06-17T08:37:13.965+02:00 INFO  [main] requestId= org.flywaydb.core.FlywayExecutor - Database: jdbc:h2:mem:feae6ab7-96a4-4747-a255-1d20fcf93e75 (H2 2.4)
+2026-06-17T08:37:14.519+02:00 WARN  [main] requestId= o.f.c.i.database.base.Database - Using H2 2.4.240 which is newer than the version Flyway has been verified with. The latest verified version of H2 is 2.3.232.
+2026-06-17T08:37:15.466+02:00 INFO  [main] requestId= o.f.c.i.s.JdbcTableSchemaHistory - Schema history table "PUBLIC"."flyway_schema_history" does not exist yet
+2026-06-17T08:37:15.493+02:00 INFO  [main] requestId= o.f.core.internal.command.DbValidate - Successfully validated 17 migrations (execution time 00:00.375s)
+2026-06-17T08:37:15.550+02:00 INFO  [main] requestId= o.f.c.i.s.JdbcTableSchemaHistory - Creating Schema History table "PUBLIC"."flyway_schema_history" ...
+2026-06-17T08:37:15.951+02:00 INFO  [main] requestId= o.f.core.internal.command.DbMigrate - Current version of schema "PUBLIC": << Empty Schema >>
+2026-06-17T08:37:16.030+02:00 INFO  [main] requestId= o.f.core.internal.command.DbMigrate - Migrating schema "PUBLIC" to version "1 - initial schema"
+2026-06-17T08:37:16.479+02:00 INFO  [main] requestId= o.f.core.internal.command.DbMigrate - Migrating schema "PUBLIC" to version "2 - audit logs"
+2026-06-17T08:37:16.547+02:00 INFO  [main] requestId= o.f.core.internal.command.DbMigrate - Migrating schema "PUBLIC" to version "3 - product barcodes"
+2026-06-17T08:37:16.615+02:00 INFO  [main] requestId= o.f.core.internal.command.DbMigrate - Migrating schema "PUBLIC" to version "4 - product returnable pricing"
+2026-06-17T08:37:16.862+02:00 INFO  [main] requestId= o.f.core.internal.command.DbMigrate - Migrating schema "PUBLIC" to version "5 - product lifecycle statuses"
+2026-06-17T08:37:16.996+02:00 INFO  [main] requestId= o.f.core.internal.command.DbMigrate - Migrating schema "PUBLIC" to version "6 - transaction item barcodes"
+2026-06-17T08:37:17.031+02:00 INFO  [main] requestId= o.f.core.internal.command.DbMigrate - Migrating schema "PUBLIC" to version "7 - owner configured product charges"
+2026-06-17T08:37:17.696+02:00 INFO  [main] requestId= o.f.core.internal.command.DbMigrate - Migrating schema "PUBLIC" to version "8 - barcode reference and claim statuses"
+2026-06-17T08:37:17.796+02:00 INFO  [main] requestId= o.f.core.internal.command.DbMigrate - Migrating schema "PUBLIC" to version "9 - product barcode not claimable status"
+2026-06-17T08:37:17.847+02:00 INFO  [main] requestId= o.f.core.internal.command.DbMigrate - Migrating schema "PUBLIC" to version "10 - user localization country"
+2026-06-17T08:37:18.103+02:00 INFO  [main] requestId= o.f.core.internal.command.DbMigrate - Migrating schema "PUBLIC" to version "11 - business tenancy"
+2026-06-17T08:37:19.137+02:00 INFO  [main] requestId= o.f.core.internal.command.DbMigrate - Migrating schema "PUBLIC" to version "12 - password reset tokens"
+2026-06-17T08:37:19.182+02:00 INFO  [main] requestId= o.f.core.internal.command.DbMigrate - Migrating schema "PUBLIC" to version "13 - business billing platform"
+2026-06-17T08:37:20.430+02:00 INFO  [main] requestId= o.f.core.internal.command.DbMigrate - Migrating schema "PUBLIC" to version "14 - paypal webhooks billing audit admin"
+2026-06-17T08:37:20.499+02:00 INFO  [main] requestId= o.f.core.internal.command.DbMigrate - Migrating schema "PUBLIC" to version "15 - email verification"
+2026-06-17T08:37:20.743+02:00 INFO  [main] requestId= o.f.core.internal.command.DbMigrate - Migrating schema "PUBLIC" to version "16 - add product barcode availability status"
+2026-06-17T08:37:20.779+02:00 INFO  [main] requestId= o.f.core.internal.command.DbMigrate - Migrating schema "PUBLIC" to version "17 - king sparkon tracker rename"
+2026-06-17T08:37:20.849+02:00 INFO  [main] requestId= o.f.core.internal.command.DbMigrate - Successfully applied 17 migrations to schema "PUBLIC", now at version v17 (execution time 00:03.753s)
+2026-06-17T08:37:23.499+02:00 INFO  [main] requestId= org.hibernate.orm.jpa - HHH008540: Processing PersistenceUnitInfo [name: default]
+2026-06-17T08:37:24.782+02:00 INFO  [main] requestId= org.hibernate.orm.core - HHH000001: Hibernate ORM core version 7.2.12.Final
+2026-06-17T08:37:34.612+02:00 INFO  [main] requestId= o.s.o.j.p.SpringPersistenceUnitInfo - No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-06-17T08:37:36.507+02:00 INFO  [main] requestId= o.hibernate.orm.connections.pooling - HHH10001005: Database info:
+	Database JDBC URL [jdbc:h2:mem:feae6ab7-96a4-4747-a255-1d20fcf93e75]
+	Database driver: H2 JDBC Driver
+	Database dialect: H2Dialect
+	Database version: 2.4.240
+	Default catalog/schema: FEAE6AB7-96A4-4747-A255-1D20FCF93E75/PUBLIC
+	Autocommit mode: undefined/unknown
+	Isolation level: READ_COMMITTED [default READ_COMMITTED]
+	JDBC fetch size: 100
+	Pool: DataSourceConnectionProvider
+	Minimum pool size: undefined/unknown
+	Maximum pool size: undefined/unknown
+2026-06-17T08:38:17.530+02:00 INFO  [main] requestId= org.hibernate.orm.core - HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-06-17T08:38:18.379+02:00 INFO  [main] requestId= o.s.o.j.LocalContainerEntityManagerFactoryBean - Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-06-17T08:38:22.013+02:00 INFO  [main] requestId= o.s.d.j.r.q.QueryEnhancerFactories - Hibernate is in classpath; If applicable, HQL parser will be used.
+2026-06-17T08:39:00.405+02:00 INFO  [main] requestId= o.s.s.c.a.a.c.InitializeUserDetailsBeanManagerConfigurer$InitializeUserDetailsManagerConfigurer - Global AuthenticationManager configured with UserDetailsService bean with name trackerUserDetailsService
+2026-06-17T08:39:22.553+02:00 INFO  [main] requestId= o.s.boot.tomcat.TomcatWebServer - Tomcat started on port 8080 (http) with context path '/'
+2026-06-17T08:39:22.790+02:00 INFO  [main] requestId= c.k.backend.BackendApplication - Started BackendApplication in 324.782 seconds (process running for 351.531)
+2026-06-17T08:39:24.839+02:00 INFO  [main] requestId= c.k.backend.service.PrivilegeService - privilege_created role=Owner
+2026-06-17T08:39:25.859+02:00 INFO  [main] requestId= c.k.backend.service.PrivilegeService - privilege_created role=Worker
+2026-06-17T08:39:25.868+02:00 INFO  [main] requestId= c.k.backend.security.PrivilegeSeeder - privileges_seeded roles=[Owner, Worker]
+2026-06-17T08:39:25.872+02:00 WARN  [main] requestId= o.s.c.events.SpringDocAppInitializer - SpringDoc /v3/api-docs endpoint is enabled by default. To disable it in production, set the property 'springdoc.api-docs.enabled=false'
+2026-06-17T08:39:25.873+02:00 WARN  [main] requestId= o.s.c.events.SpringDocAppInitializer - SpringDoc /swagger-ui.html endpoint is enabled by default. To disable it in production, set the property 'springdoc.swagger-ui.enabled=false'
+2026-06-17T08:39:26.970+02:00 INFO  [tomcat-handler-0] requestId= o.a.c.c.C.[Tomcat].[localhost].[/] - Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-06-17T08:39:26.973+02:00 INFO  [tomcat-handler-0] requestId= o.s.web.servlet.DispatcherServlet - Initializing Servlet 'dispatcherServlet'
+2026-06-17T08:39:26.987+02:00 INFO  [tomcat-handler-0] requestId= o.s.web.servlet.DispatcherServlet - Completed initialization in 11 ms
+2026-06-17T08:39:28.604+02:00 INFO  [tomcat-handler-0] requestId=449c4d66-c7d8-41d8-a9d4-60d9ec9d28c1 c.k.b.logging.RequestLoggingFilter - http_request_completed method=GET path=/health status=200 durationMs=1595 actor=anonymous
+2026-06-17T08:39:31.515+02:00 INFO  [tomcat-handler-1] requestId=f172f0f2-bbf3-401a-8380-0e2a1803f49a c.k.b.logging.RequestLoggingFilter - http_request_completed method=GET path=/ready status=200 durationMs=90 actor=anonymous
+2026-06-17T08:42:16.004+02:00 INFO  [tomcat-handler-3] requestId=09fe3863-e787-4224-8bf0-0072c99fd24a c.k.b.logging.RequestLoggingFilter - http_request_completed method=GET path=/ready status=200 durationMs=1664 actor=anonymous
+2026-06-17T08:43:15.077+02:00 INFO  [tomcat-handler-5] requestId=d9ad04d2-928b-49fb-b120-fe19c4aeef2c c.k.backend.service.AuditLogService - audit_log_recorded action=OWNER_REGISTERED entityType=TrackerUser entityId=1 businessId=1 actor=ksowner0617084253
+2026-06-17T08:43:18.307+02:00 WARN  [tomcat-handler-5] requestId=d9ad04d2-928b-49fb-b120-fe19c4aeef2c c.k.backend.service.AppEmailService - email_verification_email_preview mailEnabled=false recipient=k***@example.com verificationUrl=http://localhost:3000/verify-email?token=45Bc5vidsHjdjevctitLYa8KFG4MQnvIo4b1ibrtRK2lVKm9SXZw9Fiq5_l-Uvc6
+2026-06-17T08:43:18.308+02:00 INFO  [tomcat-handler-5] requestId=d9ad04d2-928b-49fb-b120-fe19c4aeef2c c.k.b.s.EmailVerificationService - email_verification_token_created userId=1 email=k***@example.com
+2026-06-17T08:43:18.309+02:00 INFO  [tomcat-handler-5] requestId=d9ad04d2-928b-49fb-b120-fe19c4aeef2c c.k.b.service.TrackerUserService - owner_registered userId=1 username=ksowner0617084253 businessId=1 localizationCountry=SOUTH_AFRICA businessPlan=FREE_TRIAL businessStatus=TRIAL
+2026-06-17T08:43:18.511+02:00 INFO  [tomcat-handler-5] requestId=d9ad04d2-928b-49fb-b120-fe19c4aeef2c c.k.b.logging.RequestLoggingFilter - http_request_completed method=POST path=/api/auth/register status=201 durationMs=20502 actor=anonymous
+2026-06-17T08:43:19.326+02:00 WARN  [tomcat-handler-6] requestId=ddd04e82-9390-4324-b8b9-5143370c5b31 c.k.b.service.TrackerUserService - login_failed username=ksowner0617084253 reason=email_not_verified
+2026-06-17T08:43:19.408+02:00 WARN  [tomcat-handler-6] requestId=ddd04e82-9390-4324-b8b9-5143370c5b31 c.k.b.exception.ApiExceptionHandler - api_error status=403 reason=Forbidden message=Email address is not verified. Please verify your email before logging in.
+2026-06-17T08:43:19.444+02:00 INFO  [tomcat-handler-6] requestId=ddd04e82-9390-4324-b8b9-5143370c5b31 c.k.b.logging.RequestLoggingFilter - http_request_completed method=POST path=/api/auth/login status=403 durationMs=704 actor=anonymous
+2026-06-17T08:43:37.633+02:00 INFO  [tomcat-handler-8] requestId=3feba00c-ce0a-4099-bd50-2c5fa8b45ee8 c.k.backend.service.AuditLogService - audit_log_recorded action=OWNER_REGISTERED entityType=TrackerUser entityId=2 businessId=2 actor=probeowner
+2026-06-17T08:43:37.651+02:00 WARN  [tomcat-handler-8] requestId=3feba00c-ce0a-4099-bd50-2c5fa8b45ee8 c.k.backend.service.AppEmailService - email_verification_email_preview mailEnabled=false recipient=p***@example.com verificationUrl=http://localhost:3000/verify-email?token=yCatlJR3fL0cmNK2s_itKEyslyOZZI7eWG1NUwULZaj7knYZ8Pa8JyH_b5Rm1MmT
+2026-06-17T08:43:37.653+02:00 INFO  [tomcat-handler-8] requestId=3feba00c-ce0a-4099-bd50-2c5fa8b45ee8 c.k.b.s.EmailVerificationService - email_verification_token_created userId=2 email=p***@example.com
+2026-06-17T08:43:37.653+02:00 INFO  [tomcat-handler-8] requestId=3feba00c-ce0a-4099-bd50-2c5fa8b45ee8 c.k.b.service.TrackerUserService - owner_registered userId=2 username=probeowner businessId=2 localizationCountry=SOUTH_AFRICA businessPlan=FREE_TRIAL businessStatus=TRIAL
+2026-06-17T08:43:37.670+02:00 INFO  [tomcat-handler-8] requestId=3feba00c-ce0a-4099-bd50-2c5fa8b45ee8 c.k.b.logging.RequestLoggingFilter - http_request_completed method=POST path=/api/auth/register status=201 durationMs=317 actor=anonymous
+2026-06-17T08:44:09.419+02:00 INFO  [tomcat-handler-10] requestId=7e1570b2-3e53-4131-b6ce-0e66af24d0c4 c.k.b.s.EmailVerificationService - email_verification_success userId=1 username=ksowner0617084253
+2026-06-17T08:44:09.610+02:00 INFO  [tomcat-handler-10] requestId=7e1570b2-3e53-4131-b6ce-0e66af24d0c4 c.k.b.logging.RequestLoggingFilter - http_request_completed method=GET path=/api/auth/verify-email status=200 durationMs=378 actor=anonymous
+2026-06-17T08:44:10.477+02:00 INFO  [tomcat-handler-11] requestId=bfa0ae55-c2a3-4a2d-b1b5-a2f1ee81cf88 c.k.b.service.TrackerUserService - login_succeeded userId=1 username=ksowner0617084253 role=Owner localizationCountry=SOUTH_AFRICA
+2026-06-17T08:44:11.161+02:00 INFO  [tomcat-handler-11] requestId=bfa0ae55-c2a3-4a2d-b1b5-a2f1ee81cf88 c.k.backend.security.JwtService - jwt_issued userId=1 username=ksowner0617084253 role=Owner expiresAt=2026-06-17T08:44:10.483986500Z
+2026-06-17T08:44:11.191+02:00 INFO  [tomcat-handler-11] requestId=bfa0ae55-c2a3-4a2d-b1b5-a2f1ee81cf88 c.k.b.logging.RequestLoggingFilter - http_request_completed method=POST path=/api/auth/login status=200 durationMs=939 actor=anonymous
+2026-06-17T08:44:12.414+02:00 INFO  [tomcat-handler-12] requestId=8061b009-3399-4826-adfb-7c08dc25bb82 c.k.backend.service.AuditLogService - audit_log_recorded action=WORKER_CREATED entityType=TrackerUser entityId=3 businessId=1 actor=ksowner0617084253
+2026-06-17T08:44:12.421+02:00 INFO  [tomcat-handler-12] requestId=8061b009-3399-4826-adfb-7c08dc25bb82 c.k.b.service.TrackerUserService - worker_created userId=3 username=ksworker0617084253 businessId=1 localizationCountry=SOUTH_AFRICA businessPlan=FREE_TRIAL workerLimit=2 actor=ksowner0617084253
+2026-06-17T08:44:12.436+02:00 INFO  [tomcat-handler-12] requestId=8061b009-3399-4826-adfb-7c08dc25bb82 c.k.b.logging.RequestLoggingFilter - http_request_completed method=POST path=/api/users/workers status=201 durationMs=1200 actor=anonymous
+2026-06-17T08:44:13.213+02:00 INFO  [tomcat-handler-13] requestId=fd0cd023-12af-4a79-a9e9-a94eb5f1a590 c.k.backend.service.AuditLogService - audit_log_recorded action=PRODUCT_CREATED entityType=Product entityId=1 businessId=1 actor=ksowner0617084253
+2026-06-17T08:44:13.515+02:00 INFO  [tomcat-handler-13] requestId=fd0cd023-12af-4a79-a9e9-a94eb5f1a590 c.k.b.logging.RequestLoggingFilter - http_request_completed method=POST path=/api/products status=201 durationMs=940 actor=anonymous
+2026-06-17T08:44:13.602+02:00 INFO  [tomcat-handler-14] requestId=8d7b1ad1-cb90-4174-8266-e29e41f2d158 c.k.backend.service.AuditLogService - audit_log_recorded action=PRODUCT_CREATED entityType=Product entityId=2 businessId=1 actor=ksowner0617084253
+2026-06-17T08:44:13.651+02:00 INFO  [tomcat-handler-14] requestId=8d7b1ad1-cb90-4174-8266-e29e41f2d158 c.k.b.logging.RequestLoggingFilter - http_request_completed method=POST path=/api/products status=201 durationMs=102 actor=anonymous
+2026-06-17T08:44:13.736+02:00 INFO  [tomcat-handler-15] requestId=35afcc40-c141-4ef6-8ea1-a674a79c1b84 c.k.backend.service.AuditLogService - audit_log_recorded action=PRODUCT_CREATED entityType=Product entityId=3 businessId=1 actor=ksowner0617084253
+2026-06-17T08:44:13.781+02:00 INFO  [tomcat-handler-15] requestId=35afcc40-c141-4ef6-8ea1-a674a79c1b84 c.k.b.logging.RequestLoggingFilter - http_request_completed method=POST path=/api/products status=201 durationMs=116 actor=anonymous
+2026-06-17T08:44:13.867+02:00 INFO  [tomcat-handler-16] requestId=16df109f-0d2c-4bf1-9f73-f6a31250c283 c.k.backend.service.AuditLogService - audit_log_recorded action=PRODUCT_CREATED entityType=Product entityId=4 businessId=1 actor=ksowner0617084253
+2026-06-17T08:44:13.936+02:00 INFO  [tomcat-handler-16] requestId=16df109f-0d2c-4bf1-9f73-f6a31250c283 c.k.b.logging.RequestLoggingFilter - http_request_completed method=POST path=/api/products status=201 durationMs=137 actor=anonymous
+2026-06-17T08:44:14.020+02:00 INFO  [tomcat-handler-16] requestId=27c4ee5c-6c97-4ac1-b79d-b93c7cbb702d c.k.backend.service.AuditLogService - audit_log_recorded action=PRODUCT_CREATED entityType=Product entityId=5 businessId=1 actor=ksowner0617084253
+2026-06-17T08:44:14.056+02:00 INFO  [tomcat-handler-16] requestId=27c4ee5c-6c97-4ac1-b79d-b93c7cbb702d c.k.b.logging.RequestLoggingFilter - http_request_completed method=POST path=/api/products status=201 durationMs=103 actor=anonymous
+2026-06-17T08:44:14.101+02:00 INFO  [tomcat-handler-17] requestId=dea059d2-7592-448c-a559-c7c7d2f3e3ef c.k.backend.service.AuditLogService - audit_log_recorded action=PRODUCT_CREATED entityType=Product entityId=6 businessId=1 actor=ksowner0617084253
+2026-06-17T08:44:14.154+02:00 INFO  [tomcat-handler-17] requestId=dea059d2-7592-448c-a559-c7c7d2f3e3ef c.k.b.logging.RequestLoggingFilter - http_request_completed method=POST path=/api/products status=201 durationMs=86 actor=anonymous
+2026-06-17T08:44:14.206+02:00 INFO  [tomcat-handler-18] requestId=afa62fc1-b2fd-461b-ac8c-6afbdd586842 c.k.backend.service.AuditLogService - audit_log_recorded action=PRODUCT_CREATED entityType=Product entityId=7 businessId=1 actor=ksowner0617084253
+2026-06-17T08:44:14.241+02:00 INFO  [tomcat-handler-18] requestId=afa62fc1-b2fd-461b-ac8c-6afbdd586842 c.k.b.logging.RequestLoggingFilter - http_request_completed method=POST path=/api/products status=201 durationMs=74 actor=anonymous
+2026-06-17T08:44:14.363+02:00 INFO  [tomcat-handler-18] requestId=1ade0267-f61c-4223-ac9f-05f4bd9ddbc6 c.k.backend.service.AuditLogService - audit_log_recorded action=PRODUCT_CREATED entityType=Product entityId=8 businessId=1 actor=ksowner0617084253
+2026-06-17T08:44:14.413+02:00 INFO  [tomcat-handler-18] requestId=1ade0267-f61c-4223-ac9f-05f4bd9ddbc6 c.k.b.logging.RequestLoggingFilter - http_request_completed method=POST path=/api/products status=201 durationMs=146 actor=anonymous
+2026-06-17T08:44:14.524+02:00 INFO  [tomcat-handler-19] requestId=e3dd50ec-4c2c-46c0-bb8f-0bf8f3abc308 c.k.backend.service.AuditLogService - audit_log_recorded action=PRODUCT_CREATED entityType=Product entityId=9 businessId=1 actor=ksowner0617084253
+2026-06-17T08:44:14.559+02:00 INFO  [tomcat-handler-19] requestId=e3dd50ec-4c2c-46c0-bb8f-0bf8f3abc308 c.k.b.logging.RequestLoggingFilter - http_request_completed method=POST path=/api/products status=201 durationMs=129 actor=anonymous
+2026-06-17T08:44:14.616+02:00 INFO  [tomcat-handler-20] requestId=3c2b1228-f41d-4384-8314-95dfb1172574 c.k.backend.service.AuditLogService - audit_log_recorded action=PRODUCT_CREATED entityType=Product entityId=10 businessId=1 actor=ksowner0617084253
+2026-06-17T08:44:14.667+02:00 INFO  [tomcat-handler-20] requestId=3c2b1228-f41d-4384-8314-95dfb1172574 c.k.b.logging.RequestLoggingFilter - http_request_completed method=POST path=/api/products status=201 durationMs=86 actor=anonymous
+2026-06-17T08:44:14.918+02:00 INFO  [tomcat-handler-21] requestId=b9d8a0f5-ae89-4376-a41c-524964f97702 c.k.b.service.TrackerUserService - login_succeeded userId=3 username=ksworker0617084253 role=Worker localizationCountry=SOUTH_AFRICA
+2026-06-17T08:44:14.925+02:00 INFO  [tomcat-handler-21] requestId=b9d8a0f5-ae89-4376-a41c-524964f97702 c.k.backend.security.JwtService - jwt_issued userId=3 username=ksworker0617084253 role=Worker expiresAt=2026-06-17T08:44:14.924901200Z
+2026-06-17T08:44:14.930+02:00 INFO  [tomcat-handler-21] requestId=b9d8a0f5-ae89-4376-a41c-524964f97702 c.k.b.logging.RequestLoggingFilter - http_request_completed method=POST path=/api/auth/login status=200 durationMs=251 actor=anonymous
+2026-06-17T08:44:15.249+02:00 INFO  [tomcat-handler-22] requestId=686285f5-c477-4ae6-a371-12caf2651363 c.k.backend.service.AuditLogService - audit_log_recorded action=PRODUCT_BARCODE_ADDED entityType=Product entityId=1 businessId=1 actor=ksworker0617084253
+2026-06-17T08:44:15.619+02:00 INFO  [tomcat-handler-22] requestId=686285f5-c477-4ae6-a371-12caf2651363 c.k.b.logging.RequestLoggingFilter - http_request_completed method=POST path=/api/products/1/barcodes status=201 durationMs=633 actor=anonymous
+2026-06-17T08:44:15.701+02:00 INFO  [tomcat-handler-23] requestId=301c76d8-48c0-494b-9de7-e0424b8d1feb c.k.backend.service.AuditLogService - audit_log_recorded action=PRODUCT_BARCODE_ADDED entityType=Product entityId=2 businessId=1 actor=ksworker0617084253
+2026-06-17T08:44:15.799+02:00 INFO  [tomcat-handler-23] requestId=301c76d8-48c0-494b-9de7-e0424b8d1feb c.k.b.logging.RequestLoggingFilter - http_request_completed method=POST path=/api/products/2/barcodes status=201 durationMs=165 actor=anonymous
+2026-06-17T08:44:15.966+02:00 INFO  [tomcat-handler-24] requestId=0a071ec7-5786-4e2e-9043-5da377d8f979 c.k.backend.service.AuditLogService - audit_log_recorded action=PRODUCT_BARCODE_ADDED entityType=Product entityId=3 businessId=1 actor=ksworker0617084253
+2026-06-17T08:44:16.034+02:00 INFO  [tomcat-handler-24] requestId=0a071ec7-5786-4e2e-9043-5da377d8f979 c.k.b.logging.RequestLoggingFilter - http_request_completed method=POST path=/api/products/3/barcodes status=201 durationMs=226 actor=anonymous
+2026-06-17T08:44:16.115+02:00 INFO  [tomcat-handler-25] requestId=12a0666f-c56f-402b-93b3-344bc58c98e0 c.k.backend.service.AuditLogService - audit_log_recorded action=PRODUCT_BARCODE_ADDED entityType=Product entityId=4 businessId=1 actor=ksworker0617084253
+2026-06-17T08:44:16.226+02:00 INFO  [tomcat-handler-25] requestId=12a0666f-c56f-402b-93b3-344bc58c98e0 c.k.b.logging.RequestLoggingFilter - http_request_completed method=POST path=/api/products/4/barcodes status=201 durationMs=179 actor=anonymous
+2026-06-17T08:44:16.317+02:00 INFO  [tomcat-handler-26] requestId=bcb308ec-3564-4514-b32c-d6e110bbb37f c.k.backend.service.AuditLogService - audit_log_recorded action=PRODUCT_BARCODE_ADDED entityType=Product entityId=5 businessId=1 actor=ksworker0617084253
+2026-06-17T08:44:16.401+02:00 INFO  [tomcat-handler-26] requestId=bcb308ec-3564-4514-b32c-d6e110bbb37f c.k.b.logging.RequestLoggingFilter - http_request_completed method=POST path=/api/products/5/barcodes status=201 durationMs=163 actor=anonymous
+2026-06-17T08:44:16.495+02:00 INFO  [tomcat-handler-27] requestId=ade05243-bae4-4d05-a007-ce987e483546 c.k.backend.service.AuditLogService - audit_log_recorded action=PRODUCT_BARCODE_ADDED entityType=Product entityId=6 businessId=1 actor=ksworker0617084253
+2026-06-17T08:44:16.544+02:00 INFO  [tomcat-handler-27] requestId=ade05243-bae4-4d05-a007-ce987e483546 c.k.b.logging.RequestLoggingFilter - http_request_completed method=POST path=/api/products/6/barcodes status=201 durationMs=130 actor=anonymous
+2026-06-17T08:44:16.706+02:00 INFO  [tomcat-handler-28] requestId=98f5391f-6885-4f9c-b505-b7fcfb750d5a c.k.backend.service.AuditLogService - audit_log_recorded action=PRODUCT_BARCODE_ADDED entityType=Product entityId=7 businessId=1 actor=ksworker0617084253
+2026-06-17T08:44:16.804+02:00 INFO  [tomcat-handler-28] requestId=98f5391f-6885-4f9c-b505-b7fcfb750d5a c.k.b.logging.RequestLoggingFilter - http_request_completed method=POST path=/api/products/7/barcodes status=201 durationMs=227 actor=anonymous
+2026-06-17T08:44:16.907+02:00 INFO  [tomcat-handler-29] requestId=d03d919e-eeb0-4f94-954e-ad679e78f598 c.k.backend.service.AuditLogService - audit_log_recorded action=PRODUCT_BARCODE_ADDED entityType=Product entityId=8 businessId=1 actor=ksworker0617084253
+2026-06-17T08:44:16.968+02:00 INFO  [tomcat-handler-29] requestId=d03d919e-eeb0-4f94-954e-ad679e78f598 c.k.b.logging.RequestLoggingFilter - http_request_completed method=POST path=/api/products/8/barcodes status=201 durationMs=148 actor=anonymous
+2026-06-17T08:44:17.056+02:00 INFO  [tomcat-handler-30] requestId=8b05a255-208d-4714-89f2-6b3df65e9c73 c.k.backend.service.AuditLogService - audit_log_recorded action=PRODUCT_BARCODE_ADDED entityType=Product entityId=9 businessId=1 actor=ksworker0617084253
+2026-06-17T08:44:17.105+02:00 INFO  [tomcat-handler-30] requestId=8b05a255-208d-4714-89f2-6b3df65e9c73 c.k.b.logging.RequestLoggingFilter - http_request_completed method=POST path=/api/products/9/barcodes status=201 durationMs=124 actor=anonymous
+2026-06-17T08:44:17.180+02:00 INFO  [tomcat-handler-31] requestId=cd979e34-d873-4ee0-8429-90aef0cea7c6 c.k.backend.service.AuditLogService - audit_log_recorded action=PRODUCT_BARCODE_ADDED entityType=Product entityId=10 businessId=1 actor=ksworker0617084253
+2026-06-17T08:44:17.318+02:00 INFO  [tomcat-handler-31] requestId=cd979e34-d873-4ee0-8429-90aef0cea7c6 c.k.b.logging.RequestLoggingFilter - http_request_completed method=POST path=/api/products/10/barcodes status=201 durationMs=198 actor=anonymous
+2026-06-17T08:44:17.468+02:00 INFO  [tomcat-handler-31] requestId=080f4b16-087f-4386-9e97-25c123da8237 c.k.b.logging.RequestLoggingFilter - http_request_completed method=GET path=/api/barcodes/reference/0825554253 status=200 durationMs=133 actor=anonymous
+2026-06-17T08:44:17.579+02:00 WARN  [tomcat-handler-32] requestId=4c697def-eee1-4652-b197-e159458f7dea org.hibernate.orm.query - HHH90003004: firstResult/maxResults specified with collection fetch; applying in memory
+2026-06-17T08:44:18.247+02:00 INFO  [tomcat-handler-32] requestId=4c697def-eee1-4652-b197-e159458f7dea c.k.b.logging.RequestLoggingFilter - http_request_completed method=GET path=/api/products status=200 durationMs=756 actor=anonymous
+2026-06-17T08:44:18.299+02:00 INFO  [tomcat-handler-33] requestId=39b2dc21-1357-41d6-a1a1-546e825a263d c.k.b.logging.RequestLoggingFilter - http_request_completed method=GET path=/api/users/me status=200 durationMs=32 actor=anonymous
+2026-06-17T08:44:18.343+02:00 INFO  [tomcat-handler-34] requestId=f33bae6a-7031-4838-bd16-44b959cea5b9 c.k.b.logging.RequestLoggingFilter - http_request_completed method=GET path=/api/users/me status=200 durationMs=26 actor=anonymous
+2026-06-17T08:45:04.134+02:00 INFO  [tomcat-handler-36] requestId=0474ae0a-ae7c-45d4-adcb-87587c5ed1a6 c.k.b.logging.RequestLoggingFilter - http_request_completed method=GET path=/ready status=200 durationMs=1058 actor=anonymous
+2026-06-17T08:45:08.332+02:00 INFO  [tomcat-handler-37] requestId=1c03fe5e-8158-4d80-a78b-5531e026e5a0 c.k.b.service.TrackerUserService - login_succeeded userId=3 username=ksworker0617084253 role=Worker localizationCountry=SOUTH_AFRICA
+2026-06-17T08:45:08.350+02:00 INFO  [tomcat-handler-37] requestId=1c03fe5e-8158-4d80-a78b-5531e026e5a0 c.k.backend.security.JwtService - jwt_issued userId=3 username=ksworker0617084253 role=Worker expiresAt=2026-06-17T08:45:08.335675400Z
+2026-06-17T08:45:08.356+02:00 INFO  [tomcat-handler-37] requestId=1c03fe5e-8158-4d80-a78b-5531e026e5a0 c.k.b.logging.RequestLoggingFilter - http_request_completed method=POST path=/api/auth/login status=200 durationMs=2549 actor=anonymous
+2026-06-17T08:45:09.839+02:00 INFO  [tomcat-handler-39] requestId=fa31847d-5e02-4730-bd4f-9d1fb2df0f82 c.k.b.logging.RequestLoggingFilter - http_request_completed method=GET path=/api/barcodes/reference/0825554253 status=200 durationMs=554 actor=anonymous
+2026-06-17T08:47:44.635+02:00 INFO  [tomcat-handler-41] requestId=48824208-b88b-41a0-967d-d95a58ec7f2b c.k.b.service.TrackerUserService - login_succeeded userId=1 username=ksowner0617084253 role=Owner localizationCountry=SOUTH_AFRICA
+2026-06-17T08:47:44.698+02:00 INFO  [tomcat-handler-41] requestId=48824208-b88b-41a0-967d-d95a58ec7f2b c.k.backend.security.JwtService - jwt_issued userId=1 username=ksowner0617084253 role=Owner expiresAt=2026-06-17T08:47:44.667208300Z
+2026-06-17T08:47:44.885+02:00 INFO  [tomcat-handler-41] requestId=48824208-b88b-41a0-967d-d95a58ec7f2b c.k.b.logging.RequestLoggingFilter - http_request_completed method=POST path=/api/auth/login status=200 durationMs=2218 actor=anonymous
+2026-06-17T08:47:51.865+02:00 INFO  [tomcat-handler-42] requestId=53e568b9-9675-4001-a9e7-4158fd71a617 c.k.b.logging.RequestLoggingFilter - http_request_completed method=GET path=/api/users/me status=200 durationMs=348 actor=anonymous
+2026-06-17T08:47:52.520+02:00 WARN  [tomcat-handler-43] requestId=ee150278-abd0-48cb-9405-752c8ca10251 org.hibernate.orm.query - HHH90003004: firstResult/maxResults specified with collection fetch; applying in memory
+2026-06-17T08:47:54.054+02:00 INFO  [tomcat-handler-43] requestId=ee150278-abd0-48cb-9405-752c8ca10251 c.k.b.logging.RequestLoggingFilter - http_request_completed method=GET path=/api/products status=200 durationMs=2079 actor=anonymous
+2026-06-17T08:47:56.346+02:00 INFO  [tomcat-handler-44] requestId=89af16f3-2f95-4c90-8409-03c44f7fbefb c.k.backend.service.ReportService - inventory_summary_generated businessId=1 totalProducts=10 totalStockQuantity=10 lowStockThreshold=5
+2026-06-17T08:47:57.518+02:00 INFO  [tomcat-handler-44] requestId=89af16f3-2f95-4c90-8409-03c44f7fbefb c.k.b.logging.RequestLoggingFilter - http_request_completed method=GET path=/api/reports/inventory-summary status=200 durationMs=3371 actor=anonymous
+2026-06-17T08:47:58.034+02:00 INFO  [tomcat-handler-45] requestId=3bb6f1bd-4300-49b2-9166-f5c4bdc866a1 c.k.backend.service.ReportService - alcohol_report_generated businessId=1 from=1970-01-01T00:00 to=2026-06-17T08:47:57.565506100 boughtQuantity=0 soldQuantity=0
+2026-06-17T08:47:58.065+02:00 INFO  [tomcat-handler-45] requestId=3bb6f1bd-4300-49b2-9166-f5c4bdc866a1 c.k.b.logging.RequestLoggingFilter - http_request_completed method=GET path=/api/reports/alcohol status=200 durationMs=3681 actor=anonymous
+2026-06-17T08:47:58.237+02:00 WARN  [tomcat-handler-47] requestId=d107ca34-37ab-419a-a22e-d83d7a42f7af org.hibernate.orm.query - HHH90003004: firstResult/maxResults specified with collection fetch; applying in memory
+2026-06-17T08:47:58.393+02:00 INFO  [tomcat-handler-46] requestId=e0406e18-0adb-4198-9eba-3ec263edfbea c.k.backend.service.ReportService - product_movement_report_generated businessId=1 from=1970-01-01T00:00 to=2026-06-17T08:47:54.866740300 products=0
+2026-06-17T08:47:58.456+02:00 INFO  [tomcat-handler-47] requestId=d107ca34-37ab-419a-a22e-d83d7a42f7af c.k.b.logging.RequestLoggingFilter - http_request_completed method=GET path=/api/transactions status=200 durationMs=369 actor=anonymous
+2026-06-17T08:47:58.549+02:00 INFO  [tomcat-handler-46] requestId=e0406e18-0adb-4198-9eba-3ec263edfbea c.k.b.logging.RequestLoggingFilter - http_request_completed method=GET path=/api/reports/product-movement status=200 durationMs=4112 actor=anonymous
+2026-06-17T08:47:58.674+02:00 INFO  [tomcat-handler-48] requestId=844ff266-09ae-4730-97ee-d8180fdb5bef c.k.b.logging.RequestLoggingFilter - http_request_completed method=GET path=/api/users status=200 durationMs=116 actor=anonymous
+2026-06-17T08:47:59.346+02:00 INFO  [tomcat-handler-47] requestId=1d837648-4d7c-46cf-94e2-c907ab3dfd59 c.k.b.logging.RequestLoggingFilter - http_request_completed method=GET path=/api/billing/dashboard status=200 durationMs=825 actor=anonymous
+2026-06-17T08:47:59.393+02:00 INFO  [tomcat-handler-50] requestId=0853cbd7-1f21-4745-9167-75314781d2c7 c.k.b.logging.RequestLoggingFilter - http_request_completed method=GET path=/api/billing/plans status=200 durationMs=30 actor=anonymous
+2026-06-17T08:47:59.518+02:00 INFO  [tomcat-handler-51] requestId=c5b46c42-f1f4-409c-9d82-cb6291c70895 c.k.b.logging.RequestLoggingFilter - http_request_completed method=GET path=/api/billing/me status=200 durationMs=92 actor=anonymous
+2026-06-17T08:47:59.565+02:00 INFO  [tomcat-handler-49] requestId=9fd71e94-507d-4f26-9970-6c3bf4961656 c.k.b.logging.RequestLoggingFilter - http_request_completed method=GET path=/api/audit-logs status=200 durationMs=854 actor=anonymous
+2026-06-17T08:50:46.617+02:00 INFO  [tomcat-handler-58] requestId=d9325af0-02fe-4830-9dae-57d4faa9f18a c.k.b.service.TrackerUserService - login_succeeded userId=3 username=ksworker0617084253 role=Worker localizationCountry=SOUTH_AFRICA
+2026-06-17T08:50:47.541+02:00 INFO  [tomcat-handler-58] requestId=d9325af0-02fe-4830-9dae-57d4faa9f18a c.k.backend.security.JwtService - jwt_issued userId=3 username=ksworker0617084253 role=Worker expiresAt=2026-06-17T08:50:46.947227200Z
+2026-06-17T08:50:48.047+02:00 INFO  [tomcat-handler-58] requestId=d9325af0-02fe-4830-9dae-57d4faa9f18a c.k.b.logging.RequestLoggingFilter - http_request_completed method=POST path=/api/auth/login status=200 durationMs=17604 actor=anonymous
+2026-06-17T08:51:00.014+02:00 INFO  [tomcat-handler-59] requestId=9a3b4d9c-9450-4a71-9cb9-8690adffc2b4 c.k.b.logging.RequestLoggingFilter - http_request_completed method=GET path=/api/users/me status=200 durationMs=909 actor=anonymous
+2026-06-17T08:51:02.173+02:00 WARN  [tomcat-handler-60] requestId=8edbb1f8-56d6-4c90-9e2d-94929eab8a88 org.hibernate.orm.query - HHH90003004: firstResult/maxResults specified with collection fetch; applying in memory
+2026-06-17T08:51:05.752+02:00 INFO  [tomcat-handler-60] requestId=8edbb1f8-56d6-4c90-9e2d-94929eab8a88 c.k.b.logging.RequestLoggingFilter - http_request_completed method=GET path=/api/products status=200 durationMs=5554 actor=anonymous
+2026-06-17T08:59:47.693+02:00 INFO  [tomcat-handler-62] requestId=027efadb-6614-45e2-abb6-97bc529cd693 c.k.b.logging.RequestLoggingFilter - http_request_completed method=GET path=/api/users/me status=200 durationMs=1229 actor=anonymous
+2026-06-17T08:59:48.037+02:00 WARN  [tomcat-handler-63] requestId=ddcf36ed-789e-4d0b-81a0-9f5d0ed28f6f org.hibernate.orm.query - HHH90003004: firstResult/maxResults specified with collection fetch; applying in memory
+2026-06-17T08:59:51.145+02:00 INFO  [tomcat-handler-63] requestId=ddcf36ed-789e-4d0b-81a0-9f5d0ed28f6f c.k.b.logging.RequestLoggingFilter - http_request_completed method=GET path=/api/products status=200 durationMs=3374 actor=anonymous
+2026-06-17T09:06:26.207+02:00 INFO  [tomcat-handler-65] requestId=b0e39e30-b714-4dbb-9b90-b9c7df18979f c.k.b.service.TrackerUserService - login_succeeded userId=3 username=ksworker0617084253 role=Worker localizationCountry=SOUTH_AFRICA
+2026-06-17T09:06:26.918+02:00 INFO  [tomcat-handler-65] requestId=b0e39e30-b714-4dbb-9b90-b9c7df18979f c.k.backend.security.JwtService - jwt_issued userId=3 username=ksworker0617084253 role=Worker expiresAt=2026-06-17T09:06:26.638625200Z
+2026-06-17T09:06:27.238+02:00 INFO  [tomcat-handler-65] requestId=b0e39e30-b714-4dbb-9b90-b9c7df18979f c.k.b.logging.RequestLoggingFilter - http_request_completed method=POST path=/api/auth/login status=200 durationMs=6470 actor=anonymous
+2026-06-17T09:09:06.534+02:00 INFO  [tomcat-handler-67] requestId=bec70f3f-4a09-4d3c-99a2-31c0dac4ed2d c.k.b.logging.RequestLoggingFilter - http_request_completed method=GET path=/api/users/me status=200 durationMs=4666 actor=anonymous
+2026-06-17T09:09:08.268+02:00 WARN  [tomcat-handler-68] requestId=5e8956c1-d325-4fa6-baeb-d7cd7e2cd1df org.hibernate.orm.query - HHH90003004: firstResult/maxResults specified with collection fetch; applying in memory
+2026-06-17T09:09:10.117+02:00 INFO  [tomcat-handler-68] requestId=5e8956c1-d325-4fa6-baeb-d7cd7e2cd1df c.k.b.logging.RequestLoggingFilter - http_request_completed method=GET path=/api/products status=200 durationMs=2669 actor=anonymous
+2026-06-17T09:09:37.907+02:00 WARN  [tomcat-handler-69] requestId=824dc0f3-ff3f-4e6b-b89b-dc49a1dfef47 c.k.b.exception.ApiExceptionHandler - api_error status=404 reason=Not Found message=Barcode not found for reference: 0
+2026-06-17T09:09:38.033+02:00 INFO  [tomcat-handler-69] requestId=824dc0f3-ff3f-4e6b-b89b-dc49a1dfef47 c.k.b.logging.RequestLoggingFilter - http_request_completed method=GET path=/api/barcodes/reference/0 status=404 durationMs=871 actor=anonymous
+2026-06-17T09:09:45.949+02:00 WARN  [tomcat-handler-70] requestId=1f797460-f685-4301-8370-e37685f6b977 c.k.b.exception.ApiExceptionHandler - api_error status=404 reason=Not Found message=Barcode not found for reference: 0
+2026-06-17T09:09:45.967+02:00 INFO  [tomcat-handler-70] requestId=1f797460-f685-4301-8370-e37685f6b977 c.k.b.logging.RequestLoggingFilter - http_request_completed method=POST path=/api/barcodes/reference/0/claim status=404 durationMs=785 actor=anonymous
+2026-06-17T09:09:51.986+02:00 WARN  [tomcat-handler-71] requestId=e7a2986e-ce67-4295-adfe-e00be6c68e72 c.k.b.exception.ApiExceptionHandler - api_error status=404 reason=Not Found message=Barcode not found for reference: 0
+2026-06-17T09:09:52.002+02:00 INFO  [tomcat-handler-71] requestId=e7a2986e-ce67-4295-adfe-e00be6c68e72 c.k.b.logging.RequestLoggingFilter - http_request_completed method=POST path=/api/barcodes/reference/0/claim status=404 durationMs=175 actor=anonymous
+2026-06-17T09:18:49.066+02:00 INFO  [tomcat-handler-73] requestId=b9816d33-cb89-4a57-ba37-b0b7025a53af c.k.b.logging.RequestLoggingFilter - http_request_completed method=GET path=/api/users/me status=200 durationMs=8954 actor=anonymous
+2026-06-17T09:18:56.298+02:00 INFO  [tomcat-handler-74] requestId=81482aed-247d-4559-99c1-e63a86ad0c91 c.k.b.logging.RequestLoggingFilter - http_request_completed method=GET path=/api/users/me status=200 durationMs=859 actor=anonymous
+2026-06-17T09:18:58.689+02:00 WARN  [tomcat-handler-75] requestId=09985894-059d-4144-be7d-4448cd94771e org.hibernate.orm.query - HHH90003004: firstResult/maxResults specified with collection fetch; applying in memory
+2026-06-17T09:19:00.251+02:00 INFO  [tomcat-handler-75] requestId=09985894-059d-4144-be7d-4448cd94771e c.k.b.logging.RequestLoggingFilter - http_request_completed method=GET path=/api/products status=200 durationMs=3369 actor=anonymous
+2026-06-17T09:21:56.252+02:00 INFO  [tomcat-handler-77] requestId=cc00d95c-736e-420d-ab2b-71e2bd267924 c.k.b.logging.RequestLoggingFilter - http_request_completed method=GET path=/api/users/me status=200 durationMs=384 actor=anonymous
+2026-06-17T09:22:02.582+02:00 INFO  [tomcat-handler-78] requestId=bca57108-ba72-40d7-9ec1-df879676d73d c.k.b.logging.RequestLoggingFilter - http_request_completed method=GET path=/api/users/me status=200 durationMs=214 actor=anonymous
+2026-06-17T09:22:03.202+02:00 WARN  [tomcat-handler-79] requestId=547e638b-6850-46cf-abf6-6b23ab1a402f org.hibernate.orm.query - HHH90003004: firstResult/maxResults specified with collection fetch; applying in memory
+2026-06-17T09:22:03.892+02:00 INFO  [tomcat-handler-79] requestId=547e638b-6850-46cf-abf6-6b23ab1a402f c.k.b.logging.RequestLoggingFilter - http_request_completed method=GET path=/api/products status=200 durationMs=973 actor=anonymous
+2026-06-17T09:23:10.190+02:00 INFO  [tomcat-handler-82] requestId=07455b36-c83a-4994-aeba-4b44b6fbf99b c.k.b.logging.RequestLoggingFilter - http_request_completed method=GET path=/api/users/me status=200 durationMs=66 actor=anonymous
+2026-06-17T09:23:20.490+02:00 INFO  [tomcat-handler-83] requestId=94c44545-b498-4df5-b54a-f2ac4d5ec1e5 c.k.b.logging.RequestLoggingFilter - http_request_completed method=GET path=/api/users/me status=200 durationMs=61 actor=anonymous
+2026-06-17T09:23:20.742+02:00 WARN  [tomcat-handler-84] requestId=0003b7d6-eb49-4174-8039-f39143bfe792 org.hibernate.orm.query - HHH90003004: firstResult/maxResults specified with collection fetch; applying in memory
+2026-06-17T09:23:21.842+02:00 INFO  [tomcat-handler-84] requestId=0003b7d6-eb49-4174-8039-f39143bfe792 c.k.b.logging.RequestLoggingFilter - http_request_completed method=GET path=/api/products status=200 durationMs=1165 actor=anonymous

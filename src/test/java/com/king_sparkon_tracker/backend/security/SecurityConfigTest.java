@@ -35,20 +35,32 @@ import com.king_sparkon_tracker.backend.controller.HealthController;
 import com.king_sparkon_tracker.backend.controller.ProductBarcodeController;
 import com.king_sparkon_tracker.backend.controller.ProductController;
 import com.king_sparkon_tracker.backend.controller.ReportController;
+import com.king_sparkon_tracker.backend.controller.TipController;
 import com.king_sparkon_tracker.backend.dto.AddProductBarcodeRequest;
 import com.king_sparkon_tracker.backend.dto.AlcoholReportResponse;
 import com.king_sparkon_tracker.backend.dto.CreateWorkerRequest;
+import com.king_sparkon_tracker.backend.dto.PayPalAccountOnboardingRequest;
+import com.king_sparkon_tracker.backend.dto.PayPalAccountResponse;
 import com.king_sparkon_tracker.backend.dto.ProductRequest;
 import com.king_sparkon_tracker.backend.dto.RegisterUserRequest;
+import com.king_sparkon_tracker.backend.dto.TipRequest;
+import com.king_sparkon_tracker.backend.dto.TipResponse;
 import com.king_sparkon_tracker.backend.dto.UpdateProductQuantityRequest;
+import com.king_sparkon_tracker.backend.dto.WithdrawalRequest;
+import com.king_sparkon_tracker.backend.dto.WithdrawalResponse;
+import com.king_sparkon_tracker.backend.dto.MoneyResponse;
 import com.king_sparkon_tracker.backend.exception.ApiExceptionHandler;
 import com.king_sparkon_tracker.backend.model.TrackerUser;
 import com.king_sparkon_tracker.backend.model.Privilege;
 import com.king_sparkon_tracker.backend.model.PrivilegeRole;
+import com.king_sparkon_tracker.backend.model.PayoutAccountStatus;
 import com.king_sparkon_tracker.backend.model.Product;
 import com.king_sparkon_tracker.backend.model.ProductBarcode;
 import com.king_sparkon_tracker.backend.model.ProductBarcodeStatus;
 import com.king_sparkon_tracker.backend.model.ProductCategory;
+import com.king_sparkon_tracker.backend.model.SupportedCurrency;
+import com.king_sparkon_tracker.backend.model.TipStatus;
+import com.king_sparkon_tracker.backend.model.TipWithdrawalStatus;
 import com.king_sparkon_tracker.backend.service.BusinessAccessService;
 import com.king_sparkon_tracker.backend.service.TrackerUserService;
 import com.king_sparkon_tracker.backend.service.EmailVerificationService;
@@ -58,6 +70,8 @@ import com.king_sparkon_tracker.backend.service.ProductBarcodeService;
 import com.king_sparkon_tracker.backend.service.ProductPricingService;
 import com.king_sparkon_tracker.backend.service.ProductService;
 import com.king_sparkon_tracker.backend.service.ReportService;
+import com.king_sparkon_tracker.backend.service.TipService;
+import com.king_sparkon_tracker.backend.service.TipWithdrawalService;
 
 @WebMvcTest(controllers = {
 		AuthenticationController.class,
@@ -65,7 +79,8 @@ import com.king_sparkon_tracker.backend.service.ReportService;
 		HealthController.class,
 		ProductBarcodeController.class,
 		ProductController.class,
-		ReportController.class
+		ReportController.class,
+		TipController.class
 })
 @Import({ SecurityConfig.class, CorsConfig.class, JacksonConfig.class, ApiExceptionHandler.class })
 class SecurityConfigTest {
@@ -81,6 +96,12 @@ class SecurityConfigTest {
 
 	@MockitoBean
 	private ReportService reportService;
+
+	@MockitoBean
+	private TipService tipService;
+
+	@MockitoBean
+	private TipWithdrawalService tipWithdrawalService;
 
 	@MockitoBean
 	private ProductService productService;
@@ -189,6 +210,25 @@ class SecurityConfigTest {
 	}
 
 	@Test
+	void onboardingCompletionAllowsWorkerCaller() throws Exception {
+		TrackerUser worker = trackerUser("worker", "worker@example.com", PrivilegeRole.Worker);
+		worker.completeOnboarding("45 Worker Street", "+27821234567");
+		when(userService.completeOnboarding(any(), eq("worker"))).thenReturn(worker);
+
+		mockMvc.perform(patch("/api/users/me/onboarding")
+				.with(user("worker").authorities(() -> PrivilegeRole.Worker.name()))
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+						{
+						  "physicalAddress": "45 Worker Street",
+						  "cellphoneNumber": "+27821234567"
+						}
+						"""))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.onboardingCompleted").value(true));
+	}
+
+	@Test
 	void productCreationRejectsWorkerCaller() throws Exception {
 		mockMvc.perform(post("/api/products")
 				.with(user("worker").authorities(() -> PrivilegeRole.Worker.name()))
@@ -275,18 +315,18 @@ class SecurityConfigTest {
 
 	@Test
 	void barcodeReferenceSearchRejectsAnonymousCaller() throws Exception {
-		mockMvc.perform(get("/api/barcodes/reference/0821234567"))
+		mockMvc.perform(get("/api/barcodes/reference/customer@example.com"))
 				.andExpect(status().isUnauthorized());
 	}
 
 	@Test
 	void barcodeReferenceSearchAllowsAuthenticatedWorker() throws Exception {
 		ProductBarcode barcode = product("Water", "6001", ProductCategory.NonAlcohol, 20, true).getBarcodes().getFirst();
-		barcode.setReferencee("0821234567");
-		when(productBarcodeService.findByReference("0821234567", "worker"))
+		barcode.setReferenceEmail("customer@example.com");
+		when(productBarcodeService.findByReference("customer@example.com", "worker"))
 				.thenReturn(java.util.List.of(barcode));
 
-		mockMvc.perform(get("/api/barcodes/reference/0821234567")
+		mockMvc.perform(get("/api/barcodes/reference/customer@example.com")
 				.with(user("worker").authorities(() -> PrivilegeRole.Worker.name())))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$[0].barcode").value("6001"));
@@ -295,15 +335,111 @@ class SecurityConfigTest {
 	@Test
 	void barcodeClaimAllowsAuthenticatedWorker() throws Exception {
 		ProductBarcode barcode = product("Water", "6001", ProductCategory.NonAlcohol, 20, true).getBarcodes().getFirst();
-		barcode.setReferencee("0821234567");
+		barcode.setReferenceEmail("customer@example.com");
 		barcode.setStatus(ProductBarcodeStatus.CLAIMED);
-		when(productBarcodeService.claimByReference("0821234567", "worker"))
+		when(productBarcodeService.claimByReference("customer@example.com", "worker"))
 				.thenReturn(barcode);
 
-		mockMvc.perform(post("/api/barcodes/reference/0821234567/claim")
+		mockMvc.perform(post("/api/barcodes/reference/customer@example.com/claim")
 				.with(user("worker").authorities(() -> PrivilegeRole.Worker.name())))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.status").value("CLAIMED"));
+	}
+
+	@Test
+	void tipCreationRejectsAnonymousCaller() throws Exception {
+		mockMvc.perform(post("/api/tips")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+						{
+						  "workerId": 10,
+						  "tipAmount": 100.00
+						}
+						"""))
+				.andExpect(status().isUnauthorized());
+	}
+
+	@Test
+	void tipCreationAllowsWorkerCaller() throws Exception {
+		when(tipService.createTip(any(TipRequest.class))).thenReturn(tipResponse(TipStatus.UNPAID));
+
+		mockMvc.perform(post("/api/tips")
+				.with(user("worker").authorities(() -> PrivilegeRole.Worker.name()))
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+						{
+						  "workerId": 10,
+						  "tipAmount": 100.00
+						}
+						"""))
+				.andExpect(status().isCreated())
+				.andExpect(jsonPath("$.workerId").value(10))
+				.andExpect(jsonPath("$.status").value("UNPAID"));
+	}
+
+	@Test
+	void paypalOnboardingRejectsWorkerCaller() throws Exception {
+		mockMvc.perform(post("/api/tips/paypal/onboarding")
+				.with(user("worker").authorities(() -> PrivilegeRole.Worker.name()))
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(paypalOnboardingJson()))
+				.andExpect(status().isForbidden());
+	}
+
+	@Test
+	void paypalOnboardingAllowsOwnerCaller() throws Exception {
+		when(tipWithdrawalService.onboardPayPalAccount(any(PayPalAccountOnboardingRequest.class), eq("owner")))
+				.thenReturn(new PayPalAccountResponse(
+						5L,
+						10L,
+						1L,
+						"worker@paypal.com",
+						PayoutAccountStatus.ACTIVE,
+						"https://app.example/paypal/onboarding",
+						java.time.OffsetDateTime.parse("2026-06-23T10:00:00+02:00"),
+						java.time.OffsetDateTime.parse("2026-06-23T10:00:00+02:00")));
+
+		mockMvc.perform(post("/api/tips/paypal/onboarding")
+				.with(user("owner").authorities(() -> PrivilegeRole.Owner.name()))
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(paypalOnboardingJson()))
+				.andExpect(status().isCreated())
+				.andExpect(jsonPath("$.workerId").value(10))
+				.andExpect(jsonPath("$.ownerId").value(1));
+	}
+
+	@Test
+	void withdrawalRequestRejectsWorkerCaller() throws Exception {
+		mockMvc.perform(post("/api/tips/withdrawals")
+				.with(user("worker").authorities(() -> PrivilegeRole.Worker.name()))
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(withdrawalJson()))
+				.andExpect(status().isForbidden());
+	}
+
+	@Test
+	void withdrawalRequestAllowsOwnerCaller() throws Exception {
+		when(tipWithdrawalService.requestWithdrawal(any(WithdrawalRequest.class), eq("owner")))
+				.thenReturn(new WithdrawalResponse(
+						77L,
+						10L,
+						1L,
+						new BigDecimal("1098.00"),
+						new MoneyResponse(new BigDecimal("1098.00"), SupportedCurrency.ZAR, "R", "R1,098.00"),
+						2,
+						"worker@paypal.com",
+						TipWithdrawalStatus.REQUESTED,
+						java.time.OffsetDateTime.parse("2026-06-23T10:00:00+02:00"),
+						java.time.OffsetDateTime.parse("2026-06-23T10:00:00+02:00")));
+
+		mockMvc.perform(post("/api/tips/withdrawals")
+				.with(user("owner").authorities(() -> PrivilegeRole.Owner.name()))
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(withdrawalJson()))
+				.andExpect(status().isCreated())
+				.andExpect(jsonPath("$.workerId").value(10))
+				.andExpect(jsonPath("$.ownerId").value(1))
+				.andExpect(jsonPath("$.status").value("REQUESTED"));
 	}
 
 	@Test
@@ -335,7 +471,9 @@ class SecurityConfigTest {
 				{
 				  "username": "worker",
 				  "emailAddress": "worker@example.com",
-				  "password": "secret"
+				  "password": "secret",
+				  "jobTitle": "Cashier",
+				  "tipQrCodeEnabled": true
 				}
 				""";
 	}
@@ -373,6 +511,23 @@ class SecurityConfigTest {
 				""";
 	}
 
+	private String paypalOnboardingJson() {
+		return """
+				{
+				  "workerId": 10,
+				  "paypalEmail": "worker@paypal.com"
+				}
+				""";
+	}
+
+	private String withdrawalJson() {
+		return """
+				{
+				  "workerId": 10
+				}
+				""";
+	}
+
 	private TrackerUser trackerUser(String username, String emailAddress, PrivilegeRole role) {
 		return new TrackerUser(username, emailAddress, "encoded", new Privilege(role));
 	}
@@ -392,5 +547,20 @@ class SecurityConfigTest {
 			int stockQuantity,
 			boolean bottleReturnable) {
 		return new Product(name, barcode, category, BigDecimal.TEN, stockQuantity, bottleReturnable);
+	}
+
+	private TipResponse tipResponse(TipStatus status) {
+		return new TipResponse(
+				42L,
+				10L,
+				new BigDecimal("100.00"),
+				new BigDecimal("0.00"),
+				new BigDecimal("100.00"),
+				status,
+				"plink_123",
+				"https://pay.stripe.com/plink_123",
+				"https://api.qrserver.com/v1/create-qr-code/?data=plink_123",
+				java.time.OffsetDateTime.parse("2026-06-23T10:00:00+02:00"),
+				java.time.OffsetDateTime.parse("2026-06-23T10:00:00+02:00"));
 	}
 }

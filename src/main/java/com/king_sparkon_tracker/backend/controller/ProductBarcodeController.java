@@ -33,12 +33,12 @@ public class ProductBarcodeController {
 	/**
 	 * Finds barcode claim rows by reference so frontend tables can show claimable returnable records.
 	 */
-	@GetMapping("/reference/{referencee}")
-	@Operation(summary = "Find barcodes by reference", description = "Returns barcode rows matching a customer reference.")
+	@GetMapping("/reference/{referenceEmail}")
+	@Operation(summary = "Find barcodes by reference email", description = "Returns barcode rows matching a customer reference email.")
 	public List<ProductBarcodeLookupResponse> findByReference(
-			@Parameter(description = "Customer reference, usually a cellphone number.") @PathVariable String referencee,
+			@Parameter(description = "Customer reference email.") @PathVariable String referenceEmail,
 			@Parameter(hidden = true) Principal principal) {
-		return productBarcodeService.findByReference(referencee, principal.getName()).stream()
+		return productBarcodeService.findByReference(referenceEmail, principal.getName()).stream()
 				.map(ProductBarcodeLookupResponse::from)
 				.toList();
 	}
@@ -46,12 +46,12 @@ public class ProductBarcodeController {
 	/**
 	 * Claims a single active returnable barcode when the supplied reference maps to one unambiguous claim.
 	 */
-	@PostMapping("/reference/{referencee}/claim")
-	@Operation(summary = "Claim barcode by reference", description = "Marks one active returnable barcode as claimed by reference.")
+	@PostMapping("/reference/{referenceEmail}/claim")
+	@Operation(summary = "Claim barcode by reference email", description = "Marks one active returnable barcode as claimed by reference email.")
 	public ProductBarcodeLookupResponse claimByReference(
-			@Parameter(description = "Customer reference, usually a cellphone number.") @PathVariable String referencee,
+			@Parameter(description = "Customer reference email.") @PathVariable String referenceEmail,
 			@Parameter(hidden = true) Principal principal) {
-		return ProductBarcodeLookupResponse.from(productBarcodeService.claimByReference(referencee, principal.getName()));
+		return ProductBarcodeLookupResponse.from(productBarcodeService.claimByReference(referenceEmail, principal.getName()));
 	}
 
 	/**

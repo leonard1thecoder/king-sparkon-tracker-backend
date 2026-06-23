@@ -9,10 +9,10 @@ import io.swagger.v3.oas.annotations.media.Schema;
 public record ProductBarcodeLookupResponse(
 		@Schema(description = "Barcode id.", example = "14")
 		Long id,
-		@Schema(description = "Unique physical item barcode.", example = "6001")
-		String barcode,
-		@Schema(description = "Customer reference for returnable claims.", example = "0821234567")
-		String referencee,
+	@Schema(description = "Unique physical item barcode.", example = "6001")
+	String barcode,
+	@Schema(description = "Customer email reference for returnable claims.", example = "customer@example.com")
+	String referenceEmail,
 		@Schema(description = "Barcode claim status.", example = "NOT_CLAIMED")
 		ProductBarcodeStatus status,
 		@Schema(description = "Linked product id.", example = "9")
@@ -30,7 +30,7 @@ public record ProductBarcodeLookupResponse(
 		return new ProductBarcodeLookupResponse(
 				barcode.getId(),
 				barcode.getBarcode(),
-				barcode.getReferencee(),
+				barcode.getReferenceEmail(),
 				barcode.getStatus(),
 				barcode.getProduct().getId(),
 				barcode.getProduct().getName(),

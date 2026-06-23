@@ -39,14 +39,14 @@ class ProductBarcodeControllerTest {
 
 	@Test
 	void findByReferenceReturnsBarcodeRows() throws Exception {
-		when(productBarcodeService.findByReference("0821234567", "worker"))
+		when(productBarcodeService.findByReference("customer@example.com", "worker"))
 				.thenReturn(List.of(barcode(ProductBarcodeStatus.NOT_CLAIMED)));
 
-		mockMvc.perform(get("/api/barcodes/reference/0821234567")
+		mockMvc.perform(get("/api/barcodes/reference/customer@example.com")
 				.principal(() -> "worker"))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$[0].barcode").value("6001"))
-				.andExpect(jsonPath("$[0].referencee").value("0821234567"))
+				.andExpect(jsonPath("$[0].referenceEmail").value("customer@example.com"))
 				.andExpect(jsonPath("$[0].status").value("NOT_CLAIMED"))
 				.andExpect(jsonPath("$[0].productName").value("Castle Lite"))
 				.andExpect(jsonPath("$[0].bottleReturnable").value(true));
@@ -54,13 +54,13 @@ class ProductBarcodeControllerTest {
 
 	@Test
 	void claimByReferenceReturnsClaimedBarcode() throws Exception {
-		when(productBarcodeService.claimByReference("0821234567", "worker"))
+		when(productBarcodeService.claimByReference("customer@example.com", "worker"))
 				.thenReturn(barcode(ProductBarcodeStatus.CLAIMED));
 
-		mockMvc.perform(post("/api/barcodes/reference/0821234567/claim")
+		mockMvc.perform(post("/api/barcodes/reference/customer@example.com/claim")
 				.principal(() -> "worker"))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.referencee").value("0821234567"))
+				.andExpect(jsonPath("$.referenceEmail").value("customer@example.com"))
 				.andExpect(jsonPath("$.status").value("CLAIMED"));
 	}
 
@@ -77,21 +77,21 @@ class ProductBarcodeControllerTest {
 
 	@Test
 	void findByReferenceMapsMissingReferenceToNotFound() throws Exception {
-		when(productBarcodeService.findByReference("missing", "worker"))
-				.thenThrow(new ResourceNotFoundException("Barcode not found for reference: missing"));
+		when(productBarcodeService.findByReference("missing@example.com", "worker"))
+				.thenThrow(new ResourceNotFoundException("Barcode not found for reference: missing@example.com"));
 
-		mockMvc.perform(get("/api/barcodes/reference/missing")
+		mockMvc.perform(get("/api/barcodes/reference/missing@example.com")
 				.principal(() -> "worker"))
 				.andExpect(status().isNotFound())
-				.andExpect(jsonPath("$.message").value("Barcode not found for reference: missing"));
+				.andExpect(jsonPath("$.message").value("Barcode not found for reference: missing@example.com"));
 	}
 
 	@Test
 	void claimByReferenceMapsExpiredClaimToBadRequest() throws Exception {
-		when(productBarcodeService.claimByReference("0821234567", "worker"))
+		when(productBarcodeService.claimByReference("customer@example.com", "worker"))
 				.thenThrow(new IllegalArgumentException("Returnable barcode claim has expired"));
 
-		mockMvc.perform(post("/api/barcodes/reference/0821234567/claim")
+		mockMvc.perform(post("/api/barcodes/reference/customer@example.com/claim")
 				.principal(() -> "worker"))
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.message").value("Returnable barcode claim has expired"));
@@ -106,7 +106,7 @@ class ProductBarcodeControllerTest {
 				10,
 				true);
 		ProductBarcode barcode = product.getBarcodes().getFirst();
-		barcode.setReferencee("0821234567");
+		barcode.setReferenceEmail("customer@example.com");
 		barcode.setStatus(status);
 		return barcode;
 	}

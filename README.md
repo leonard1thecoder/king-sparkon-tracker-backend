@@ -4,6 +4,8 @@ King Sparkon Tracker Backend is a Spring Boot API for managing barcoded product 
 
 The backend keeps the business rules close to the data: item barcodes are unique, product stock cannot be sold below zero, workers are limited per business, operational records are scoped to the authenticated user's business, and important actions are written to an audit log.
 
+This README is the implementation spec for frontend work. UI forms, labels, enum options, validation states, payment flows, and owner/worker permissions should be built from the contracts below. When code and README disagree, update the backend to match this spec or update this spec before building UI behavior.
+
 ## Business Flow
 
 The system starts with the business owner. An owner registers with a username, email address, password, and `businessName`. Registration creates the owner account, creates the business tenant, links the owner to that business, and assigns the `Owner` privilege. After login, the owner receives a Bearer JWT that includes the user's business id and business name for client routing.
@@ -16,7 +18,7 @@ Once authenticated, the owner prepares the operating environment:
 2. The owner creates worker accounts according to the active plan: 2 on free trial, 5 on Plus, and unlimited on Pro.
 3. The owner creates business-scoped products with a name, category, unit price, returnable pricing settings, nightshift pricing settings, and opening stock quantity.
 4. Products start in `CREATED` status.
-5. Workers assign physical item barcodes to those products, one barcode per stocked unit. Returnable product barcodes start in `NOT_CLAIMED` status and can store a `referencee` cellphone reference for later claims. Non-returnable product barcodes are stored as `NOT_CLAIMABLE` because there is no returnable amount to claim. For example, a product with stock quantity `20` can receive up to `20` barcodes.
+5. Workers assign physical item barcodes to those products, one barcode per stocked unit. Returnable product barcodes start in `NOT_CLAIMED` status and can store a customer reference email for later returnable claims. Cellphone numbers must not be used for barcode references. Non-returnable product barcodes are stored as `NOT_CLAIMABLE` because there is no returnable amount to claim. For example, a product with stock quantity `20` can receive up to `20` barcodes.
 6. Once barcode count equals stock quantity, workers submit the product for approval and the product moves to `PENDING_APPROVAL`.
 7. Products can be marked as returnable, with an owner-configured packaging/deposit charge added to sale prices.
 8. Owners must categorize products as `Alcohol` or `NonAlcohol`, which allows reporting to separate alcohol movement from non-alcohol stock.
@@ -24,13 +26,23 @@ Once authenticated, the owner prepares the operating environment:
 Daily operations happen through inventory transactions. A transaction is created with:
 
 - a transaction type: `BUY` or `SELL`
+- a payment type for `SELL` transactions: `CASH`, `SWIPE_MACHINE`, or `WEBSITE_PAYMENT`
 - the worker who handled the movement
 - the owner responsible for oversight
 - one or more product line items
 
+Transactions are not paid product-by-product. The UI must build one transaction containing all selected products, and the backend applies one transaction-level payment type to the total sale amount. This lets a cashier sell different products in one checkout and collect one cash, swipe-machine, or website payment for the full basket.
+
 When a `BUY` transaction is recorded, product stock increases by the purchased quantity. When a `SELL` transaction is recorded, product stock decreases by the sold quantity. The API rejects a sale if there is not enough stock available, which protects the inventory record from drifting away from reality.
 
 For barcode-backed sale screens, each `SELL` transaction item must include a `barcodes` array. The backend requires the barcode count to match the sold quantity, requires the values to be unique, and verifies every barcode belongs to the selected product. `BUY` transactions increase stock and must not include barcode values.
+
+Payment behavior for `SELL` transactions:
+
+- `CASH`: record the sale as offline payment. No payment email is required and no Stripe payment link is created.
+- `SWIPE_MACHINE`: record the sale as offline card-machine payment. No payment email is required and no Stripe payment link is created.
+- `WEBSITE_PAYMENT`: require `paymentEmail`, create a Stripe payment link for the full transaction total, email the customer a receipt/payment link, and return the payment URL and payment reference in the transaction response. Website-payment transaction withdrawals use the configured 6.5% withdrawal fee.
+- Returnable products: require a customer reference email for the returnable barcode claim trail. For `CASH` and `SWIPE_MACHINE`, this email is used only for the returnable reference/receipt context and must not trigger a Stripe payment link. For `WEBSITE_PAYMENT`, the same email can be used as `paymentEmail`.
 
 Sale prices are calculated from the product base price plus active product charges:
 
@@ -54,10 +66,11 @@ Audit logging completes the loop. Owner registration, worker creation, product c
 | Authentication | Registers owners with a business tenant, authenticates users, and issues JWT access tokens with business claims. |
 | Authorization | Protects owner-only actions while allowing workers to record operational transactions. |
 | User management | Lists business users, creates up to two business workers, and exposes the current authenticated profile. |
-| Product catalogue | Creates business products, tracks worker-assigned item barcodes, enforces unique barcodes, and supports barcode and reference lookup inside the actor's business. |
-| Stock movement | Records business-scoped `BUY` and `SELL` transactions, requires scanned item barcode rows for sales, and updates stock automatically. |
+| Product catalogue | Creates business products, tracks worker-assigned item barcodes, enforces unique barcodes, and supports barcode and email-reference lookup inside the actor's business. |
+| Stock movement | Records business-scoped `BUY` and `SELL` transactions with one or more product lines, requires scanned item barcode rows for sales, applies one transaction-level payment type, and updates stock automatically. |
 | Reporting | Produces tenant-scoped alcohol, inventory summary, and product movement reports. |
 | Billing | Exposes Free Trial, Plus, and Pro plan rules, creates PayPal approval subscriptions, processes verified webhook lifecycle events, and records billing audit logs. |
+| Tips and payouts | Allows workers to create customer tip payment links through Stripe and allows owners to configure worker PayPal payout accounts and request eligible withdrawals. |
 | Audit trail | Stores key business events with business ownership for traceability. |
 | Database migrations | Uses Flyway migrations for the initial schema, audit logs, product barcode assignments, returnable pricing, lifecycle statuses, transaction item barcodes, barcode claim references, business tenancy, email verification, and billing. |
 
@@ -66,9 +79,9 @@ Audit logging completes the loop. Owner registration, worker creation, product c
 | Role | Purpose | Main access |
 | --- | --- | --- |
 | `Owner` | Business owner and administrator | Create products, update product quantity, create workers, view users, view transactions, run reports, view audit logs. |
-| `Worker` | Operational worker | Log in, read products, add product barcodes, submit products for approval, view own profile, and create inventory transactions. |
+| `Worker` | Operational worker | Log in, read products, add product barcodes, submit products for approval, view own profile, create inventory transactions, and create customer tip payment links. |
 
-Public routes are limited to owner registration and login. All other API routes require a valid Bearer token.
+Public routes are limited to health/readiness, owner registration, login, password/email verification flows, contact inquiries, and webhook callbacks. All other API routes require a valid Bearer token.
 
 ## API Overview
 
@@ -114,7 +127,7 @@ Public routes are limited to owner registration and login. All other API routes 
 | Method | Endpoint | Access | Description |
 | --- | --- | --- | --- |
 | `POST` | `/api/products` | Owner | Create a product with stock quantity and no barcodes. |
-| `POST` | `/api/products/{id}/barcodes` | Worker | Assign one barcode to one stocked unit of a product, optionally with `referencee`. |
+| `POST` | `/api/products/{id}/barcodes` | Worker | Assign one barcode to one stocked unit of a product. For returnable products, collect a customer reference email. |
 | `PATCH` | `/api/products/{id}/quantity` | Owner | Update product stock quantity. Quantity cannot be lower than assigned barcode count. |
 | `POST` | `/api/products/{id}/submit-approval` | Worker | Submit the product for approval once barcode count equals stock quantity. |
 | `GET` | `/api/products` | Authenticated | List products in the authenticated user's business with pagination. |
@@ -125,17 +138,61 @@ Public routes are limited to owner registration and login. All other API routes 
 
 | Method | Endpoint | Access | Description |
 | --- | --- | --- | --- |
-| `GET` | `/api/barcodes/reference/{referencee}` | Authenticated | Find barcode claim rows by customer reference in the authenticated user's business. |
-| `POST` | `/api/barcodes/reference/{referencee}/claim` | Authenticated | Claim one active returnable barcode when the reference has one unambiguous `NOT_CLAIMED` match. |
+| `GET` | `/api/barcodes/reference/{referenceEmail}` | Authenticated | Find barcode claim rows by customer reference email in the authenticated user's business. |
+| `POST` | `/api/barcodes/reference/{referenceEmail}/claim` | Authenticated | Claim one active returnable barcode when the email reference has one unambiguous `NOT_CLAIMED` match. |
 | `POST` | `/api/barcodes/{id}/claim` | Authenticated | Claim a selected active returnable barcode row by id after reference search. |
 
 ### Transactions
 
 | Method | Endpoint | Access | Description |
 | --- | --- | --- | --- |
-| `POST` | `/api/transactions` | Authenticated | Create a `BUY` or `SELL` transaction. |
+| `POST` | `/api/transactions` | Authenticated | Create a `BUY` or `SELL` transaction. `SELL` requests include one transaction-level payment type: `CASH`, `SWIPE_MACHINE`, or `WEBSITE_PAYMENT`. |
 | `GET` | `/api/transactions` | Owner | List transactions in the owner's business with pagination. |
 | `GET` | `/api/transactions/{id}` | Owner | Get a transaction by id within the owner's business. |
+
+#### Transaction Payment Contract
+
+`CreateTransactionRequest` is the UI contract for checkout screens:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| `type` | Yes | `BUY` or `SELL`. |
+| `paymentType` | Required for `SELL` | `CASH`, `SWIPE_MACHINE`, or `WEBSITE_PAYMENT`. Omit or ignore for `BUY`. |
+| `paymentEmail` | Required for `WEBSITE_PAYMENT`; required when any sold item needs a returnable reference email | Customer email used for Stripe payment/receipt and returnable barcode reference. |
+| `employeeId` | Yes | Worker who handled the movement. |
+| `ownerId` | Yes | Owner accountable for the transaction. |
+| `items` | Yes | One or more product line items. Different products are allowed in the same transaction. |
+
+`TransactionItemRequest`:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| `productId` | Yes | Product being bought or sold. |
+| `quantity` | Yes | Positive quantity. |
+| `unitPrice` | No | Optional override. Product price plus active returnable/nightshift charges is used when omitted. |
+| `barcodes` | Required for `SELL`; omitted for `BUY` | Scanned item barcodes. Count must match quantity. |
+| `referenceEmail` | Required for returnable `SELL` items if not supplied at header level | Customer email used as the returnable reference for all returnable barcodes on the line. |
+
+For backward compatibility during migration, barcode create requests accept the legacy `referencee` alias, but responses expose `referenceEmail`. New UI code should send `referenceEmail` and only use email addresses.
+
+`TransactionResponse` should expose enough payment fields for the UI to show the correct checkout state:
+
+| Field | Description |
+| --- | --- |
+| `paymentType` | `CASH`, `SWIPE_MACHINE`, or `WEBSITE_PAYMENT`. |
+| `paymentStatus` | `NOT_REQUIRED` for cash/swipe, `PENDING` for newly created website payments, `PAID` after Stripe confirmation, or `FAILED` when a Stripe payment fails. |
+| `paymentReference` | Stripe payment link/session id or offline reference. |
+| `paymentUrl` | Stripe hosted payment URL for `WEBSITE_PAYMENT`; null for cash/swipe. |
+| `paymentEmail` | Customer email used for website payment or returnable reference. |
+| `subtotal`, `returnableTotal`, `nightShiftTotal`, `totalAmount` | Money totals for receipt display. |
+
+Frontend checkout rules:
+
+- Let the cashier add multiple product rows before submitting one transaction.
+- Do not create one transaction per product just to collect payment.
+- For `CASH` and `SWIPE_MACHINE`, do not ask for customer email unless the basket contains returnable items.
+- For `WEBSITE_PAYMENT`, require `paymentEmail`, show the returned `paymentUrl`, and display `paymentStatus=PENDING` until payment confirmation.
+- For returnable items, collect a valid email address. Do not accept cellphone numbers as barcode references.
 
 ### Reports
 
@@ -161,6 +218,76 @@ Public routes are limited to owner registration and login. All other API routes 
 | `POST` | `/api/billing/subscriptions` | Owner | Create a paid PayPal subscription approval flow for Plus or Pro. |
 | `POST` | `/api/billing/subscriptions/{subscriptionId}/activate` | Owner | Activate an approved PayPal subscription after PayPal reports an approved/active status. |
 
+### Tips and Worker Payouts
+
+| Method | Endpoint | Access | Description |
+| --- | --- | --- | --- |
+| `POST` | `/api/tips` | Worker | Create an unpaid customer tip for a worker, generate a Stripe payment link, and return payment URL plus QR code URL. |
+| `PATCH` | `/api/tips/{tipId}/status` | Owner | Mark a tip as `PAID` after payment confirmation or owner reconciliation. Only `UNPAID -> PAID` is valid. |
+| `GET` | `/api/tips/worker/{workerId}` | Owner | List tips for a worker in the owner's business. |
+| `GET` | `/api/tips?status=UNPAID` | Owner | List tips by status. Also supports `status=PAID`. |
+| `POST` | `/api/tips/paypal/onboarding` | Owner | Configure or update a worker's PayPal payout account. The owner is the actor; the worker is only the payout recipient. |
+| `GET` | `/api/tips/worker/{workerId}/withdrawals/eligibility` | Owner | Check whether a worker has at least the localized ZAR 1000 eligible paid-tip balance after the 7-day hold. |
+| `POST` | `/api/tips/withdrawals` | Owner | Request a worker tip withdrawal to the configured PayPal account. |
+| `GET` | `/api/tips/worker/{workerId}/withdrawals` | Owner | List worker withdrawal requests. |
+
+`TipRequest`:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| `workerId` | Yes | Worker receiving the customer tip. |
+| `tipAmount` | Yes | Customer tip amount, minimum `0.01`, two decimal places. |
+| `callbackUrl` | No | Optional frontend URL used after the Stripe payment flow. |
+
+`TipResponse`:
+
+| Field | Description |
+| --- | --- |
+| `id`, `workerId` | Tip id and worker recipient id. |
+| `tipAmount`, `systemFee`, `netAmount` | Gross tip, creation-time platform fee, and worker net before withdrawal. Tip creation currently returns `systemFee=0.00` and `netAmount=tipAmount`; the platform fee is deducted when the owner requests withdrawal. |
+| `status` | `UNPAID` or `PAID`. |
+| `paymentReference` | Stripe payment link id/reference. |
+| `paymentUrl` | Hosted Stripe payment URL for the customer. |
+| `qrCodeUrl` | Public QR image URL for the payment URL. |
+| `created`, `updated` | ISO date-time timestamps. |
+
+`UpdateTipStatusRequest` only accepts `{ "status": "PAID" }`. The backend rejects `PAID -> UNPAID`, repeat-paid updates, and unknown tip ids.
+
+`PayPalAccountOnboardingRequest`:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| `workerId` | Yes | Worker whose payout account is being configured. |
+| `paypalEmail` | Yes | Worker PayPal email. Must be an email address, max 255 characters. |
+| `callbackUrl` | No | Optional owner-dashboard URL to return to after onboarding. |
+
+`PayPalAccountResponse` returns `id`, `workerId`, `ownerId`, `paypalEmail`, `status`, `onboardingUrl`, `created`, and `updated`. `status` is `ONBOARDING_REQUIRED` or `ACTIVE`.
+
+`WithdrawalEligibilityResponse`:
+
+| Field | Description |
+| --- | --- |
+| `workerId` | Worker being checked. |
+| `availableAmount` | Net paid-tip balance eligible after the hold period. |
+| `localizedAvailableAmount`, `localizedMinimumAmount` | Money objects with `amount`, `currency`, `symbol`, and `formatted`, for example `R1000.00`. |
+| `eligibleTipCount` | Number of paid tips that qualify for withdrawal. |
+| `holdDays` | Hold period before a paid tip can be withdrawn. Defaults to `7`. |
+| `paypalAccountReady` | Whether the owner has configured an active worker PayPal account. |
+| `canWithdraw` | True only when PayPal is ready and eligible balance meets the `R1000.00` minimum. |
+| `availableBefore` | Cutoff timestamp used for the 7-day eligibility window. |
+
+`WithdrawalRequest` only needs `workerId`. `WithdrawalResponse` returns `id`, `workerId`, `ownerId`, `amount`, `localizedAmount`, `tipCount`, `paypalEmail`, `status`, `requestedAt`, and `updated`; status values are `REQUESTED`, `PAID`, or `REJECTED`.
+
+Tip and withdrawal UI rules:
+
+- Tip creation requires an authenticated worker and needs `workerId`, `tipAmount`, and optional `callbackUrl`.
+- Tip payment-link creation does not deduct the platform fee. `TipResponse.systemFee` is `0.00` and `netAmount` equals `tipAmount` until withdrawal.
+- Owner-requested tip withdrawals deduct the configured 8.5% withdrawal fee after the 7-day hold and R1000 minimum eligibility rules are satisfied.
+- Tip, PayPal onboarding, and withdrawal responses expose scalar `workerId` and `ownerId` values. UI code should not expect nested user objects.
+- Workers do not configure PayPal and do not request withdrawals.
+- Owners configure each worker's PayPal account and initiate withdrawals on behalf of that worker.
+- Withdrawals use paid tips only after a 7-day hold and require at least `R1000.00` available net balance.
+
 ### Admin Billing
 
 | Method | Endpoint | Access | Description |
@@ -173,6 +300,12 @@ Public routes are limited to owner registration and login. All other API routes 
 | Method | Endpoint | Access | Description |
 | --- | --- | --- | --- |
 | `POST` | `/api/paypal/webhooks` | Public PayPal callback | Verify PayPal headers, ignore duplicate events, and process subscription/payment lifecycle events. |
+
+### Stripe Webhooks
+
+| Method | Endpoint | Access | Description |
+| --- | --- | --- | --- |
+| `POST` | `/api/stripe/webhooks` | Public Stripe callback | Verify Stripe events and update Stripe-backed billing or payment records idempotently. |
 
 ## Example Requests
 
@@ -217,9 +350,12 @@ Assign a barcode to one stocked unit:
 
 ```json
 {
-  "barcode": "6001"
+  "barcode": "6001",
+  "referenceEmail": "customer@example.com"
 }
 ```
+
+For non-returnable products, omit `referenceEmail`. The backend still accepts the legacy `referencee` request alias during migration, but new UI code should send `referenceEmail`. Do not send cellphone numbers as barcode references.
 
 Update product quantity:
 
@@ -234,20 +370,96 @@ Create a sale transaction:
 ```json
 {
   "type": "SELL",
+  "paymentType": "CASH",
   "employeeId": 2,
   "ownerId": 1,
+  "paymentEmail": "customer@example.com",
   "items": [
     {
       "productId": 9,
       "quantity": 2,
       "unitPrice": 20.50,
       "barcodes": ["6001", "6002"]
+    },
+    {
+      "productId": 12,
+      "quantity": 1,
+      "unitPrice": 12.00,
+      "barcodes": ["7001"]
     }
   ]
 }
 ```
 
-If `unitPrice` is omitted on a transaction item, the current product price is used. For `SELL` items, `barcodes` is required and its length must match `quantity`. `BUY` items must omit `barcodes`.
+This is one transaction with multiple product lines and one payment type. If `unitPrice` is omitted on a transaction item, the current product price is used. For `SELL` items, `barcodes` is required and its length must match `quantity`. `BUY` items must omit `barcodes`.
+
+Create a website-payment sale transaction:
+
+```json
+{
+  "type": "SELL",
+  "paymentType": "WEBSITE_PAYMENT",
+  "paymentEmail": "customer@example.com",
+  "employeeId": 2,
+  "ownerId": 1,
+  "items": [
+    {
+      "productId": 9,
+      "quantity": 2,
+      "barcodes": ["6001", "6002"],
+      "referenceEmail": "customer@example.com"
+    },
+    {
+      "productId": 12,
+      "quantity": 1,
+      "barcodes": ["7001"]
+    }
+  ]
+}
+```
+
+Expected website-payment response fields for the UI:
+
+```json
+{
+  "id": 7,
+  "type": "SELL",
+  "paymentType": "WEBSITE_PAYMENT",
+  "paymentStatus": "PENDING",
+  "paymentReference": "plink_123",
+  "paymentUrl": "https://pay.stripe.com/...",
+  "paymentEmail": "customer@example.com",
+  "totalAmount": 53.00
+}
+```
+
+Create a customer tip payment link as a worker:
+
+```json
+{
+  "workerId": 2,
+  "tipAmount": 100.00,
+  "callbackUrl": "https://www.kingsparkon.com/tips/thanks"
+}
+```
+
+Configure a worker PayPal payout account as owner:
+
+```json
+{
+  "workerId": 2,
+  "paypalEmail": "worker-paypal@example.com",
+  "callbackUrl": "https://www.kingsparkon.com/dashboard/owner/paypal/onboarding"
+}
+```
+
+Request a worker withdrawal as owner:
+
+```json
+{
+  "workerId": 2
+}
+```
 
 Create a paid subscription approval flow:
 
@@ -267,10 +479,13 @@ The core database tables are:
 - `businesses`: tenant record created during owner registration and linked to the owner.
 - `tracker_users`: owner and worker accounts, linked to privileges and businesses.
 - `products`: business product catalogue with category, price, stock quantity, returnable flag, and lifecycle status such as `CREATED` or `PENDING_APPROVAL`.
-- `product_barcodes`: worker-assigned physical item barcodes linked to products, with `referencee` and barcode status such as `NOT_CLAIMED`, `CLAIMED`, `EXPIRED`, or `NOT_CLAIMABLE`.
-- `inventory_transactions`: business transaction header with date, type, employee, and owner.
+- `product_barcodes`: worker-assigned physical item barcodes linked to products, with customer reference email and barcode status such as `NOT_CLAIMED`, `CLAIMED`, `EXPIRED`, or `NOT_CLAIMABLE`. API responses expose `referenceEmail`; barcode create requests temporarily accept the legacy `referencee` alias.
+- `inventory_transactions`: business transaction header with date, type, employee, owner, transaction-level payment type, payment status, customer payment email, Stripe/offline payment reference, payment URL, and business id.
 - `transaction_items`: product line items for each transaction.
 - `transaction_item_barcodes`: barcode values attached to transaction item rows for frontend transaction tables.
+- `tips`: worker-created customer tips exposed to the API with scalar `workerId`, tip amount, status, Stripe payment reference, and timestamps.
+- `worker_payout_accounts`: owner-configured PayPal payout accounts exposed with scalar `workerId` and `ownerId`.
+- `tip_withdrawals`: owner-requested worker tip withdrawals exposed with scalar `workerId` and `ownerId`; the authenticated owner is the actor that requests the withdrawal.
 - `business_subscriptions`: local subscription records, approval URLs, PayPal ids, plan, interval, term, amount, status, and billing period.
 - `paypal_webhook_events`: raw PayPal webhook payloads and processing statuses for idempotency and traceability.
 - `billing_audit_logs`: billing lifecycle, webhook, payment, and admin override history.
@@ -332,6 +547,15 @@ Important environment variables:
 | `PAYPAL_CANCEL_URL` | Frontend URL PayPal sends the owner to after cancellation. |
 | `PAYPAL_BILLING_PLUS_MONTHLY_PLAN_ID`, `PAYPAL_BILLING_PLUS_YEARLY_PLAN_ID` | PayPal plan ids for Plus billing intervals. |
 | `PAYPAL_BILLING_PRO_MONTHLY_PLAN_ID`, `PAYPAL_BILLING_PRO_YEARLY_PLAN_ID` | PayPal plan ids for Pro billing intervals. |
+| `STRIPE_SECRET_KEY` | Stripe secret key for hosted checkout, billing, tips, and website payment links. |
+| `STRIPE_API_KEY` | Optional Stripe API key override for payment-link flows. Defaults to `STRIPE_SECRET_KEY`. |
+| `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret. |
+| `STRIPE_SUCCESS_URL`, `STRIPE_CANCEL_URL` | Frontend URLs used by Stripe billing checkout. |
+| `TIPS_WITHDRAWAL_FEE_PERCENT` | Worker tip withdrawal platform fee percent applied only when an owner requests withdrawal. Defaults to `8.5`. |
+| `TIPS_WITHDRAWAL_MINIMUM_ZAR` | Minimum worker tip withdrawal amount in ZAR. Defaults to `1000`. |
+| `TIPS_WITHDRAWAL_HOLD_DAYS` | Number of days a paid tip must age before withdrawal eligibility. Defaults to `7`. |
+| `TIPS_PAYPAL_ONBOARDING_URL` | Owner dashboard URL used when configuring a worker PayPal payout account. |
+| `TRANSACTIONS_WEBSITE_WITHDRAWAL_FEE_PERCENT` | Website-payment transaction withdrawal fee percent. Defaults to `6.5`. |
 
 The default JWT secret in local configuration is for development only. Replace it before staging or production.
 
@@ -438,7 +662,8 @@ src/main/resources
 - Product barcodes must be unique.
 - Returnable product barcodes start as `NOT_CLAIMED`; non-returnable product barcodes start as `NOT_CLAIMABLE`.
 - Returnable product barcodes that are still `NOT_CLAIMED` expire at the Friday 17:00 business-time cutoff.
-- Returnable product barcodes can be searched and claimed by `referencee`.
+- Returnable product barcodes can be searched and claimed by customer reference email.
+- Barcode references must be email addresses. Cellphone numbers are not valid barcode references.
 - Product status starts as `CREATED`.
 - Products can only be submitted for approval when barcode count equals stock quantity.
 - Product quantity cannot be updated below the assigned barcode count.
@@ -451,5 +676,15 @@ src/main/resources
 - `SELL` transaction barcodes must belong to the selected product.
 - `SELL` transaction barcode count must match sold quantity.
 - `SELL` transactions cannot reduce stock below zero.
+- `SELL` transactions use one transaction-level payment type: `CASH`, `SWIPE_MACHINE`, or `WEBSITE_PAYMENT`.
+- One transaction can contain different products; payment is collected for the transaction total, not per product line.
+- `WEBSITE_PAYMENT` requires a customer payment email, creates a Stripe payment link for the transaction total, and emails the customer receipt/payment instructions.
+- Website-payment transaction withdrawals use a 6.5% fee.
+- `CASH` and `SWIPE_MACHINE` do not create Stripe payment links and do not send payment emails.
+- `CASH` and `SWIPE_MACHINE` only require customer email when the sold items include returnable barcode references.
+- Worker PayPal payout onboarding is configured by the owner, not by the worker.
+- Worker tip withdrawals are requested by the owner on behalf of the worker.
+- Tip withdrawals require paid tips that have aged past the 7-day hold and meet the localized R1000 minimum.
+- Tip creation does not deduct the platform fee; owner-requested tip withdrawals deduct 8.5%.
 - Reports reject invalid date ranges where `from` is after `to`.
 - Sensitive actions are recorded in audit logs.

@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+	<meta charset="UTF-8">
+	<title>Complete your payment</title>
+</head>
+<body style="font-family: Arial, sans-serif; color: #111827; line-height: 1.5;">
+	<h2 style="margin: 0 0 16px;">Complete your payment</h2>
+	<p>
+		Your purchase from
+		<strong th:text="${businessName}">King Sparkon business</strong>
+		is ready for payment.
+	</p>
+	<p>
+		Transaction type:
+		<strong th:text="${transactionType}">SELL</strong><br>
+		Total:
+		<strong th:text="${totalAmount}">0.00</strong><br>
+		Reference:
+		<strong th:text="${paymentReference}">payment-reference</strong>
+	</p>
+	<p>
+		<a th:href="${paymentUrl}" style="display: inline-block; padding: 10px 16px; background: #111827; color: #ffffff; text-decoration: none; border-radius: 6px;">
+			Pay securely with Stripe
+		</a>
+	</p>
+	<p>
+		If the button does not work, open this link:
+		<a th:href="${paymentUrl}" th:text="${paymentUrl}">https://pay.stripe.com/</a>
+	</p>
+	<p style="font-size: 12px; color: #6b7280;">
+		This email was sent to <span th:text="${paymentEmail}">customer@example.com</span>.
+	</p>
+</body>
+</html>

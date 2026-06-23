@@ -34,8 +34,8 @@ public class ProductBarcode {
 	@Column(nullable = false, unique = true)
 	private String barcode;
 
-	@Column
-	private String referencee;
+	@Column(name = "reference_email")
+	private String referenceEmail;
 
 	/*
 	 * Returnable packaging claim lifecycle.
@@ -87,12 +87,12 @@ public class ProductBarcode {
 		this.barcode = barcode;
 	}
 
-	public String getReferencee() {
-		return referencee;
+	public String getReferenceEmail() {
+		return referenceEmail;
 	}
 
-	public void setReferencee(String referencee) {
-		this.referencee = referencee;
+	public void setReferenceEmail(String referenceEmail) {
+		this.referenceEmail = referenceEmail;
 	}
 
 	public ProductBarcodeStatus getStatus() {

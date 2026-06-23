@@ -239,12 +239,27 @@ public class AppEmailService {
 				"transaction_created_worker_email");
 	}
 
+	public boolean sendTransactionWebsitePaymentEmail(InventoryTransaction transaction) {
+		Context context = transactionContext(transaction);
+		context.setVariable("paymentUrl", transaction.getPaymentUrl());
+		context.setVariable("paymentReference", transaction.getPaymentReference());
+		context.setVariable("paymentEmail", transaction.getPaymentEmail());
+		context.setVariable("totalAmount", transaction.getTotalAmount());
+
+		String html = templateEngine.process("email/transaction-website-payment", context);
+		return sendHtmlEmail(
+				normalizeEmail(transaction.getPaymentEmail()),
+				"Complete your King Sparkon Tracker payment",
+				html,
+				"transaction_website_payment_email");
+	}
+
 	public boolean sendBarcodeClaimedEmail(ProductBarcode barcode, String actorUsername) {
 		Business business = barcode.getProduct().getBusiness();
 		Context context = businessContext(business);
 		context.setVariable("productName", barcode.getProduct().getName());
 		context.setVariable("barcode", barcode.getBarcode());
-		context.setVariable("reference", barcode.getReferencee());
+		context.setVariable("reference", barcode.getReferenceEmail());
 		context.setVariable("actorUsername", actorUsername);
 
 		String html = templateEngine.process("email/barcode-claimed", context);
