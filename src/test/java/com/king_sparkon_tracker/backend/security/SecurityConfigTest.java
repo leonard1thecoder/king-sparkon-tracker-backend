@@ -30,6 +30,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.king_sparkon_tracker.backend.config.CorsConfig;
 import com.king_sparkon_tracker.backend.config.JacksonConfig;
 import com.king_sparkon_tracker.backend.controller.AuthenticationController;
+import com.king_sparkon_tracker.backend.controller.AffiliateController;
 import com.king_sparkon_tracker.backend.controller.UserController;
 import com.king_sparkon_tracker.backend.controller.HealthController;
 import com.king_sparkon_tracker.backend.controller.ProductBarcodeController;
@@ -37,11 +38,13 @@ import com.king_sparkon_tracker.backend.controller.ProductController;
 import com.king_sparkon_tracker.backend.controller.ReportController;
 import com.king_sparkon_tracker.backend.controller.TipController;
 import com.king_sparkon_tracker.backend.dto.AddProductBarcodeRequest;
+import com.king_sparkon_tracker.backend.dto.AffiliateProfileResponse;
 import com.king_sparkon_tracker.backend.dto.AlcoholReportResponse;
 import com.king_sparkon_tracker.backend.dto.CreateWorkerRequest;
 import com.king_sparkon_tracker.backend.dto.PayPalAccountOnboardingRequest;
 import com.king_sparkon_tracker.backend.dto.PayPalAccountResponse;
 import com.king_sparkon_tracker.backend.dto.ProductRequest;
+import com.king_sparkon_tracker.backend.dto.RegisterAffiliateRequest;
 import com.king_sparkon_tracker.backend.dto.RegisterUserRequest;
 import com.king_sparkon_tracker.backend.dto.TipRequest;
 import com.king_sparkon_tracker.backend.dto.TipResponse;
@@ -62,6 +65,7 @@ import com.king_sparkon_tracker.backend.model.SupportedCurrency;
 import com.king_sparkon_tracker.backend.model.TipStatus;
 import com.king_sparkon_tracker.backend.model.TipWithdrawalStatus;
 import com.king_sparkon_tracker.backend.service.BusinessAccessService;
+import com.king_sparkon_tracker.backend.service.AffiliateService;
 import com.king_sparkon_tracker.backend.service.TrackerUserService;
 import com.king_sparkon_tracker.backend.service.EmailVerificationService;
 import com.king_sparkon_tracker.backend.service.PasswordResetService;
@@ -75,6 +79,7 @@ import com.king_sparkon_tracker.backend.service.TipWithdrawalService;
 
 @WebMvcTest(controllers = {
 		AuthenticationController.class,
+		AffiliateController.class,
 		UserController.class,
 		HealthController.class,
 		ProductBarcodeController.class,
@@ -102,6 +107,9 @@ class SecurityConfigTest {
 
 	@MockitoBean
 	private TipWithdrawalService tipWithdrawalService;
+
+	@MockitoBean
+	private AffiliateService affiliateService;
 
 	@MockitoBean
 	private ProductService productService;
@@ -176,6 +184,59 @@ class SecurityConfigTest {
 						"""))
 				.andExpect(status().isCreated())
 				.andExpect(jsonPath("$.privilege").value("Owner"));
+	}
+
+	@Test
+	void affiliateRegistrationIsPublic() throws Exception {
+		TrackerUser affiliate = trackerUser("affiliate", "affiliate@example.com", PrivilegeRole.Affiliate);
+		affiliate.activateAffiliateProfile(
+				"AFF-AFFILIATE-1234",
+				"https://app.example/pricing?affiliateCode=AFF-AFFILIATE-1234",
+				"https://api.qrserver.com/v1/create-qr-code/?data=affiliate");
+		when(userService.registerAffiliate(any(RegisterAffiliateRequest.class))).thenReturn(affiliate);
+
+		mockMvc.perform(post("/api/auth/register-affiliate")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+						{
+						  "username": "affiliate",
+						  "emailAddress": "affiliate@example.com",
+						  "password": "secret"
+						}
+						"""))
+				.andExpect(status().isCreated())
+				.andExpect(jsonPath("$.privilege").value("Affiliate"))
+				.andExpect(jsonPath("$.affiliateCode").value("AFF-AFFILIATE-1234"));
+	}
+
+	@Test
+	void affiliateProfileRejectsOwnerCaller() throws Exception {
+		mockMvc.perform(get("/api/affiliates/me")
+				.with(user("owner").authorities(() -> PrivilegeRole.Owner.name())))
+				.andExpect(status().isForbidden());
+	}
+
+	@Test
+	void affiliateProfileAllowsAffiliateCaller() throws Exception {
+		when(affiliateService.profile("affiliate"))
+				.thenReturn(new AffiliateProfileResponse(
+						10L,
+						"affiliate",
+						"affiliate@example.com",
+						null,
+						null,
+						true,
+						false,
+						null,
+						"AFF-AFFILIATE-1234",
+						"https://app.example/pricing?affiliateCode=AFF-AFFILIATE-1234",
+						"https://api.qrserver.com/v1/create-qr-code/?data=affiliate",
+						java.time.LocalDateTime.parse("2026-06-24T10:00:00")));
+
+		mockMvc.perform(get("/api/affiliates/me")
+				.with(user("affiliate").authorities(() -> PrivilegeRole.Affiliate.name())))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.affiliateCode").value("AFF-AFFILIATE-1234"));
 	}
 
 	@Test

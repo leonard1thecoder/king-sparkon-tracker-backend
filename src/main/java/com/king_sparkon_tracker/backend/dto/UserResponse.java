@@ -55,7 +55,19 @@ public record UserResponse(
 		boolean tipQrCodeEnabled,
 
 		@Schema(description = "Static QR code URL linked to the worker tip payment flow.")
-		String tipQrCodeUrl
+		String tipQrCodeUrl,
+
+		@Schema(description = "Affiliate referral code for pricing-plan promotion.")
+		String affiliateCode,
+
+		@Schema(description = "Affiliate pricing-page promotion URL.")
+		String affiliatePromotionUrl,
+
+		@Schema(description = "Affiliate QR code URL linked to the promotion URL.")
+		String affiliateQrCodeUrl,
+
+		@Schema(description = "Affiliate PayPal payout link.")
+		String affiliatePaypalLink
 ) {
 
 	public static UserResponse from(TrackerUser user) {
@@ -75,7 +87,11 @@ public record UserResponse(
 				user.isOnboardingRequired(),
 				user.isOnboardingCompleted(),
 				user.isTipQrCodeEnabled(),
-				user.getTipQrCodeUrl()
+				user.getTipQrCodeUrl(),
+				user.getAffiliateCode(),
+				user.getAffiliatePromotionUrl(),
+				user.getAffiliateQrCodeUrl(),
+				user.getAffiliatePaypalLink()
 		);
 	}
 }

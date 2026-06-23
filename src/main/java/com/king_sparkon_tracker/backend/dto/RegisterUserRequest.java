@@ -36,7 +36,11 @@ public record RegisterUserRequest(
 
 		@Schema(description = "Owner cellphone number used for onboarding and account contact.", example = "+27821234567")
 		@Size(max = 32)
-		String cellphoneNumber
+		String cellphoneNumber,
+
+		@Schema(description = "Optional affiliate referral code from a pricing-page promotion QR.", example = "AFF-ALICE-1234")
+		@Size(max = 64)
+		String affiliateCode
 ) {
 	public RegisterUserRequest(
 			String username,
@@ -44,6 +48,17 @@ public record RegisterUserRequest(
 			String password,
 			String businessName,
 			LocalizationCountry localizationCountry) {
-		this(username, emailAddress, password, businessName, localizationCountry, null, null);
+		this(username, emailAddress, password, businessName, localizationCountry, null, null, null);
+	}
+
+	public RegisterUserRequest(
+			String username,
+			String emailAddress,
+			String password,
+			String businessName,
+			LocalizationCountry localizationCountry,
+			String physicalAddress,
+			String cellphoneNumber) {
+		this(username, emailAddress, password, businessName, localizationCountry, physicalAddress, cellphoneNumber, null);
 	}
 }

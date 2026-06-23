@@ -17,6 +17,8 @@ public record BillingPlanResponse(
 		boolean workerTipsPlatform,
 		boolean businessAnalysisAi,
 		boolean workerClocker,
+		boolean affiliateProgram,
+		List<AffiliateCommissionTierResponse> affiliateCommissionTiers,
 		List<String> features
 ) {
 }

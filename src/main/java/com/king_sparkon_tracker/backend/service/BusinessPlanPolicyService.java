@@ -5,6 +5,7 @@ import java.util.List;
 
 import org.springframework.stereotype.Service;
 
+import com.king_sparkon_tracker.backend.dto.AffiliateCommissionTierResponse;
 import com.king_sparkon_tracker.backend.dto.BillingPlanResponse;
 import com.king_sparkon_tracker.backend.model.Business;
 import com.king_sparkon_tracker.backend.model.BusinessFeature;
@@ -19,6 +20,12 @@ public class BusinessPlanPolicyService {
 	private static final BigDecimal PLUS_MONTHLY_PRICE = new BigDecimal("880.00");
 
 	private static final BigDecimal PRO_MONTHLY_PRICE = new BigDecimal("2300.00");
+
+	private static final List<AffiliateCommissionTierResponse> AFFILIATE_COMMISSION_TIERS = List.of(
+			new AffiliateCommissionTierResponse("First 3 months", 0, 3, new BigDecimal("18.00")),
+			new AffiliateCommissionTierResponse("After 3 months", 3, 12, new BigDecimal("23.00")),
+			new AffiliateCommissionTierResponse("After 1 year", 12, null, new BigDecimal("28.00"))
+	);
 
 	public BigDecimal monthlyPrice(BusinessPlan plan) {
 		return switch (plan) {
@@ -95,7 +102,15 @@ public class BusinessPlanPolicyService {
 						false,
 						false,
 						false,
-						List.of("14 day trial", "2 workers", "Unlimited products", "Unlimited barcode scanning")
+						true,
+						AFFILIATE_COMMISSION_TIERS,
+						List.of(
+								"14 day trial",
+								"2 workers",
+								"Unlimited products",
+								"Unlimited barcode scanning",
+								"Affiliate promo QR tracking"
+						)
 				),
 				new BillingPlanResponse(
 						BusinessPlan.PLUS,
@@ -109,7 +124,14 @@ public class BusinessPlanPolicyService {
 						false,
 						false,
 						false,
-						List.of("5 workers", "Unlimited products", "Unlimited barcode scanning")
+						true,
+						AFFILIATE_COMMISSION_TIERS,
+						List.of(
+								"5 workers",
+								"Unlimited products",
+								"Unlimited barcode scanning",
+								"Affiliate promo QR tracking"
+						)
 				),
 				new BillingPlanResponse(
 						BusinessPlan.PRO,
@@ -123,16 +145,23 @@ public class BusinessPlanPolicyService {
 						true,
 						true,
 						true,
+						true,
+						AFFILIATE_COMMISSION_TIERS,
 						List.of(
 								"Unlimited workers",
 								"Unlimited products",
 								"Unlimited barcode scanning",
 								"Workers tips platform",
 								"Business Analysis AI",
-								"Worker clocker"
+								"Worker clocker",
+								"Affiliate promo QR tracking"
 						)
 				)
 		);
+	}
+
+	public List<AffiliateCommissionTierResponse> affiliateCommissionTiers() {
+		return AFFILIATE_COMMISSION_TIERS;
 	}
 
 	private BusinessPlan planOf(Business business) {

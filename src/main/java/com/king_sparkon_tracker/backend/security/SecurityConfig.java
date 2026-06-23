@@ -59,6 +59,7 @@ public class SecurityConfig {
 			ObjectMapper objectMapper,
 			@Value("${app.security.h2-console-enabled:false}") boolean h2ConsoleEnabled) throws Exception {
 		String ownerAuthority = PrivilegeRole.Owner.name();
+		String affiliateAuthority = PrivilegeRole.Affiliate.name();
 
 		return http
 				.cors(Customizer.withDefaults())
@@ -72,6 +73,7 @@ public class SecurityConfig {
 						.requestMatchers(
 								HttpMethod.POST,
 								"/api/auth/register",
+								"/api/auth/register-affiliate",
 								"/api/auth/login",
 								"/api/auth/forgot-password",
 								"/api/auth/reset-password"
@@ -89,9 +91,10 @@ public class SecurityConfig {
 						.requestMatchers(HttpMethod.PATCH, "/api/users/me/onboarding").authenticated()
 						.requestMatchers(HttpMethod.POST, "/api/users/workers").hasAuthority(ownerAuthority)
 						.requestMatchers("/api/users/**").hasAuthority(ownerAuthority)
+						.requestMatchers("/api/affiliates/**").hasAuthority(affiliateAuthority)
 						.requestMatchers(HttpMethod.GET, "/api/privileges/**").authenticated()
 						.requestMatchers("/api/privileges/**").hasAuthority(ownerAuthority)
-						.requestMatchers(HttpMethod.GET, "/api/billing/plans").authenticated()
+						.requestMatchers(HttpMethod.GET, "/api/billing/plans").permitAll()
 						.requestMatchers("/api/billing/**").hasAuthority(ownerAuthority)
 						.requestMatchers("/api/admin/**").hasAuthority(ownerAuthority)
 						.requestMatchers(HttpMethod.POST, "/api/products/*/barcodes")

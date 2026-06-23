@@ -51,6 +51,18 @@ public class AuthenticationController {
 		return UserResponse.from(userService.registerOwner(request));
 	}
 
+	@PostMapping("/register-affiliate")
+	@ResponseStatus(HttpStatus.CREATED)
+	@Operation(summary = "Register affiliate", description = "Creates an affiliate account with a promotion code and QR link.")
+	@ApiResponses({
+			@ApiResponse(responseCode = "201", description = "Affiliate registered"),
+			@ApiResponse(responseCode = "400", description = "Invalid registration details"),
+			@ApiResponse(responseCode = "409", description = "Username or email already exists")
+	})
+	public UserResponse registerAffiliate(@Valid @RequestBody RegisterAffiliateRequest request) {
+		return UserResponse.from(userService.registerAffiliate(request));
+	}
+
 	@PostMapping("/login")
 	@Operation(summary = "Login", description = "Authenticates a registered owner or worker and returns a JWT access token.")
 	@ApiResponses({

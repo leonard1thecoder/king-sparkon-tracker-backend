@@ -24,6 +24,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import com.king_sparkon_tracker.backend.dto.CompleteOnboardingRequest;
 import com.king_sparkon_tracker.backend.dto.CreateWorkerRequest;
 import com.king_sparkon_tracker.backend.dto.LoginRequest;
+import com.king_sparkon_tracker.backend.dto.RegisterAffiliateRequest;
 import com.king_sparkon_tracker.backend.dto.RegisterUserRequest;
 import com.king_sparkon_tracker.backend.model.TrackerUser;
 import com.king_sparkon_tracker.backend.model.Business;
@@ -76,7 +77,8 @@ class TrackerUserServiceTest {
 				businessPlanPolicyService,
 				businessAccessService,
 				appEmailService,
-				"https://app.example/tips/workers/{workerId}");
+				"https://app.example/tips/workers/{workerId}",
+				"https://app.example/pricing?affiliateCode={affiliateCode}");
 	}
 
 	@Test
@@ -102,6 +104,53 @@ class TrackerUserServiceTest {
 		when(passwordEncoder.matches("secret", "encoded-secret")).thenReturn(true);
 
 		assertThatThrownBy(() -> userService.authenticate(new LoginRequest("owner", "secret")))
+				.isInstanceOf(EmailNotVerifiedException.class)
+				.hasMessage("Email address is not verified. Please verify your email before logging in.");
+	}
+
+	@Test
+	void registerAffiliateCreatesAffiliateUserPromotionQrAndSendsVerificationEmail() {
+		Privilege affiliatePrivilege = new Privilege(PrivilegeRole.Affiliate);
+		when(userRepository.existsByUsername("partner")).thenReturn(false);
+		when(userRepository.existsByEmailAddress("partner@example.com")).thenReturn(false);
+		when(privilegeService.createPrivilege(PrivilegeRole.Affiliate)).thenReturn(affiliatePrivilege);
+		when(passwordEncoder.encode("secret")).thenReturn("encoded-secret");
+		when(userRepository.save(any(TrackerUser.class))).thenAnswer(invocation -> {
+			TrackerUser user = invocation.getArgument(0);
+			if (user.getId() == null) {
+				ReflectionTestUtils.setField(user, "id", 33L);
+			}
+			return user;
+		});
+
+		TrackerUser result = userService.registerAffiliate(new RegisterAffiliateRequest(
+				"partner",
+				"partner@example.com",
+				"secret",
+				null,
+				" 12 Partner Road ",
+				" +27825550123 ",
+				" https://paypal.me/partner "));
+
+		assertThat(result.getPrivilege()).isSameAs(affiliatePrivilege);
+		assertThat(result.getAffiliateCode()).startsWith("AFF-PARTNER-");
+		assertThat(result.getAffiliatePromotionUrl()).startsWith("https://app.example/pricing?affiliateCode=AFF-PARTNER-");
+		assertThat(result.getAffiliateQrCodeUrl()).contains("qrserver");
+		assertThat(result.getAffiliateQrCodeUrl()).contains("affiliateCode%3DAFF-PARTNER-");
+		assertThat(result.getPhysicalAddress()).isEqualTo("12 Partner Road");
+		assertThat(result.getCellphoneNumber()).isEqualTo("+27825550123");
+		assertThat(result.getAffiliatePaypalLink()).isEqualTo("https://paypal.me/partner");
+		assertThat(result.isOnboardingCompleted()).isTrue();
+		verify(emailVerificationService).sendVerificationEmail(result, null, null);
+	}
+
+	@Test
+	void authenticateRejectsAffiliateWhenEmailIsNotVerified() {
+		TrackerUser user = new TrackerUser("affiliate", "affiliate@example.com", "encoded-secret", new Privilege(PrivilegeRole.Affiliate));
+		when(userRepository.findByUsername("affiliate")).thenReturn(Optional.of(user));
+		when(passwordEncoder.matches("secret", "encoded-secret")).thenReturn(true);
+
+		assertThatThrownBy(() -> userService.authenticate(new LoginRequest("affiliate", "secret")))
 				.isInstanceOf(EmailNotVerifiedException.class)
 				.hasMessage("Email address is not verified. Please verify your email before logging in.");
 	}

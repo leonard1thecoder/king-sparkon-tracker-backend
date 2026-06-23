@@ -29,6 +29,16 @@ class BusinessPlanPolicyServiceTest {
 		assertThat(service.maxWorkers(BusinessPlan.FREE_TRIAL)).isEqualTo(2);
 		assertThat(service.maxWorkers(BusinessPlan.PLUS)).isEqualTo(5);
 		assertThat(service.maxWorkers(BusinessPlan.PRO)).isEqualTo(BusinessPlanPolicyService.UNLIMITED);
+		assertThat(service.billingPlans())
+				.allSatisfy(plan -> {
+					assertThat(plan.affiliateProgram()).isTrue();
+					assertThat(plan.affiliateCommissionTiers())
+							.extracting("commissionRatePercent")
+							.containsExactly(
+									new java.math.BigDecimal("18.00"),
+									new java.math.BigDecimal("23.00"),
+									new java.math.BigDecimal("28.00"));
+				});
 	}
 
 	@Test
