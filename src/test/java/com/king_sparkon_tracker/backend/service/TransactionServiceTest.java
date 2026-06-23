@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -36,9 +37,12 @@ import com.king_sparkon_tracker.backend.model.PrivilegeRole;
 import com.king_sparkon_tracker.backend.model.Product;
 import com.king_sparkon_tracker.backend.model.ProductBarcode;
 import com.king_sparkon_tracker.backend.model.ProductCategory;
+import com.king_sparkon_tracker.backend.model.TransactionPaymentStatus;
+import com.king_sparkon_tracker.backend.model.TransactionPaymentType;
 import com.king_sparkon_tracker.backend.model.TransactionType;
 import com.king_sparkon_tracker.backend.repository.InventoryTransactionRepository;
 import com.king_sparkon_tracker.backend.repository.ProductBarcodeRepository;
+import com.king_sparkon_tracker.backend.service.StripeService.CreatedTransactionPaymentLink;
 
 @ExtendWith(MockitoExtension.class)
 class TransactionServiceTest {
@@ -60,6 +64,9 @@ class TransactionServiceTest {
 
 	@Mock
 	private AppEmailService appEmailService;
+
+	@Mock
+	private StripeService stripeService;
 
 	private TransactionService transactionService;
 	private Business business;
@@ -93,12 +100,18 @@ class TransactionServiceTest {
 
 		InventoryTransaction result = transactionService.createTransaction(new CreateTransactionRequest(
 				TransactionType.SELL,
+				TransactionPaymentType.CASH,
+				null,
 				2L,
 				1L,
 				List.of(new TransactionItemRequest(9L, 3, new BigDecimal("18.50"), List.of("6001", "6002", "6003")))),
 				"worker");
 
 		assertThat(result.getType()).isEqualTo(TransactionType.SELL);
+		assertThat(result.getPaymentType()).isEqualTo(TransactionPaymentType.CASH);
+		assertThat(result.getPaymentStatus()).isEqualTo(TransactionPaymentStatus.NOT_REQUIRED);
+		assertThat(result.getPaymentEmail()).isNull();
+		assertThat(result.getPaymentUrl()).isNull();
 		assertThat(result.getEmployee()).isSameAs(employee);
 		assertThat(result.getOwner()).isSameAs(owner);
 		assertThat(result.getItems()).hasSize(1);
@@ -106,8 +119,141 @@ class TransactionServiceTest {
 		assertThat(result.getItems().getFirst().getQuantity()).isEqualTo(3);
 		assertThat(result.getItems().getFirst().getUnitPrice()).isEqualByComparingTo("18.50");
 		assertThat(result.getItems().getFirst().getBarcodes()).containsExactly("6001", "6002", "6003");
+		assertThat(result.getTotalAmount()).isEqualByComparingTo("55.50");
 		verify(productService).applyStockMovement(product, TransactionType.SELL, 3);
 		verify(appEmailService).sendTransactionCreatedOwnerEmail(result);
+		verify(stripeService, never()).createTransactionPaymentLink(any(InventoryTransaction.class));
+		verify(appEmailService, never()).sendTransactionWebsitePaymentEmail(any(InventoryTransaction.class));
+	}
+
+	@Test
+	void createTransactionCreatesWebsitePaymentLinkAndEmailsCustomerForFullBasket() {
+		TrackerUser employee = user("worker", PrivilegeRole.Worker);
+		TrackerUser owner = user("owner", PrivilegeRole.Owner);
+		Product beer = product(9L, "Beer", ProductCategory.Alcohol, false);
+		Product water = product(12L, "Water", ProductCategory.NonAlcohol, false);
+		when(userService.getUserById(2L)).thenReturn(employee);
+		when(userService.getUserById(1L)).thenReturn(owner);
+		when(productService.getProductForStockUpdate(9L, 1L)).thenReturn(beer);
+		when(productService.getProductForStockUpdate(12L, 1L)).thenReturn(water);
+		when(productBarcodeRepository.findByBarcodeIn(List.of("6001", "6002")))
+				.thenReturn(productBarcodes(beer, "6001", "6002"));
+		when(productBarcodeRepository.findByBarcodeIn(List.of("7001")))
+				.thenReturn(productBarcodes(water, "7001"));
+		when(transactionRepository.save(any(InventoryTransaction.class)))
+				.thenAnswer(invocation -> {
+					InventoryTransaction transaction = invocation.getArgument(0);
+					ReflectionTestUtils.setField(transaction, "id", 7L);
+					return transaction;
+				});
+		when(stripeService.createTransactionPaymentLink(any(InventoryTransaction.class)))
+				.thenReturn(new CreatedTransactionPaymentLink("plink_123", "https://pay.stripe.com/plink_123"));
+
+		InventoryTransaction result = transactionService.createTransaction(new CreateTransactionRequest(
+				TransactionType.SELL,
+				TransactionPaymentType.WEBSITE_PAYMENT,
+				" Customer@Example.com ",
+				2L,
+				1L,
+				List.of(
+						new TransactionItemRequest(9L, 2, new BigDecimal("20.50"), List.of("6001", "6002")),
+						new TransactionItemRequest(12L, 1, new BigDecimal("12.00"), List.of("7001")))),
+				"worker");
+
+		assertThat(result.getPaymentType()).isEqualTo(TransactionPaymentType.WEBSITE_PAYMENT);
+		assertThat(result.getPaymentStatus()).isEqualTo(TransactionPaymentStatus.PENDING);
+		assertThat(result.getPaymentEmail()).isEqualTo("customer@example.com");
+		assertThat(result.getPaymentReference()).isEqualTo("plink_123");
+		assertThat(result.getPaymentUrl()).isEqualTo("https://pay.stripe.com/plink_123");
+		assertThat(result.getTotalAmount()).isEqualByComparingTo("53.00");
+		assertThat(result.getItems()).hasSize(2);
+		verify(stripeService).createTransactionPaymentLink(result);
+		verify(appEmailService).sendTransactionWebsitePaymentEmail(result);
+	}
+
+	@Test
+	void createTransactionRejectsWebsitePaymentWithoutPaymentEmail() {
+		assertThatThrownBy(() -> transactionService.createTransaction(new CreateTransactionRequest(
+				TransactionType.SELL,
+				TransactionPaymentType.WEBSITE_PAYMENT,
+				null,
+				2L,
+				1L,
+				List.of(new TransactionItemRequest(9L, 1, null, List.of("6001")))),
+				"worker"))
+				.isInstanceOf(IllegalArgumentException.class)
+				.hasMessage("Website payment requires paymentEmail");
+	}
+
+	@Test
+	void createCashTransactionUsesReturnableReferenceEmailWithoutCustomerPaymentEmail() {
+		TrackerUser employee = user("worker", PrivilegeRole.Worker);
+		TrackerUser owner = user("owner", PrivilegeRole.Owner);
+		Product product = returnableNightShiftProduct();
+		List<ProductBarcode> barcodes = productBarcodes(product, "6001");
+		when(userService.getUserById(2L)).thenReturn(employee);
+		when(userService.getUserById(1L)).thenReturn(owner);
+		when(productService.getProductForStockUpdate(9L, 1L)).thenReturn(product);
+		when(productBarcodeRepository.findByBarcodeIn(List.of("6001"))).thenReturn(barcodes);
+		when(transactionRepository.save(any(InventoryTransaction.class)))
+				.thenAnswer(invocation -> invocation.getArgument(0));
+
+		InventoryTransaction result = transactionService.createTransaction(new CreateTransactionRequest(
+				TransactionType.SELL,
+				TransactionPaymentType.CASH,
+				null,
+				2L,
+				1L,
+				List.of(new TransactionItemRequest(9L, 1, null, List.of("6001"), "Customer@Example.com"))),
+				"worker");
+
+		assertThat(result.getPaymentType()).isEqualTo(TransactionPaymentType.CASH);
+		assertThat(result.getPaymentEmail()).isNull();
+		assertThat(barcodes.getFirst().getReferenceEmail()).isEqualTo("customer@example.com");
+		verify(stripeService, never()).createTransactionPaymentLink(any(InventoryTransaction.class));
+		verify(appEmailService, never()).sendTransactionWebsitePaymentEmail(any(InventoryTransaction.class));
+	}
+
+	@Test
+	void createCashTransactionRejectsReturnableSaleWithoutReferenceEmail() {
+		TrackerUser employee = user("worker", PrivilegeRole.Worker);
+		TrackerUser owner = user("owner", PrivilegeRole.Owner);
+		Product product = returnableNightShiftProduct();
+		when(userService.getUserById(2L)).thenReturn(employee);
+		when(userService.getUserById(1L)).thenReturn(owner);
+		when(productService.getProductForStockUpdate(9L, 1L)).thenReturn(product);
+
+		assertThatThrownBy(() -> transactionService.createTransaction(new CreateTransactionRequest(
+				TransactionType.SELL,
+				TransactionPaymentType.CASH,
+				null,
+				2L,
+				1L,
+				List.of(new TransactionItemRequest(9L, 1, null, List.of("6001")))),
+				"worker"))
+				.isInstanceOf(IllegalArgumentException.class)
+				.hasMessage("Returnable barcode reference email is required");
+	}
+
+	@Test
+	void createCashTransactionRejectsCellphoneBarcodeReference() {
+		TrackerUser employee = user("worker", PrivilegeRole.Worker);
+		TrackerUser owner = user("owner", PrivilegeRole.Owner);
+		Product product = returnableNightShiftProduct();
+		when(userService.getUserById(2L)).thenReturn(employee);
+		when(userService.getUserById(1L)).thenReturn(owner);
+		when(productService.getProductForStockUpdate(9L, 1L)).thenReturn(product);
+
+		assertThatThrownBy(() -> transactionService.createTransaction(new CreateTransactionRequest(
+				TransactionType.SELL,
+				TransactionPaymentType.CASH,
+				null,
+				2L,
+				1L,
+				List.of(new TransactionItemRequest(9L, 1, null, List.of("6001"), "0821234567"))),
+				"worker"))
+				.isInstanceOf(IllegalArgumentException.class)
+				.hasMessage("Reference email must be a valid email address");
 	}
 
 	@Test
@@ -174,6 +320,8 @@ class TransactionServiceTest {
 
 		assertThatThrownBy(() -> transactionService.createTransaction(new CreateTransactionRequest(
 						TransactionType.SELL,
+						TransactionPaymentType.CASH,
+						null,
 						2L,
 						1L,
 						List.of(new TransactionItemRequest(9L, 2, null))),
@@ -219,6 +367,8 @@ class TransactionServiceTest {
 
 		InventoryTransaction result = transactionService.createTransaction(new CreateTransactionRequest(
 				TransactionType.SELL,
+				TransactionPaymentType.CASH,
+				"customer@example.com",
 				2L,
 				1L,
 				List.of(new TransactionItemRequest(9L, 1, null, List.of("6001")))),
@@ -243,6 +393,8 @@ class TransactionServiceTest {
 
 		InventoryTransaction result = transactionService.createTransaction(new CreateTransactionRequest(
 				TransactionType.SELL,
+				TransactionPaymentType.CASH,
+				"customer@example.com",
 				2L,
 				1L,
 				List.of(new TransactionItemRequest(9L, 1, null, List.of("6001")))),
@@ -269,6 +421,8 @@ class TransactionServiceTest {
 
 		InventoryTransaction result = transactionService.createTransaction(new CreateTransactionRequest(
 				TransactionType.SELL,
+				TransactionPaymentType.CASH,
+				null,
 				2L,
 				1L,
 				List.of(
@@ -291,6 +445,8 @@ class TransactionServiceTest {
 
 		assertThatThrownBy(() -> transactionService.createTransaction(new CreateTransactionRequest(
 				TransactionType.SELL,
+				TransactionPaymentType.CASH,
+				null,
 				2L,
 				1L,
 				List.of(new TransactionItemRequest(9L, 2, null, List.of("6001")))),
@@ -310,6 +466,8 @@ class TransactionServiceTest {
 
 		assertThatThrownBy(() -> transactionService.createTransaction(new CreateTransactionRequest(
 				TransactionType.SELL,
+				TransactionPaymentType.CASH,
+				null,
 				2L,
 				1L,
 				List.of(new TransactionItemRequest(9L, 1, null, List.of("7001")))),
@@ -332,6 +490,8 @@ class TransactionServiceTest {
 
 		assertThatThrownBy(() -> transactionService.createTransaction(new CreateTransactionRequest(
 				TransactionType.SELL,
+				TransactionPaymentType.CASH,
+				null,
 				1L,
 				1L,
 				List.of(new TransactionItemRequest(9L, 1, null))),
@@ -347,6 +507,8 @@ class TransactionServiceTest {
 
 		assertThatThrownBy(() -> transactionService.createTransaction(new CreateTransactionRequest(
 				TransactionType.SELL,
+				TransactionPaymentType.CASH,
+				null,
 				2L,
 				3L,
 				List.of(new TransactionItemRequest(9L, 1, null))),
@@ -437,7 +599,8 @@ class TransactionServiceTest {
 				auditLogService,
 				new ProductPricingService(fixedClock),
 				productBarcodeRepository,
-				appEmailService);
+				appEmailService,
+				stripeService);
 	}
 
 	private TrackerUser user(String username, PrivilegeRole role) {

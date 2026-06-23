@@ -30,9 +30,12 @@ import com.king_sparkon_tracker.backend.model.Product;
 import com.king_sparkon_tracker.backend.model.ProductBarcode;
 import com.king_sparkon_tracker.backend.model.ProductBarcodeAvailabilityStatus;
 import com.king_sparkon_tracker.backend.model.TransactionItem;
+import com.king_sparkon_tracker.backend.model.TransactionPaymentStatus;
+import com.king_sparkon_tracker.backend.model.TransactionPaymentType;
 import com.king_sparkon_tracker.backend.model.TransactionType;
 import com.king_sparkon_tracker.backend.repository.InventoryTransactionRepository;
 import com.king_sparkon_tracker.backend.repository.ProductBarcodeRepository;
+import com.king_sparkon_tracker.backend.service.StripeService.CreatedTransactionPaymentLink;
 
 @Service
 @Transactional
@@ -47,6 +50,7 @@ public class TransactionService {
 	private final ProductPricingService productPricingService;
 	private final ProductBarcodeRepository productBarcodeRepository;
 	private final AppEmailService appEmailService;
+	private final StripeService stripeService;
 
 	public TransactionService(
 			InventoryTransactionRepository transactionRepository,
@@ -55,7 +59,8 @@ public class TransactionService {
 			AuditLogService auditLogService,
 			ProductPricingService productPricingService,
 			ProductBarcodeRepository productBarcodeRepository,
-			AppEmailService appEmailService) {
+			AppEmailService appEmailService,
+			StripeService stripeService) {
 		this.transactionRepository = transactionRepository;
 		this.productService = productService;
 		this.userService = userService;
@@ -63,6 +68,7 @@ public class TransactionService {
 		this.productPricingService = productPricingService;
 		this.productBarcodeRepository = productBarcodeRepository;
 		this.appEmailService = appEmailService;
+		this.stripeService = stripeService;
 	}
 
 	public InventoryTransaction createTransaction(CreateTransactionRequest request) {
@@ -72,6 +78,8 @@ public class TransactionService {
 	public InventoryTransaction createTransaction(CreateTransactionRequest request, String actorUsername) {
 		TransactionType type = requirePresent(request.type(), "Transaction type is required");
 		List<TransactionItemRequest> itemRequests = requireItems(request.items());
+		TransactionPaymentType paymentType = paymentTypeFor(type, request.paymentType());
+		String paymentEmail = paymentEmailFor(type, paymentType, request.paymentEmail());
 
 		Business business = userService.businessForActor(actorUsername);
 
@@ -91,10 +99,16 @@ public class TransactionService {
 		Map<Long, Product> lockedProducts = lockProductsForTransaction(itemRequests, business.getId());
 
 		InventoryTransaction transaction = new InventoryTransaction(type, employee, owner, business);
+		if (type == TransactionType.SELL && paymentType != TransactionPaymentType.WEBSITE_PAYMENT) {
+			transaction.markOfflinePayment(paymentType, paymentEmail);
+		} else if (type == TransactionType.SELL) {
+			transaction.prepareWebsitePayment(paymentEmail);
+		}
 
 		for (TransactionItemRequest itemRequest : itemRequests) {
 			Long productId = requirePresent(itemRequest.productId(), "Product id is required");
 			Product product = lockedProducts.get(productId);
+			String referenceEmail = referenceEmailForItem(product, type, itemRequest.referenceEmail(), paymentEmail);
 
 			int quantity = requirePositive(itemRequest.quantity(), "Quantity must be greater than zero");
 
@@ -109,13 +123,19 @@ public class TransactionService {
 			productService.applyStockMovement(product, type, quantity);
 
 			if (type == TransactionType.SELL) {
-				markBarcodesAsSold(barcodes);
+				markBarcodesAsSold(product, barcodes, referenceEmail);
 			}
 
 			transaction.addItem(new TransactionItem(product, quantity, unitPrice, barcodes));
 		}
 
 		InventoryTransaction savedTransaction = transactionRepository.save(transaction);
+		if (type == TransactionType.SELL && paymentType == TransactionPaymentType.WEBSITE_PAYMENT) {
+			CreatedTransactionPaymentLink paymentLink = stripeService.createTransactionPaymentLink(savedTransaction);
+			savedTransaction.markWebsitePaymentPending(paymentEmail, paymentLink.stripeId(), paymentLink.paymentUrl());
+			savedTransaction = transactionRepository.save(savedTransaction);
+			sendTransactionWebsitePaymentEmail(savedTransaction, actorUsername);
+		}
 
 		auditLogService.record(
 				"TRANSACTION_CREATED",
@@ -179,6 +199,23 @@ public class TransactionService {
 				.orElseThrow(() -> new ResourceNotFoundException("Transaction not found: " + id));
 	}
 
+	public void handleWebsitePaymentSucceeded(Long transactionId, String paymentReference, String stripeEventId) {
+		InventoryTransaction transaction = transactionRepository.findById(transactionId)
+				.orElseThrow(() -> new ResourceNotFoundException("Transaction not found: " + transactionId));
+		if (transaction.getType() != TransactionType.SELL
+				|| transaction.getPaymentType() != TransactionPaymentType.WEBSITE_PAYMENT) {
+			throw new IllegalArgumentException("Stripe website payment event does not belong to a website-payment sale transaction");
+		}
+		if (transaction.getPaymentStatus() == TransactionPaymentStatus.PAID) {
+			log.info("transaction_website_payment_already_paid transactionId={} stripeEventId={}", transactionId, stripeEventId);
+			return;
+		}
+
+		transaction.markWebsitePaymentPaid(paymentReference);
+		transactionRepository.save(transaction);
+		log.info("transaction_website_payment_paid transactionId={} stripeEventId={}", transactionId, stripeEventId);
+	}
+
 	private TrackerUser requireUserWithRole(Long userId, PrivilegeRole role, String label) {
 		requirePresent(userId, label + " id is required");
 
@@ -217,6 +254,52 @@ public class TransactionService {
 		}
 
 		return items;
+	}
+
+	private TransactionPaymentType paymentTypeFor(TransactionType type, TransactionPaymentType paymentType) {
+		if (type != TransactionType.SELL) {
+			return null;
+		}
+		return requirePresent(paymentType, "SELL transaction payment type is required");
+	}
+
+	private String paymentEmailFor(
+			TransactionType type,
+			TransactionPaymentType paymentType,
+			String requestedPaymentEmail) {
+		if (type != TransactionType.SELL) {
+			return null;
+		}
+		String paymentEmail = EmailAddressNormalizer.normalizeOptional(
+				requestedPaymentEmail,
+				"Payment email must be a valid email address");
+		if (paymentType == TransactionPaymentType.WEBSITE_PAYMENT && paymentEmail == null) {
+			throw new IllegalArgumentException("Website payment requires paymentEmail");
+		}
+		return paymentEmail;
+	}
+
+	private String referenceEmailForItem(
+			Product product,
+			TransactionType type,
+			String requestedReferenceEmail,
+			String transactionPaymentEmail) {
+		if (type != TransactionType.SELL) {
+			return null;
+		}
+		String referenceEmail = EmailAddressNormalizer.normalizeOptional(
+				requestedReferenceEmail,
+				"Reference email must be a valid email address");
+		if (referenceEmail != null) {
+			return referenceEmail;
+		}
+		if (product.isReturnableEnabled()) {
+			if (transactionPaymentEmail == null) {
+				throw new IllegalArgumentException("Returnable barcode reference email is required");
+			}
+			return transactionPaymentEmail;
+		}
+		return null;
 	}
 
 	private Map<Long, Product> lockProductsForTransaction(List<TransactionItemRequest> items, Long businessId) {
@@ -304,7 +387,7 @@ public class TransactionService {
 		}
 	}
 
-	private void markBarcodesAsSold(List<String> barcodes) {
+	private void markBarcodesAsSold(Product product, List<String> barcodes, String referenceEmail) {
 		if (barcodes == null || barcodes.isEmpty()) {
 			return;
 		}
@@ -317,6 +400,9 @@ public class TransactionService {
 			}
 
 			productBarcode.setAvailabilityStatus(ProductBarcodeAvailabilityStatus.SOLD);
+			if (product.isReturnableEnabled()) {
+				productBarcode.setReferenceEmail(referenceEmail);
+			}
 		}
 
 		productBarcodeRepository.saveAll(productBarcodes);
@@ -373,6 +459,20 @@ public class TransactionService {
 			log.warn(
 					"transaction_created_worker_email_failed_non_blocking recipient={} transactionId={} businessId={} actor={} reason={}",
 					AppEmailService.maskEmail(transaction.getEmployee().getEmailAddress()),
+					transaction.getId(),
+					transaction.getBusiness() == null ? null : transaction.getBusiness().getId(),
+					actorUsername,
+					exception.getMessage());
+		}
+	}
+
+	private void sendTransactionWebsitePaymentEmail(InventoryTransaction transaction, String actorUsername) {
+		try {
+			appEmailService.sendTransactionWebsitePaymentEmail(transaction);
+		} catch (RuntimeException exception) {
+			log.warn(
+					"transaction_website_payment_email_failed_non_blocking recipient={} transactionId={} businessId={} actor={} reason={}",
+					AppEmailService.maskEmail(transaction.getPaymentEmail()),
 					transaction.getId(),
 					transaction.getBusiness() == null ? null : transaction.getBusiness().getId(),
 					actorUsername,

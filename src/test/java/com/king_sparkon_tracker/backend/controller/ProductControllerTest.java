@@ -88,7 +88,7 @@ class ProductControllerTest {
 	@Test
 	void addBarcodeToProductReturnsUpdatedProduct() throws Exception {
 		Product product = product("Beer", "6001", ProductCategory.Alcohol, 10, true);
-		product.getBarcodes().getFirst().setReferencee("0821234567");
+		product.getBarcodes().getFirst().setReferenceEmail("customer@example.com");
 		when(productService.addBarcodeToProduct(eq(7L), any(AddProductBarcodeRequest.class), eq("worker")))
 				.thenReturn(product);
 
@@ -98,13 +98,13 @@ class ProductControllerTest {
 				.content("""
 						{
 						  "barcode": "6001",
-						  "referencee": "0821234567"
+						  "referenceEmail": "customer@example.com"
 						}
 						"""))
 				.andExpect(status().isCreated())
 				.andExpect(jsonPath("$.name").value("Beer"))
 				.andExpect(jsonPath("$.barcodes[0].barcode").value("6001"))
-				.andExpect(jsonPath("$.barcodes[0].referencee").value("0821234567"))
+				.andExpect(jsonPath("$.barcodes[0].referenceEmail").value("customer@example.com"))
 				.andExpect(jsonPath("$.barcodes[0].status").value("NOT_CLAIMED"))
 				.andExpect(jsonPath("$.barcodeCount").value(1))
 				.andExpect(jsonPath("$.remainingBarcodeSlots").value(9));

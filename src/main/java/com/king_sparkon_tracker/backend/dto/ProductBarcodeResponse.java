@@ -12,8 +12,8 @@ public record ProductBarcodeResponse(
 		@Schema(description = "Unique physical item barcode.", example = "6001")
 		String barcode,
 
-		@Schema(description = "Optional customer reference for returnable claims.", example = "0821234567")
-		String referencee,
+		@Schema(description = "Optional customer email reference for returnable claims.", example = "customer@example.com")
+		String referenceEmail,
 
 		@Schema(description = "Barcode claim status.", example = "NOT_CLAIMED")
 		ProductBarcodeStatus status
@@ -23,7 +23,7 @@ public record ProductBarcodeResponse(
 		return new ProductBarcodeResponse(
 				barcode.getId(),
 				barcode.getBarcode(),
-				barcode.getReferencee(),
+				barcode.getReferenceEmail(),
 				barcode.getStatus()
 		);
 	}

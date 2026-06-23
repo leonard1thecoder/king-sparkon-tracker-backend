@@ -3,6 +3,7 @@ package com.king_sparkon_tracker.backend.controller;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -67,8 +68,11 @@ class UserControllerTest {
 
 	@Test
 	void createWorkerReturnsCreatedWorker() throws Exception {
+		TrackerUser worker = user("worker", PrivilegeRole.Worker);
+		worker.updateWorkerProfile("Cashier", true);
+		worker.assignTipQrCodeUrl("https://api.qrserver.com/v1/create-qr-code/?data=worker");
 		when(userService.createWorker(org.mockito.ArgumentMatchers.any(CreateWorkerRequest.class), org.mockito.ArgumentMatchers.eq("owner")))
-				.thenReturn(user("worker", PrivilegeRole.Worker));
+				.thenReturn(worker);
 
 		mockMvc.perform(post("/api/users/workers")
 				.principal(() -> "owner")
@@ -77,12 +81,41 @@ class UserControllerTest {
 						{
 						  "username": "worker",
 						  "emailAddress": "worker@example.com",
-						  "password": "secret"
+						  "password": "secret",
+						  "jobTitle": "Cashier",
+						  "tipQrCodeEnabled": true
 						}
 						"""))
 				.andExpect(status().isCreated())
 				.andExpect(jsonPath("$.username").value("worker"))
-				.andExpect(jsonPath("$.privilege").value("Worker"));
+				.andExpect(jsonPath("$.privilege").value("Worker"))
+				.andExpect(jsonPath("$.jobTitle").value("Cashier"))
+				.andExpect(jsonPath("$.tipQrCodeEnabled").value(true))
+				.andExpect(jsonPath("$.tipQrCodeUrl").value("https://api.qrserver.com/v1/create-qr-code/?data=worker"))
+				.andExpect(jsonPath("$.onboardingRequired").value(true));
+	}
+
+	@Test
+	void completeOnboardingReturnsUpdatedCurrentUser() throws Exception {
+		TrackerUser worker = user("worker", PrivilegeRole.Worker);
+		worker.completeOnboarding("45 Worker Street", "+27821234567");
+		when(userService.completeOnboarding(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.eq("worker")))
+				.thenReturn(worker);
+
+		mockMvc.perform(patch("/api/users/me/onboarding")
+						.principal(() -> "worker")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{
+								  "physicalAddress": "45 Worker Street",
+								  "cellphoneNumber": "+27821234567"
+								}
+								"""))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.physicalAddress").value("45 Worker Street"))
+				.andExpect(jsonPath("$.cellphoneNumber").value("+27821234567"))
+				.andExpect(jsonPath("$.onboardingCompleted").value(true))
+				.andExpect(jsonPath("$.onboardingRequired").value(false));
 	}
 
 	@Test
@@ -92,7 +125,8 @@ class UserControllerTest {
 		mockMvc.perform(get("/api/users/me").principal(() -> "alice"))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.username").value("alice"))
-				.andExpect(jsonPath("$.privilege").value("Worker"));
+				.andExpect(jsonPath("$.privilege").value("Worker"))
+				.andExpect(jsonPath("$.onboardingRequired").value(true));
 	}
 
 	@Test

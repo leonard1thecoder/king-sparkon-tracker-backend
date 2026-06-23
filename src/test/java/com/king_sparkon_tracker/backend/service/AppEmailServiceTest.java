@@ -84,6 +84,7 @@ class AppEmailServiceTest {
 		assertThat(appEmailService.sendProductApprovalRequestEmail(business, product, "worker", 2L)).isTrue();
 		assertThat(appEmailService.sendTransactionCreatedOwnerEmail(transaction)).isTrue();
 		assertThat(appEmailService.sendTransactionCreatedWorkerEmail(transaction)).isTrue();
+		assertThat(appEmailService.sendTransactionWebsitePaymentEmail(transaction)).isTrue();
 		assertThat(appEmailService.sendBarcodeClaimedEmail(barcode, "worker")).isTrue();
 		assertThat(appEmailService.sendReturnableBarcodesExpiredEmail(business, 3L, "system")).isTrue();
 		assertThat(appEmailService.sendBillingActivatedEmail(business, subscription, "Activated")).isTrue();
@@ -102,6 +103,7 @@ class AppEmailServiceTest {
 		verify(templateEngine).process(eq("email/product-approval-request"), any(Context.class));
 		verify(templateEngine).process(eq("email/transaction-created-owner"), any(Context.class));
 		verify(templateEngine).process(eq("email/transaction-created-worker"), any(Context.class));
+		verify(templateEngine).process(eq("email/transaction-website-payment"), any(Context.class));
 		verify(templateEngine).process(eq("email/barcode-claimed"), any(Context.class));
 		verify(templateEngine).process(eq("email/returnable-barcodes-expired"), any(Context.class));
 		verify(templateEngine).process(eq("email/billing-activated"), any(Context.class));
@@ -111,7 +113,7 @@ class AppEmailServiceTest {
 		verify(templateEngine).process(eq("email/billing-expired"), any(Context.class));
 		verify(templateEngine).process(eq("email/business-deactivated"), any(Context.class));
 		verify(templateEngine).process(eq("email/admin-business-status-changed"), any(Context.class));
-		verify(mailSender, times(13)).send(any(MimeMessage.class));
+		verify(mailSender, times(14)).send(any(MimeMessage.class));
 	}
 
 	private Product product() {
@@ -133,7 +135,7 @@ class AppEmailServiceTest {
 
 	private ProductBarcode barcode(Product product) {
 		ProductBarcode barcode = new ProductBarcode("6001");
-		barcode.setReferencee("0821234567");
+		barcode.setReferenceEmail("customer@example.com");
 		product.addBarcode(barcode);
 		ReflectionTestUtils.setField(barcode, "id", 14L);
 		return barcode;
@@ -143,6 +145,10 @@ class AppEmailServiceTest {
 		InventoryTransaction transaction = new InventoryTransaction(TransactionType.SELL, worker, owner, business);
 		transaction.setDate(LocalDateTime.of(2026, 6, 1, 12, 0));
 		transaction.addItem(new TransactionItem(product, 1, new BigDecimal("20.00"), List.of("6001")));
+		transaction.markWebsitePaymentPending(
+				"customer@example.com",
+				"plink_123",
+				"https://pay.stripe.com/plink_123");
 		return transaction;
 	}
 

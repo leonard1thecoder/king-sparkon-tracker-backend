@@ -63,7 +63,9 @@ class AuthenticationControllerTest {
 								  "username": "alice",
 								  "emailAddress": "alice@kingsparkon.co.za",
 								  "password": "secret",
-								  "businessName": "Alice Traders"
+								  "businessName": "Alice Traders",
+								  "physicalAddress": "12 Main Road",
+								  "cellphoneNumber": "+27821234567"
 								}
 								"""))
 				.andExpect(status().isCreated())
@@ -113,7 +115,8 @@ class AuthenticationControllerTest {
 				.andExpect(jsonPath("$.tokenType").value("Bearer"))
 				.andExpect(jsonPath("$.accessToken").value("jwt-token"))
 				.andExpect(jsonPath("$.user.username").value("owner"))
-				.andExpect(jsonPath("$.user.privilege").value("Owner"));
+				.andExpect(jsonPath("$.user.privilege").value("Owner"))
+				.andExpect(jsonPath("$.user.onboardingRequired").value(true));
 	}
 
 	@Test

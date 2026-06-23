@@ -1,0 +1,76 @@
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v4.0.6)
+
+2026-06-16T15:37:02.388+02:00 INFO  [main] requestId= c.k.backend.BackendApplication - Starting BackendApplication v0.0.1-SNAPSHOT using Java 26.0.1 with PID 11732 (C:\Users\thand\Downloads\backend\backend\target\backend-0.0.1-SNAPSHOT.jar started by thand in C:\Users\thand\Downloads\backend\backend)
+2026-06-16T15:37:02.412+02:00 INFO  [main] requestId= c.k.backend.BackendApplication - No active profile set, falling back to 1 default profile: "default"
+2026-06-16T15:37:28.393+02:00 INFO  [main] requestId= o.s.d.r.c.RepositoryConfigurationDelegate - Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-06-16T15:37:30.535+02:00 INFO  [main] requestId= o.s.d.r.c.RepositoryConfigurationDelegate - Finished Spring Data repository scanning in 2048 ms. Found 13 JPA repository interfaces.
+2026-06-16T15:37:57.711+02:00 INFO  [main] requestId= o.s.boot.tomcat.TomcatWebServer - Tomcat initialized with port 18080 (http)
+2026-06-16T15:37:58.208+02:00 INFO  [main] requestId= o.a.catalina.core.StandardService - Starting service [Tomcat]
+2026-06-16T15:37:58.210+02:00 INFO  [main] requestId= o.a.catalina.core.StandardEngine - Starting Servlet engine: [Apache Tomcat/11.0.21]
+2026-06-16T15:37:58.674+02:00 INFO  [main] requestId= o.s.b.w.c.s.WebApplicationContextInitializer - Root WebApplicationContext: initialization completed in 54964 ms
+2026-06-16T15:38:08.857+02:00 INFO  [main] requestId= com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Starting...
+2026-06-16T15:38:12.848+02:00 INFO  [main] requestId= com.zaxxer.hikari.pool.HikariPool - HikariPool-1 - Added connection conn0: url=jdbc:h2:mem:king_sparkon_smoke_v17 user=SA
+2026-06-16T15:38:12.902+02:00 INFO  [main] requestId= com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Start completed.
+2026-06-16T15:38:13.628+02:00 INFO  [main] requestId= org.flywaydb.core.FlywayExecutor - Database: jdbc:h2:mem:king_sparkon_smoke_v17 (H2 2.4)
+2026-06-16T15:38:13.759+02:00 WARN  [main] requestId= o.f.c.i.database.base.Database - Using H2 2.4.240 which is newer than the version Flyway has been verified with. The latest verified version of H2 is 2.3.232.
+2026-06-16T15:38:14.480+02:00 INFO  [main] requestId= o.f.c.i.s.JdbcTableSchemaHistory - Schema history table "PUBLIC"."flyway_schema_history" does not exist yet
+2026-06-16T15:38:14.510+02:00 INFO  [main] requestId= o.f.core.internal.command.DbValidate - Successfully validated 17 migrations (execution time 00:00.310s)
+2026-06-16T15:38:14.580+02:00 INFO  [main] requestId= o.f.c.i.s.JdbcTableSchemaHistory - Creating Schema History table "PUBLIC"."flyway_schema_history" ...
+2026-06-16T15:38:15.017+02:00 INFO  [main] requestId= o.f.core.internal.command.DbMigrate - Current version of schema "PUBLIC": << Empty Schema >>
+2026-06-16T15:38:15.108+02:00 INFO  [main] requestId= o.f.core.internal.command.DbMigrate - Migrating schema "PUBLIC" to version "1 - initial schema"
+2026-06-16T15:38:15.369+02:00 INFO  [main] requestId= o.f.core.internal.command.DbMigrate - Migrating schema "PUBLIC" to version "2 - audit logs"
+2026-06-16T15:38:15.450+02:00 INFO  [main] requestId= o.f.core.internal.command.DbMigrate - Migrating schema "PUBLIC" to version "3 - product barcodes"
+2026-06-16T15:38:15.488+02:00 INFO  [main] requestId= o.f.core.internal.command.DbMigrate - Migrating schema "PUBLIC" to version "4 - product returnable pricing"
+2026-06-16T15:38:15.604+02:00 INFO  [main] requestId= o.f.core.internal.command.DbMigrate - Migrating schema "PUBLIC" to version "5 - product lifecycle statuses"
+2026-06-16T15:38:15.698+02:00 INFO  [main] requestId= o.f.core.internal.command.DbMigrate - Migrating schema "PUBLIC" to version "6 - transaction item barcodes"
+2026-06-16T15:38:15.749+02:00 INFO  [main] requestId= o.f.core.internal.command.DbMigrate - Migrating schema "PUBLIC" to version "7 - owner configured product charges"
+2026-06-16T15:38:16.270+02:00 INFO  [main] requestId= o.f.core.internal.command.DbMigrate - Migrating schema "PUBLIC" to version "8 - barcode reference and claim statuses"
+2026-06-16T15:38:16.388+02:00 INFO  [main] requestId= o.f.core.internal.command.DbMigrate - Migrating schema "PUBLIC" to version "9 - product barcode not claimable status"
+2026-06-16T15:38:16.460+02:00 INFO  [main] requestId= o.f.core.internal.command.DbMigrate - Migrating schema "PUBLIC" to version "10 - user localization country"
+2026-06-16T15:38:16.574+02:00 INFO  [main] requestId= o.f.core.internal.command.DbMigrate - Migrating schema "PUBLIC" to version "11 - business tenancy"
+2026-06-16T15:38:17.061+02:00 INFO  [main] requestId= o.f.core.internal.command.DbMigrate - Migrating schema "PUBLIC" to version "12 - password reset tokens"
+2026-06-16T15:38:17.138+02:00 INFO  [main] requestId= o.f.core.internal.command.DbMigrate - Migrating schema "PUBLIC" to version "13 - business billing platform"
+2026-06-16T15:38:19.136+02:00 INFO  [main] requestId= o.f.core.internal.command.DbMigrate - Migrating schema "PUBLIC" to version "14 - paypal webhooks billing audit admin"
+2026-06-16T15:38:19.198+02:00 INFO  [main] requestId= o.f.core.internal.command.DbMigrate - Migrating schema "PUBLIC" to version "15 - email verification"
+2026-06-16T15:38:19.376+02:00 INFO  [main] requestId= o.f.core.internal.command.DbMigrate - Migrating schema "PUBLIC" to version "16 - add product barcode availability status"
+2026-06-16T15:38:19.430+02:00 INFO  [main] requestId= o.f.core.internal.command.DbMigrate - Migrating schema "PUBLIC" to version "17 - king sparkon tracker rename"
+2026-06-16T15:38:19.480+02:00 INFO  [main] requestId= o.f.core.internal.command.DbMigrate - Successfully applied 17 migrations to schema "PUBLIC", now at version v17 (execution time 00:03.403s)
+2026-06-16T15:38:21.737+02:00 INFO  [main] requestId= org.hibernate.orm.jpa - HHH008540: Processing PersistenceUnitInfo [name: default]
+2026-06-16T15:38:22.636+02:00 INFO  [main] requestId= org.hibernate.orm.core - HHH000001: Hibernate ORM core version 7.2.12.Final
+2026-06-16T15:38:29.342+02:00 INFO  [main] requestId= o.s.o.j.p.SpringPersistenceUnitInfo - No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-06-16T15:38:29.936+02:00 INFO  [main] requestId= o.hibernate.orm.connections.pooling - HHH10001005: Database info:
+	Database JDBC URL [jdbc:h2:mem:king_sparkon_smoke_v17]
+	Database driver: H2 JDBC Driver
+	Database dialect: H2Dialect
+	Database version: 2.4.240
+	Default catalog/schema: KING_SPARKON_SMOKE_V17/PUBLIC
+	Autocommit mode: undefined/unknown
+	Isolation level: READ_COMMITTED [default READ_COMMITTED]
+	JDBC fetch size: 100
+	Pool: DataSourceConnectionProvider
+	Minimum pool size: undefined/unknown
+	Maximum pool size: undefined/unknown
+2026-06-16T15:38:49.888+02:00 INFO  [main] requestId= org.hibernate.orm.core - HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-06-16T15:38:51.165+02:00 INFO  [main] requestId= o.s.o.j.LocalContainerEntityManagerFactoryBean - Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-06-16T15:38:52.435+02:00 INFO  [main] requestId= o.s.d.j.r.q.QueryEnhancerFactories - Hibernate is in classpath; If applicable, HQL parser will be used.
+2026-06-16T15:39:14.764+02:00 INFO  [main] requestId= o.s.s.c.a.a.c.InitializeUserDetailsBeanManagerConfigurer$InitializeUserDetailsManagerConfigurer - Global AuthenticationManager configured with UserDetailsService bean with name trackerUserDetailsService
+2026-06-16T15:39:25.709+02:00 INFO  [main] requestId= o.s.boot.tomcat.TomcatWebServer - Tomcat started on port 18080 (http) with context path '/'
+2026-06-16T15:39:26.144+02:00 INFO  [main] requestId= c.k.backend.BackendApplication - Started BackendApplication in 153.554 seconds (process running for 166.624)
+2026-06-16T15:39:27.030+02:00 INFO  [tomcat-handler-0] requestId= o.a.c.c.C.[Tomcat].[localhost].[/] - Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-06-16T15:39:27.034+02:00 INFO  [tomcat-handler-0] requestId= o.s.web.servlet.DispatcherServlet - Initializing Servlet 'dispatcherServlet'
+2026-06-16T15:39:27.040+02:00 INFO  [tomcat-handler-0] requestId= o.s.web.servlet.DispatcherServlet - Completed initialization in 3 ms
+2026-06-16T15:39:27.303+02:00 INFO  [main] requestId= c.k.backend.service.PrivilegeService - privilege_created role=Owner
+2026-06-16T15:39:27.876+02:00 INFO  [main] requestId= c.k.backend.service.PrivilegeService - privilege_created role=Worker
+2026-06-16T15:39:27.893+02:00 INFO  [main] requestId= c.k.backend.security.PrivilegeSeeder - privileges_seeded roles=[Owner, Worker]
+2026-06-16T15:39:27.905+02:00 WARN  [main] requestId= o.s.c.events.SpringDocAppInitializer - SpringDoc /v3/api-docs endpoint is enabled by default. To disable it in production, set the property 'springdoc.api-docs.enabled=false'
+2026-06-16T15:39:27.910+02:00 WARN  [main] requestId= o.s.c.events.SpringDocAppInitializer - SpringDoc /swagger-ui.html endpoint is enabled by default. To disable it in production, set the property 'springdoc.swagger-ui.enabled=false'
+2026-06-16T15:39:28.244+02:00 INFO  [tomcat-handler-0] requestId=51526c78-cd39-4371-8f26-5b30e65692b8 c.k.b.logging.RequestLoggingFilter - http_request_completed method=GET path=/health status=200 durationMs=1183 actor=anonymous
+2026-06-16T15:39:29.291+02:00 INFO  [tomcat-handler-1] requestId=6d0db503-04b1-4bc3-940b-dbfe2f650a38 c.k.b.logging.RequestLoggingFilter - http_request_completed method=GET path=/ready status=200 durationMs=367 actor=anonymous

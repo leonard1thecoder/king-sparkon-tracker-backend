@@ -11,9 +11,9 @@ import java.util.List;
 import java.util.Optional;
 
 import com.king_sparkon_tracker.backend.exception.*;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.Spy;
@@ -21,6 +21,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import com.king_sparkon_tracker.backend.dto.CompleteOnboardingRequest;
 import com.king_sparkon_tracker.backend.dto.CreateWorkerRequest;
 import com.king_sparkon_tracker.backend.dto.LoginRequest;
 import com.king_sparkon_tracker.backend.dto.RegisterUserRequest;
@@ -61,8 +62,22 @@ class TrackerUserServiceTest {
 	@Mock
 	private AppEmailService appEmailService;
 
-	@InjectMocks
 	private TrackerUserService userService;
+
+	@BeforeEach
+	void setUp() {
+		userService = new TrackerUserService(
+				userRepository,
+				businessRepository,
+				privilegeService,
+				passwordEncoder,
+				auditLogService,
+				emailVerificationService,
+				businessPlanPolicyService,
+				businessAccessService,
+				appEmailService,
+				"https://app.example/tips/workers/{workerId}");
+	}
 
 	@Test
 	void registerOwnerCreatesOwnerAndSendsVerificationEmail() {
@@ -209,6 +224,31 @@ class TrackerUserServiceTest {
 	}
 
 	@Test
+	void registerOwnerStoresOnboardingContactWhenProvided() {
+		Privilege ownerPrivilege = new Privilege(PrivilegeRole.Owner);
+		when(userRepository.existsByUsername("alice")).thenReturn(false);
+		when(userRepository.existsByEmailAddress("alice@example.com")).thenReturn(false);
+		when(privilegeService.createPrivilege(PrivilegeRole.Owner)).thenReturn(ownerPrivilege);
+		when(passwordEncoder.encode("secret")).thenReturn("encoded-secret");
+		when(userRepository.save(any(TrackerUser.class))).thenAnswer(invocation -> invocation.getArgument(0));
+		when(businessRepository.save(any(Business.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+		TrackerUser result = userService.registerOwner(new RegisterUserRequest(
+				"alice",
+				"alice@example.com",
+				"secret",
+				"Alice Store",
+				null,
+				" 12 Main Road ",
+				" +27821234567 "));
+
+		assertThat(result.getPhysicalAddress()).isEqualTo("12 Main Road");
+		assertThat(result.getCellphoneNumber()).isEqualTo("+27821234567");
+		assertThat(result.isOnboardingCompleted()).isTrue();
+		assertThat(result.isOnboardingRequired()).isFalse();
+	}
+
+	@Test
 	void createWorkerCreatesWorkerPrivilege() {
 		Privilege workerPrivilege = new Privilege(PrivilegeRole.Worker);
 		Business business = business();
@@ -218,16 +258,43 @@ class TrackerUserServiceTest {
 		when(userRepository.existsByEmailAddress("worker@example.com")).thenReturn(false);
 		when(privilegeService.createPrivilege(PrivilegeRole.Worker)).thenReturn(workerPrivilege);
 		when(passwordEncoder.encode("secret")).thenReturn("encoded-secret");
-		when(userRepository.save(any(TrackerUser.class))).thenAnswer(invocation -> invocation.getArgument(0));
+		when(userRepository.save(any(TrackerUser.class))).thenAnswer(invocation -> {
+			TrackerUser user = invocation.getArgument(0);
+			if (user.getId() == null) {
+				ReflectionTestUtils.setField(user, "id", 22L);
+			}
+			return user;
+		});
 
 		TrackerUser result = userService.createWorker(
-				new CreateWorkerRequest("worker", "worker@example.com", "secret"), "owner");
+				new CreateWorkerRequest("worker", "worker@example.com", "secret", "Cashier", true), "owner");
 
 		assertThat(result.getUsername()).isEqualTo("worker");
 		assertThat(result.getEmailAddress()).isEqualTo("worker@example.com");
 		assertThat(result.getPrivilege()).isSameAs(workerPrivilege);
 		assertThat(result.getBusiness()).isSameAs(business);
+		assertThat(result.getJobTitle()).isEqualTo("Cashier");
+		assertThat(result.isTipQrCodeEnabled()).isTrue();
+		assertThat(result.getTipQrCodeUrl()).contains("qrserver");
+		assertThat(result.getTipQrCodeUrl()).contains("workers%2F22");
+		assertThat(result.isOnboardingRequired()).isTrue();
 		verify(appEmailService).sendWorkerCreatedEmail(result, business);
+	}
+
+	@Test
+	void completeOnboardingStoresPhysicalAddressAndCellphone() {
+		TrackerUser worker = user("worker", "encoded", PrivilegeRole.Worker);
+		when(userRepository.findByUsername("worker")).thenReturn(Optional.of(worker));
+		when(userRepository.save(worker)).thenReturn(worker);
+
+		TrackerUser result = userService.completeOnboarding(
+				new CompleteOnboardingRequest(" 45 Worker Street ", " 0821234567 "),
+				"worker");
+
+		assertThat(result.getPhysicalAddress()).isEqualTo("45 Worker Street");
+		assertThat(result.getCellphoneNumber()).isEqualTo("0821234567");
+		assertThat(result.isOnboardingCompleted()).isTrue();
+		assertThat(result.isOnboardingRequired()).isFalse();
 	}
 
 	@Test

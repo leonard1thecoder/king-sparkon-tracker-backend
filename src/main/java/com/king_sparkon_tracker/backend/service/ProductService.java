@@ -155,7 +155,9 @@ public class ProductService {
 		}
 
 		ProductBarcode productBarcode = new ProductBarcode(barcode);
-		productBarcode.setReferencee(normalizeOptional(request.referencee()));
+		productBarcode.setReferenceEmail(EmailAddressNormalizer.normalizeOptional(
+				request.referenceEmail(),
+				"Reference email must be a valid email address"));
 
 		productBarcode.setStatus(product.isReturnableEnabled()
 				? ProductBarcodeStatus.NOT_CLAIMED

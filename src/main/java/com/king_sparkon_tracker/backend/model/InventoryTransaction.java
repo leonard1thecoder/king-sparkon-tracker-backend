@@ -3,6 +3,7 @@ package com.king_sparkon_tracker.backend.model;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.math.BigDecimal;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -33,6 +34,26 @@ public class InventoryTransaction {
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false)
 	private TransactionType type;
+
+	@Enumerated(EnumType.STRING)
+	@Column(name = "payment_type", length = 32)
+	private TransactionPaymentType paymentType;
+
+	@Enumerated(EnumType.STRING)
+	@Column(name = "payment_status", nullable = false, length = 32)
+	private TransactionPaymentStatus paymentStatus = TransactionPaymentStatus.NOT_REQUIRED;
+
+	@Column(name = "payment_email")
+	private String paymentEmail;
+
+	@Column(name = "payment_reference")
+	private String paymentReference;
+
+	@Column(name = "payment_url", length = 2048)
+	private String paymentUrl;
+
+	@Column(name = "transaction_withdrawal_id")
+	private Long transactionWithdrawalId;
 
 	@ManyToOne(fetch = FetchType.EAGER, optional = false)
 	@JoinColumn(name = "employee_id", nullable = false)
@@ -96,6 +117,46 @@ public class InventoryTransaction {
 		items.add(item);
 	}
 
+	public void markOfflinePayment(TransactionPaymentType paymentType, String paymentEmail) {
+		this.paymentType = paymentType;
+		this.paymentStatus = TransactionPaymentStatus.NOT_REQUIRED;
+		this.paymentEmail = paymentEmail;
+		this.paymentReference = null;
+		this.paymentUrl = null;
+	}
+
+	public void prepareWebsitePayment(String paymentEmail) {
+		this.paymentType = TransactionPaymentType.WEBSITE_PAYMENT;
+		this.paymentStatus = TransactionPaymentStatus.PENDING;
+		this.paymentEmail = paymentEmail;
+	}
+
+	public void markWebsitePaymentPending(String paymentEmail, String paymentReference, String paymentUrl) {
+		this.paymentType = TransactionPaymentType.WEBSITE_PAYMENT;
+		this.paymentStatus = TransactionPaymentStatus.PENDING;
+		this.paymentEmail = paymentEmail;
+		this.paymentReference = paymentReference;
+		this.paymentUrl = paymentUrl;
+	}
+
+	public void markWebsitePaymentPaid(String paymentReference) {
+		this.paymentType = TransactionPaymentType.WEBSITE_PAYMENT;
+		this.paymentStatus = TransactionPaymentStatus.PAID;
+		if ((this.paymentReference == null || this.paymentReference.isBlank()) && paymentReference != null && !paymentReference.isBlank()) {
+			this.paymentReference = paymentReference;
+		}
+	}
+
+	public BigDecimal getTotalAmount() {
+		return items.stream()
+				.map(item -> item.getUnitPrice().multiply(BigDecimal.valueOf(item.getQuantity())))
+				.reduce(BigDecimal.ZERO, BigDecimal::add);
+	}
+
+	public void assignTransactionWithdrawal(Long withdrawalId) {
+		this.transactionWithdrawalId = withdrawalId;
+	}
+
 	public Long getId() {
 		return id;
 	}
@@ -114,6 +175,50 @@ public class InventoryTransaction {
 
 	public void setType(TransactionType type) {
 		this.type = type;
+	}
+
+	public TransactionPaymentType getPaymentType() {
+		return paymentType;
+	}
+
+	public void setPaymentType(TransactionPaymentType paymentType) {
+		this.paymentType = paymentType;
+	}
+
+	public TransactionPaymentStatus getPaymentStatus() {
+		return paymentStatus;
+	}
+
+	public void setPaymentStatus(TransactionPaymentStatus paymentStatus) {
+		this.paymentStatus = paymentStatus;
+	}
+
+	public String getPaymentEmail() {
+		return paymentEmail;
+	}
+
+	public void setPaymentEmail(String paymentEmail) {
+		this.paymentEmail = paymentEmail;
+	}
+
+	public String getPaymentReference() {
+		return paymentReference;
+	}
+
+	public void setPaymentReference(String paymentReference) {
+		this.paymentReference = paymentReference;
+	}
+
+	public String getPaymentUrl() {
+		return paymentUrl;
+	}
+
+	public void setPaymentUrl(String paymentUrl) {
+		this.paymentUrl = paymentUrl;
+	}
+
+	public Long getTransactionWithdrawalId() {
+		return transactionWithdrawalId;
 	}
 
 	public TrackerUser getEmployee() {

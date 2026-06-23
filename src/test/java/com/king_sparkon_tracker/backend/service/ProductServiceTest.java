@@ -101,13 +101,30 @@ class ProductServiceTest {
 
 		Product result = productService.addBarcodeToProduct(
 				7L,
-				new AddProductBarcodeRequest(" 12345 ", " 0821234567 "),
+				new AddProductBarcodeRequest(" 12345 ", " customer@example.com "),
 				"worker");
 
 		assertThat(result.getBarcodes()).extracting("barcode").containsExactly("12345");
-		assertThat(result.getBarcodes().getFirst().getReferencee()).isEqualTo("0821234567");
+		assertThat(result.getBarcodes().getFirst().getReferenceEmail()).isEqualTo("customer@example.com");
 		assertThat(result.getBarcodes().getFirst().getStatus()).isEqualTo(ProductBarcodeStatus.NOT_CLAIMED);
 		verify(productBarcodeRepository).save(any());
+	}
+
+	@Test
+	void addBarcodeToProductRejectsCellphoneReference() {
+		Business business = business();
+		Product product = product("Water", ProductCategory.NonAlcohol, 10, true);
+		when(userService.businessForActor("worker")).thenReturn(business);
+		when(productRepository.findLockedByIdAndBusiness_Id(7L, business.getId())).thenReturn(Optional.of(product));
+		when(productBarcodeRepository.countByProduct_Id(7L)).thenReturn(1L);
+		when(productBarcodeRepository.existsByBarcode("12345")).thenReturn(false);
+
+		assertThatThrownBy(() -> productService.addBarcodeToProduct(
+				7L,
+				new AddProductBarcodeRequest("12345", "0821234567"),
+				"worker"))
+				.isInstanceOf(IllegalArgumentException.class)
+				.hasMessage("Reference email must be a valid email address");
 	}
 
 	@Test

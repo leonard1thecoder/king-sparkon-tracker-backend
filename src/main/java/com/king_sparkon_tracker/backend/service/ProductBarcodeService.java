@@ -47,10 +47,12 @@ public class ProductBarcodeService {
 	}
 
 	/**
-	 * Returns barcode claim rows by customer reference, expiring returnable claims first when the weekly cutoff is active.
+	 * Returns barcode claim rows by customer reference email, expiring returnable claims first when the weekly cutoff is active.
 	 */
 	public List<ProductBarcode> findByReference(String reference, String actorUsername) {
-		String normalizedReference = normalizeRequired(reference, "Reference is required");
+		String normalizedReference = EmailAddressNormalizer.normalizeRequired(
+				reference,
+				"Reference email must be a valid email address");
 		Business business = userService.businessForActor(actorUsername);
 		expireReturnableBarcodesIfNeeded(actorUsername);
 		List<ProductBarcode> barcodes = productBarcodeRepository.findByReference(normalizedReference, business.getId());
@@ -67,7 +69,7 @@ public class ProductBarcodeService {
 	}
 
 	/**
-	 * Claims one unambiguous returnable barcode by customer reference.
+	 * Claims one unambiguous returnable barcode by customer reference email.
 	 */
 	public ProductBarcode claimByReference(String reference, String actorUsername) {
 		List<ProductBarcode> barcodes = findByReference(reference, actorUsername);
@@ -160,14 +162,14 @@ public class ProductBarcodeService {
 				"ProductBarcode",
 				String.valueOf(barcode.getId()),
 				actorUsername,
-				"Returnable barcode claimed by reference: " + barcode.getReferencee(),
+				"Returnable barcode claimed by reference: " + barcode.getReferenceEmail(),
 				barcode.getProduct().getBusiness());
 		log.info(
 				"product_barcode_claimed barcodeId={} businessId={} barcode={} reference={} actor={}",
 				barcode.getId(),
 				barcode.getProduct().getBusiness() == null ? null : barcode.getProduct().getBusiness().getId(),
 				barcode.getBarcode(),
-				barcode.getReferencee(),
+				barcode.getReferenceEmail(),
 				actorUsername);
 		sendBarcodeClaimedNotification(barcode, actorUsername);
 		return barcode;

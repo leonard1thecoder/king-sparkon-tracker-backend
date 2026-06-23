@@ -34,6 +34,9 @@ class StripeWebhookServiceTest {
 	private BusinessBillingService businessBillingService;
 
 	@Mock
+	private TransactionService transactionService;
+
+	@Mock
 	private BillingAuditService billingAuditService;
 
 	@Mock
@@ -46,6 +49,7 @@ class StripeWebhookServiceTest {
 		service = new StripeWebhookService(
 				stripeBillingClient,
 				businessBillingService,
+				transactionService,
 				billingAuditService,
 				eventRepository,
 				new ObjectMapper());
@@ -67,6 +71,36 @@ class StripeWebhookServiceTest {
 		assertThat(response.eventId()).isEqualTo("evt_1");
 		assertThat(response.stripeSubscriptionId()).isEqualTo("sub_live_123");
 		verify(businessBillingService).handleStripeCheckoutSessionCompleted("cs_live_123", "sub_live_123", "evt_1");
+	}
+
+	@Test
+	void processPaymentIntentSucceededMarksWebsitePaymentTransactionPaid() throws Exception {
+		Event event = stripeEvent("evt_txn_paid", "payment_intent.succeeded");
+		when(stripeBillingClient.constructEvent(any(), eq("sig_header"))).thenReturn(event);
+		when(eventRepository.existsByStripeEventId("evt_txn_paid")).thenReturn(false);
+		when(eventRepository.save(any(StripeWebhookEvent.class)))
+				.thenAnswer(invocation -> invocation.getArgument(0));
+
+		StripeWebhookResponse response = service.process(
+				"""
+				{
+				  "id": "evt_txn_paid",
+				  "type": "payment_intent.succeeded",
+				  "data": {
+				    "object": {
+				      "id": "pi_123",
+				      "metadata": {
+				        "transactionId": "88"
+				      }
+				    }
+				  }
+				}
+				""",
+				"sig_header");
+
+		assertThat(response.status()).isEqualTo(StripeWebhookProcessingStatus.PROCESSED);
+		verify(transactionService).handleWebsitePaymentSucceeded(88L, "pi_123", "evt_txn_paid");
+		verifyNoInteractions(businessBillingService);
 	}
 
 	@Test

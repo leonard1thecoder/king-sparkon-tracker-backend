@@ -23,6 +23,7 @@ public class StripeWebhookService {
 
 	private final StripeBillingClient stripeBillingClient;
 	private final BusinessBillingService businessBillingService;
+	private final TransactionService transactionService;
 	private final BillingAuditService billingAuditService;
 	private final StripeWebhookEventRepository eventRepository;
 	private final ObjectMapper objectMapper;
@@ -30,11 +31,13 @@ public class StripeWebhookService {
 	public StripeWebhookService(
 			StripeBillingClient stripeBillingClient,
 			BusinessBillingService businessBillingService,
+			TransactionService transactionService,
 			BillingAuditService billingAuditService,
 			StripeWebhookEventRepository eventRepository,
 			ObjectMapper objectMapper) {
 		this.stripeBillingClient = stripeBillingClient;
 		this.businessBillingService = businessBillingService;
+		this.transactionService = transactionService;
 		this.billingAuditService = billingAuditService;
 		this.eventRepository = eventRepository;
 		this.objectMapper = objectMapper;
@@ -153,14 +156,39 @@ public class StripeWebhookService {
 	private boolean handleEvent(String eventType, JsonNode object, String eventId) {
 		switch (eventType) {
 			case "checkout.session.completed" -> {
+				String transactionId = metadata(object, "transactionId");
+				if (transactionId != null) {
+					transactionService.handleWebsitePaymentSucceeded(
+							longValue(transactionId, "Stripe transactionId metadata must be numeric"),
+							firstText(text(object, "payment_intent"), text(object, "payment_link"), text(object, "id")),
+							eventId);
+					return true;
+				}
+
+				String subscriptionId = firstText(
+						text(object, "subscription"),
+						text(object.path("subscription_details"), "subscription")
+				);
+				if (subscriptionId == null) {
+					return false;
+				}
+
 				businessBillingService.handleStripeCheckoutSessionCompleted(
 						text(object, "id"),
-						firstText(
-								text(object, "subscription"),
-								text(object.path("subscription_details"), "subscription")
-						),
+						subscriptionId,
 						eventId
 				);
+				return true;
+			}
+			case "payment_intent.succeeded" -> {
+				String transactionId = metadata(object, "transactionId");
+				if (transactionId == null) {
+					return false;
+				}
+				transactionService.handleWebsitePaymentSucceeded(
+						longValue(transactionId, "Stripe transactionId metadata must be numeric"),
+						text(object, "id"),
+						eventId);
 				return true;
 			}
 			case "invoice.payment_succeeded" -> {
@@ -252,6 +280,18 @@ public class StripeWebhookService {
 		}
 
 		return null;
+	}
+
+	private String metadata(JsonNode node, String fieldName) {
+		return text(node == null ? null : node.path("metadata"), fieldName);
+	}
+
+	private Long longValue(String value, String message) {
+		try {
+			return Long.valueOf(value);
+		} catch (NumberFormatException exception) {
+			throw new IllegalArgumentException(message);
+		}
 	}
 
 	private String text(JsonNode node, String fieldName) {

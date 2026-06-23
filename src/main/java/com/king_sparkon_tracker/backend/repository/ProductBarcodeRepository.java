@@ -31,14 +31,14 @@ public interface ProductBarcodeRepository extends JpaRepository<ProductBarcode, 
 	Optional<ProductBarcode> findWithProductById(@Param("id") Long id, @Param("businessId") Long businessId);
 
 	@EntityGraph(attributePaths = "product")
-	@Query("select barcode from ProductBarcode barcode where barcode.referencee = :reference order by barcode.id asc")
+	@Query("select barcode from ProductBarcode barcode where barcode.referenceEmail = :reference order by barcode.id asc")
 	List<ProductBarcode> findByReference(@Param("reference") String reference);
 
 	@EntityGraph(attributePaths = "product")
 	@Query("""
 			select barcode
 			from ProductBarcode barcode
-			where barcode.referencee = :reference
+			where barcode.referenceEmail = :reference
 			and barcode.product.business.id = :businessId
 			order by barcode.id asc
 			""")

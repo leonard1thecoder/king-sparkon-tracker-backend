@@ -2,9 +2,12 @@ package com.king_sparkon_tracker.backend.service;
 
 import java.util.List;
 import java.util.Locale;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -13,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import com.king_sparkon_tracker.backend.dto.CreateWorkerRequest;
+import com.king_sparkon_tracker.backend.dto.CompleteOnboardingRequest;
 import com.king_sparkon_tracker.backend.dto.LoginRequest;
 import com.king_sparkon_tracker.backend.dto.RegisterUserRequest;
 import com.king_sparkon_tracker.backend.exception.DuplicateEmailAddressException;
@@ -44,6 +48,7 @@ public class TrackerUserService {
 	private final BusinessPlanPolicyService businessPlanPolicyService;
 	private final BusinessAccessService businessAccessService;
 	private final AppEmailService appEmailService;
+	private final String workerTipUrlTemplate;
 
 	public TrackerUserService(
 			TrackerUserRepository userRepository,
@@ -54,7 +59,8 @@ public class TrackerUserService {
 			EmailVerificationService emailVerificationService,
 			BusinessPlanPolicyService businessPlanPolicyService,
 			BusinessAccessService businessAccessService,
-			AppEmailService appEmailService) {
+			AppEmailService appEmailService,
+			@Value("${app.tips.worker-tip-url-template:http://localhost:3000/tips/workers/{workerId}}") String workerTipUrlTemplate) {
 		this.userRepository = userRepository;
 		this.emailVerificationService = emailVerificationService;
 		this.businessRepository = businessRepository;
@@ -64,6 +70,7 @@ public class TrackerUserService {
 		this.businessPlanPolicyService = businessPlanPolicyService;
 		this.businessAccessService = businessAccessService;
 		this.appEmailService = appEmailService;
+		this.workerTipUrlTemplate = workerTipUrlTemplate;
 	}
 
 	public TrackerUser registerOwner(RegisterUserRequest request) {
@@ -72,6 +79,8 @@ public class TrackerUserService {
 		String password = normalizeRequired(request.password(), "Password is required");
 		String businessName = normalizeRequired(request.businessName(), "Business name is required");
 		LocalizationCountry localizationCountry = normalizeLocalizationCountry(request.localizationCountry());
+		String physicalAddress = normalizeOptional(request.physicalAddress());
+		String cellphoneNumber = normalizeOptional(request.cellphoneNumber());
 
 		TrackerUser owner = createUser(
 				username,
@@ -81,6 +90,9 @@ public class TrackerUserService {
 				null,
 				localizationCountry
 		);
+		if (physicalAddress != null && cellphoneNumber != null) {
+			owner.completeOnboarding(physicalAddress, cellphoneNumber);
+		}
 
 		Business business = businessRepository.save(new Business(businessName, owner));
 		owner.setBusiness(business);
@@ -122,6 +134,8 @@ public class TrackerUserService {
 		String username = normalizeRequired(request.username(), "Username is required");
 		String emailAddress = normalizeEmailAddress(request.emailAddress());
 		String password = normalizeRequired(request.password(), "Password is required");
+		String jobTitle = normalizeRequired(request.jobTitle(), "Job title is required");
+		boolean tipQrCodeEnabled = Boolean.TRUE.equals(request.tipQrCodeEnabled());
 
 		TrackerUser owner = getUserByUsername(actorUsername);
 		requireRole(owner, PrivilegeRole.Owner, "Only business owners can create workers");
@@ -138,6 +152,11 @@ public class TrackerUserService {
 				business,
 				owner.getLocalizationCountry()
 		);
+		worker.updateWorkerProfile(jobTitle, tipQrCodeEnabled);
+		if (tipQrCodeEnabled) {
+			worker.assignTipQrCodeUrl(workerTipQrCodeUrl(worker));
+		}
+		worker = userRepository.save(worker);
 
 		auditLogService.record(
 				"WORKER_CREATED",
@@ -165,6 +184,14 @@ public class TrackerUserService {
 		sendWorkerCreatedNotification(worker, business);
 
 		return worker;
+	}
+
+	public TrackerUser completeOnboarding(CompleteOnboardingRequest request, String actorUsername) {
+		TrackerUser user = getUserByUsername(actorUsername);
+		user.completeOnboarding(
+				normalizeRequired(request.physicalAddress(), "Physical address is required"),
+				normalizeRequired(request.cellphoneNumber(), "Cellphone number is required"));
+		return userRepository.save(user);
 	}
 
 	@Transactional(readOnly = true)
@@ -313,6 +340,10 @@ public class TrackerUserService {
 		return value.trim();
 	}
 
+	private String normalizeOptional(String value) {
+		return StringUtils.hasText(value) ? value.trim() : null;
+	}
+
 	private TrackerUser createUser(
 			String username,
 			String emailAddress,
@@ -354,6 +385,12 @@ public class TrackerUserService {
 
 	private String normalizeEmailAddress(String emailAddress) {
 		return normalizeRequired(emailAddress, "Email address is required").toLowerCase(Locale.ROOT);
+	}
+
+	private String workerTipQrCodeUrl(TrackerUser worker) {
+		String tipUrl = workerTipUrlTemplate.replace("{workerId}", String.valueOf(worker.getId()));
+		String encodedTipUrl = URLEncoder.encode(tipUrl, StandardCharsets.UTF_8);
+		return "https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=%s".formatted(encodedTipUrl);
 	}
 
 	private LocalizationCountry normalizeLocalizationCountry(LocalizationCountry localizationCountry) {

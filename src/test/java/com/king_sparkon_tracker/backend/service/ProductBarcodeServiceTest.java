@@ -70,10 +70,10 @@ class ProductBarcodeServiceTest {
 				ProductBarcodeStatus.NOT_CLAIMED,
 				ProductBarcodeStatus.EXPIRED))
 				.thenReturn(3);
-		when(productBarcodeRepository.findByReference("0821234567", 1L)).thenReturn(List.of(barcode));
+		when(productBarcodeRepository.findByReference("customer@example.com", 1L)).thenReturn(List.of(barcode));
 
 		List<ProductBarcode> result = serviceAt(LocalDateTime.of(2026, 6, 5, 17, 0))
-				.findByReference(" 0821234567 ", "worker");
+				.findByReference(" customer@example.com ", "worker");
 
 		assertThat(result).containsExactly(barcode);
 		verify(productBarcodeRepository).updateStatusForReturnableProducts(
@@ -93,10 +93,10 @@ class ProductBarcodeServiceTest {
 	@Test
 	void findByReferenceDoesNotExpireBeforeFridayCutoff() {
 		ProductBarcode barcode = barcode(14L, true, ProductBarcodeStatus.NOT_CLAIMED);
-		when(productBarcodeRepository.findByReference("0821234567", 1L)).thenReturn(List.of(barcode));
+		when(productBarcodeRepository.findByReference("customer@example.com", 1L)).thenReturn(List.of(barcode));
 
 		List<ProductBarcode> result = serviceAt(LocalDateTime.of(2026, 6, 5, 16, 59))
-				.findByReference("0821234567", "worker");
+				.findByReference("customer@example.com", "worker");
 
 		assertThat(result).containsExactly(barcode);
 		verify(productBarcodeRepository, never()).updateStatusForReturnableProducts(
@@ -106,13 +106,21 @@ class ProductBarcodeServiceTest {
 	}
 
 	@Test
+	void findByReferenceRejectsCellphoneReference() {
+		assertThatThrownBy(() -> serviceAt(LocalDateTime.of(2026, 6, 1, 10, 0))
+				.findByReference("0821234567", "worker"))
+				.isInstanceOf(IllegalArgumentException.class)
+				.hasMessage("Reference email must be a valid email address");
+	}
+
+	@Test
 	void claimByReferenceMarksSingleNotClaimedReturnableBarcodeAsClaimed() {
 		ProductBarcode barcode = barcode(14L, true, ProductBarcodeStatus.NOT_CLAIMED);
-		when(productBarcodeRepository.findByReference("0821234567", 1L)).thenReturn(List.of(barcode));
+		when(productBarcodeRepository.findByReference("customer@example.com", 1L)).thenReturn(List.of(barcode));
 		when(productBarcodeRepository.updateStatus(14L, ProductBarcodeStatus.CLAIMED)).thenReturn(1);
 
 		ProductBarcode result = serviceAt(LocalDateTime.of(2026, 6, 1, 10, 0))
-				.claimByReference("0821234567", "worker");
+				.claimByReference("customer@example.com", "worker");
 
 		assertThat(result.getStatus()).isEqualTo(ProductBarcodeStatus.CLAIMED);
 		verify(productBarcodeRepository).updateStatus(14L, ProductBarcodeStatus.CLAIMED);
@@ -121,7 +129,7 @@ class ProductBarcodeServiceTest {
 				"ProductBarcode",
 				"14",
 				"worker",
-				"Returnable barcode claimed by reference: 0821234567",
+				"Returnable barcode claimed by reference: customer@example.com",
 				business);
 		verify(appEmailService).sendBarcodeClaimedEmail(barcode, "worker");
 	}
@@ -129,13 +137,13 @@ class ProductBarcodeServiceTest {
 	@Test
 	void claimByReferenceContinuesWhenClaimEmailFails() {
 		ProductBarcode barcode = barcode(14L, true, ProductBarcodeStatus.NOT_CLAIMED);
-		when(productBarcodeRepository.findByReference("0821234567", 1L)).thenReturn(List.of(barcode));
+		when(productBarcodeRepository.findByReference("customer@example.com", 1L)).thenReturn(List.of(barcode));
 		when(productBarcodeRepository.updateStatus(14L, ProductBarcodeStatus.CLAIMED)).thenReturn(1);
 		when(appEmailService.sendBarcodeClaimedEmail(barcode, "worker"))
 				.thenThrow(new IllegalStateException("smtp down"));
 
 		ProductBarcode result = serviceAt(LocalDateTime.of(2026, 6, 1, 10, 0))
-				.claimByReference("0821234567", "worker");
+				.claimByReference("customer@example.com", "worker");
 
 		assertThat(result.getStatus()).isEqualTo(ProductBarcodeStatus.CLAIMED);
 	}
@@ -176,10 +184,10 @@ class ProductBarcodeServiceTest {
 	@Test
 	void claimByReferenceRejectsExpiredBarcode() {
 		ProductBarcode barcode = barcode(14L, true, ProductBarcodeStatus.EXPIRED);
-		when(productBarcodeRepository.findByReference("0821234567", 1L)).thenReturn(List.of(barcode));
+		when(productBarcodeRepository.findByReference("customer@example.com", 1L)).thenReturn(List.of(barcode));
 
 		assertThatThrownBy(() -> serviceAt(LocalDateTime.of(2026, 6, 1, 10, 0))
-				.claimByReference("0821234567", "worker"))
+				.claimByReference("customer@example.com", "worker"))
 				.isInstanceOf(IllegalArgumentException.class)
 				.hasMessage("Returnable barcode claim has expired");
 	}
@@ -188,10 +196,10 @@ class ProductBarcodeServiceTest {
 	void claimByReferenceRejectsMultipleActiveBarcodesForSameReference() {
 		ProductBarcode first = barcode(14L, true, ProductBarcodeStatus.NOT_CLAIMED);
 		ProductBarcode second = barcode(15L, true, ProductBarcodeStatus.NOT_CLAIMED);
-		when(productBarcodeRepository.findByReference("0821234567", 1L)).thenReturn(List.of(first, second));
+		when(productBarcodeRepository.findByReference("customer@example.com", 1L)).thenReturn(List.of(first, second));
 
 		assertThatThrownBy(() -> serviceAt(LocalDateTime.of(2026, 6, 1, 10, 0))
-				.claimByReference("0821234567", "worker"))
+				.claimByReference("customer@example.com", "worker"))
 				.isInstanceOf(IllegalArgumentException.class)
 				.hasMessage("Multiple not claimed barcodes found for reference; claim by barcode id");
 	}
@@ -199,22 +207,22 @@ class ProductBarcodeServiceTest {
 	@Test
 	void claimByReferenceRejectsNonReturnableBarcode() {
 		ProductBarcode barcode = barcode(14L, false, ProductBarcodeStatus.CLAIMED);
-		when(productBarcodeRepository.findByReference("0821234567", 1L)).thenReturn(List.of(barcode));
+		when(productBarcodeRepository.findByReference("customer@example.com", 1L)).thenReturn(List.of(barcode));
 
 		assertThatThrownBy(() -> serviceAt(LocalDateTime.of(2026, 6, 1, 10, 0))
-				.claimByReference("0821234567", "worker"))
+				.claimByReference("customer@example.com", "worker"))
 				.isInstanceOf(IllegalArgumentException.class)
 				.hasMessage("Only returnable barcodes can be claimed");
 	}
 
 	@Test
 	void findByReferenceThrowsWhenReferenceHasNoBarcodes() {
-		when(productBarcodeRepository.findByReference("missing", 1L)).thenReturn(List.of());
+		when(productBarcodeRepository.findByReference("missing@example.com", 1L)).thenReturn(List.of());
 
 		assertThatThrownBy(() -> serviceAt(LocalDateTime.of(2026, 6, 1, 10, 0))
-				.findByReference("missing", "worker"))
+				.findByReference("missing@example.com", "worker"))
 				.isInstanceOf(ResourceNotFoundException.class)
-				.hasMessage("Barcode not found for reference: missing");
+				.hasMessage("Barcode not found for reference: missing@example.com");
 	}
 
 	private ProductBarcodeService serviceAt(LocalDateTime dateTime) {
@@ -231,7 +239,7 @@ class ProductBarcodeServiceTest {
 				bottleReturnable);
 		product.setBusiness(business);
 		ProductBarcode barcode = new ProductBarcode("6001");
-		barcode.setReferencee("0821234567");
+		barcode.setReferenceEmail("customer@example.com");
 		barcode.setStatus(status);
 		product.addBarcode(barcode);
 		ReflectionTestUtils.setField(product, "id", 9L);
