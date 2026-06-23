@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Locale;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,6 +19,7 @@ import org.springframework.util.StringUtils;
 import com.king_sparkon_tracker.backend.dto.CreateWorkerRequest;
 import com.king_sparkon_tracker.backend.dto.CompleteOnboardingRequest;
 import com.king_sparkon_tracker.backend.dto.LoginRequest;
+import com.king_sparkon_tracker.backend.dto.RegisterAffiliateRequest;
 import com.king_sparkon_tracker.backend.dto.RegisterUserRequest;
 import com.king_sparkon_tracker.backend.exception.DuplicateEmailAddressException;
 import com.king_sparkon_tracker.backend.exception.DuplicateUsernameException;
@@ -49,6 +51,7 @@ public class TrackerUserService {
 	private final BusinessAccessService businessAccessService;
 	private final AppEmailService appEmailService;
 	private final String workerTipUrlTemplate;
+	private final String affiliatePromotionUrlTemplate;
 
 	public TrackerUserService(
 			TrackerUserRepository userRepository,
@@ -60,7 +63,8 @@ public class TrackerUserService {
 			BusinessPlanPolicyService businessPlanPolicyService,
 			BusinessAccessService businessAccessService,
 			AppEmailService appEmailService,
-			@Value("${app.tips.worker-tip-url-template:http://localhost:3000/tips/workers/{workerId}}") String workerTipUrlTemplate) {
+			@Value("${app.tips.worker-tip-url-template:http://localhost:3000/tips/workers/{workerId}}") String workerTipUrlTemplate,
+			@Value("${app.affiliates.promotion-url-template:http://localhost:3000/pricing?affiliateCode={affiliateCode}}") String affiliatePromotionUrlTemplate) {
 		this.userRepository = userRepository;
 		this.emailVerificationService = emailVerificationService;
 		this.businessRepository = businessRepository;
@@ -71,6 +75,7 @@ public class TrackerUserService {
 		this.businessAccessService = businessAccessService;
 		this.appEmailService = appEmailService;
 		this.workerTipUrlTemplate = workerTipUrlTemplate;
+		this.affiliatePromotionUrlTemplate = affiliatePromotionUrlTemplate;
 	}
 
 	public TrackerUser registerOwner(RegisterUserRequest request) {
@@ -95,6 +100,7 @@ public class TrackerUserService {
 		}
 
 		Business business = businessRepository.save(new Business(businessName, owner));
+		applyAffiliateReferral(business, request.affiliateCode());
 		owner.setBusiness(business);
 
 		TrackerUser savedOwner = userRepository.save(owner);
@@ -124,6 +130,56 @@ public class TrackerUserService {
 		);
 
 		return savedOwner;
+	}
+
+	public TrackerUser registerAffiliate(RegisterAffiliateRequest request) {
+		String username = normalizeRequired(request.username(), "Username is required");
+		String emailAddress = normalizeEmailAddress(request.emailAddress());
+		String password = normalizeRequired(request.password(), "Password is required");
+		LocalizationCountry localizationCountry = normalizeLocalizationCountry(request.localizationCountry());
+
+		TrackerUser affiliate = createUser(
+				username,
+				emailAddress,
+				password,
+				PrivilegeRole.Affiliate,
+				null,
+				localizationCountry);
+
+		String affiliateCode = newAffiliateCode(username);
+		String promotionUrl = affiliatePromotionUrl(affiliateCode);
+		affiliate.activateAffiliateProfile(
+				affiliateCode,
+				promotionUrl,
+				qrCodeUrl(promotionUrl));
+
+		if (hasAnyText(request.physicalAddress(), request.cellphoneNumber(), request.paypalLink())) {
+			affiliate.completeAffiliateOnboarding(
+					normalizeRequired(request.physicalAddress(), "Physical address is required"),
+					normalizeRequired(request.cellphoneNumber(), "Cellphone number is required"),
+					normalizeRequired(request.paypalLink(), "PayPal link is required"));
+		}
+
+		TrackerUser savedAffiliate = userRepository.save(affiliate);
+
+		auditLogService.record(
+				"AFFILIATE_REGISTERED",
+				"TrackerUser",
+				String.valueOf(savedAffiliate.getId()),
+				username,
+				"Affiliate registered with promotion code: " + savedAffiliate.getAffiliateCode(),
+				null);
+
+		emailVerificationService.sendVerificationEmail(savedAffiliate, null, null);
+
+		log.info(
+				"affiliate_registered userId={} username={} localizationCountry={} affiliateCode={}",
+				savedAffiliate.getId(),
+				username,
+				savedAffiliate.getLocalizationCountry(),
+				savedAffiliate.getAffiliateCode());
+
+		return savedAffiliate;
 	}
 
 	public TrackerUser createWorker(CreateWorkerRequest request) {
@@ -210,7 +266,9 @@ public class TrackerUserService {
 			throw new InvalidCredentialsException();
 		}
 
-		if (user.getPrivilege().getName() == PrivilegeRole.Owner && !user.isEmailVerified()) {
+		if ((user.getPrivilege().getName() == PrivilegeRole.Owner
+				|| user.getPrivilege().getName() == PrivilegeRole.Affiliate)
+				&& !user.isEmailVerified()) {
 			log.warn("login_failed username={} reason=email_not_verified", username);
 			throw new EmailNotVerifiedException();
 		}
@@ -389,12 +447,68 @@ public class TrackerUserService {
 
 	private String workerTipQrCodeUrl(TrackerUser worker) {
 		String tipUrl = workerTipUrlTemplate.replace("{workerId}", String.valueOf(worker.getId()));
-		String encodedTipUrl = URLEncoder.encode(tipUrl, StandardCharsets.UTF_8);
-		return "https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=%s".formatted(encodedTipUrl);
+		return qrCodeUrl(tipUrl);
+	}
+
+	private String newAffiliateCode(String username) {
+		String base = username.replaceAll("[^A-Za-z0-9]", "").toUpperCase(Locale.ROOT);
+		if (base.length() > 20) {
+			base = base.substring(0, 20);
+		}
+		if (base.isBlank()) {
+			base = "AFFILIATE";
+		}
+
+		for (int attempt = 0; attempt < 5; attempt++) {
+			String code = "AFF-" + base + "-" + UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase(Locale.ROOT);
+			if (!userRepository.existsByAffiliateCode(code)) {
+				return code;
+			}
+		}
+
+		throw new IllegalStateException("Could not generate unique affiliate code");
+	}
+
+	private String affiliatePromotionUrl(String affiliateCode) {
+		return affiliatePromotionUrlTemplate.replace("{affiliateCode}", affiliateCode);
+	}
+
+	private String qrCodeUrl(String targetUrl) {
+		String encodedUrl = URLEncoder.encode(targetUrl, StandardCharsets.UTF_8);
+		return "https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=%s".formatted(encodedUrl);
+	}
+
+	public TrackerUser affiliateByCode(String affiliateCode) {
+		String normalizedCode = normalizeRequired(affiliateCode, "Affiliate code is required").trim().toUpperCase(Locale.ROOT);
+		TrackerUser affiliate = userRepository.findByAffiliateCode(normalizedCode)
+				.orElseThrow(() -> new ResourceNotFoundException("Affiliate code not found: " + normalizedCode));
+		if (affiliate.getPrivilege() == null || affiliate.getPrivilege().getName() != PrivilegeRole.Affiliate) {
+			throw new IllegalArgumentException("Referral code does not belong to an affiliate");
+		}
+		return affiliate;
+	}
+
+	public void applyAffiliateReferral(Business business, String affiliateCode) {
+		String normalizedCode = normalizeOptional(affiliateCode);
+		if (business == null || normalizedCode == null || business.getAffiliate() != null) {
+			return;
+		}
+
+		TrackerUser affiliate = affiliateByCode(normalizedCode);
+		business.assignAffiliate(affiliate, affiliate.getAffiliateCode());
 	}
 
 	private LocalizationCountry normalizeLocalizationCountry(LocalizationCountry localizationCountry) {
 		return localizationCountry == null ? LocalizationCountry.SOUTH_AFRICA : localizationCountry;
+	}
+
+	private boolean hasAnyText(String... values) {
+		for (String value : values) {
+			if (StringUtils.hasText(value)) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private Business requireBusiness(TrackerUser user) {

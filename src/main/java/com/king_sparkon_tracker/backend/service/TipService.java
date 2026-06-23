@@ -7,6 +7,7 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.king_sparkon_tracker.backend.dto.AffiliateTipRequest;
 import com.king_sparkon_tracker.backend.dto.TipRequest;
 import com.king_sparkon_tracker.backend.dto.TipResponse;
 import com.king_sparkon_tracker.backend.dto.UpdateTipStatusRequest;
@@ -41,21 +42,32 @@ public class TipService {
 
 	@Transactional
 	public TipResponse createTip(TipRequest request) {
-		BigDecimal tipAmount = normalizeMoney(request.tipAmount());
+		TrackerUser worker = trackerUserService.getUserById(request.workerId());
+		requireTippableUser(worker);
+		return createTipForRecipient(worker, request.tipAmount(), request.callbackUrl());
+	}
+
+	@Transactional
+	public TipResponse createAffiliateTip(AffiliateTipRequest request, String affiliateUsername) {
+		TrackerUser affiliate = trackerUserService.getUserByUsername(affiliateUsername);
+		requireAffiliate(affiliate);
+		return createTipForRecipient(affiliate, request.tipAmount(), request.callbackUrl());
+	}
+
+	private TipResponse createTipForRecipient(TrackerUser recipient, BigDecimal requestedTipAmount, String callbackUrl) {
+		BigDecimal tipAmount = normalizeMoney(requestedTipAmount);
 		if (tipAmount.compareTo(BigDecimal.ZERO) <= 0) {
 			throw new IllegalArgumentException("Tip amount must be greater than zero");
 		}
 
-		TrackerUser worker = trackerUserService.getUserById(request.workerId());
-		requireWorker(worker);
-		Tip tip = tipRepository.save(new Tip(worker, tipAmount));
+		Tip tip = tipRepository.save(new Tip(recipient, tipAmount));
 		BigDecimal systemFee = noCreationFee();
 		BigDecimal netAmount = netAmount(tipAmount);
 		CreatedTipPaymentLink paymentLink = stripeService.createTipPaymentLink(
 				tip,
 				systemFee,
 				netAmount,
-				request.callbackUrl());
+				callbackUrl);
 
 		tip.markPaymentReference(paymentLink.stripeId());
 		Tip savedTip = tipRepository.save(tip);
@@ -92,6 +104,16 @@ public class TipService {
 	}
 
 	@Transactional(readOnly = true)
+	public List<TipResponse> getTipsForAffiliate(String affiliateUsername) {
+		TrackerUser affiliate = trackerUserService.getUserByUsername(affiliateUsername);
+		requireAffiliate(affiliate);
+		return tipRepository.findByWorker_IdOrderByCreatedDesc(affiliate.getId())
+				.stream()
+				.map(this::response)
+				.toList();
+	}
+
+	@Transactional(readOnly = true)
 	public List<TipResponse> getTipsByStatus(TipStatus status) {
 		return tipRepository.findByStatusOrderByCreatedDesc(status)
 				.stream()
@@ -120,9 +142,17 @@ public class TipService {
 				: amount.setScale(MONEY_SCALE, RoundingMode.HALF_UP);
 	}
 
-	private void requireWorker(TrackerUser user) {
-		if (user.getPrivilege() == null || user.getPrivilege().getName() != PrivilegeRole.Worker) {
-			throw new IllegalArgumentException("Tips can only be created for worker accounts");
+	private void requireTippableUser(TrackerUser user) {
+		if (user.getPrivilege() == null
+				|| (user.getPrivilege().getName() != PrivilegeRole.Worker
+				&& user.getPrivilege().getName() != PrivilegeRole.Affiliate)) {
+			throw new IllegalArgumentException("Tips can only be created for worker or affiliate accounts");
+		}
+	}
+
+	private void requireAffiliate(TrackerUser user) {
+		if (user.getPrivilege() == null || user.getPrivilege().getName() != PrivilegeRole.Affiliate) {
+			throw new IllegalArgumentException("Only affiliate accounts can manage affiliate tips");
 		}
 	}
 }

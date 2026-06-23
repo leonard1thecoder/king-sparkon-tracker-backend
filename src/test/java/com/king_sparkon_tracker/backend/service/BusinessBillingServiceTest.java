@@ -63,6 +63,12 @@ class BusinessBillingServiceTest {
 	@Mock
 	private AppEmailService appEmailService;
 
+	@Mock
+	private AffiliateService affiliateService;
+
+	@Mock
+	private TrackerUserService trackerUserService;
+
 	private BusinessBillingService service;
 	private Clock fixedClock;
 
@@ -78,7 +84,9 @@ class BusinessBillingServiceTest {
 				stripeBillingClient,
 				billingAuditService,
 				fixedClock,
-				appEmailService);
+				appEmailService,
+				affiliateService,
+				trackerUserService);
 	}
 
 	@Test
@@ -186,6 +194,10 @@ class BusinessBillingServiceTest {
 				owner.getBusiness(),
 				subscription,
 				"Manual approval activation");
+		verify(affiliateService).recordCommission(
+				subscription,
+				owner.getBusiness(),
+				java.time.LocalDateTime.of(2026, 6, 1, 12, 0));
 	}
 
 	@Test

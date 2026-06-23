@@ -79,6 +79,21 @@ public class TrackerUser {
 	@Column(name = "tip_qr_code_url", length = 2048)
 	private String tipQrCodeUrl;
 
+	@Column(name = "affiliate_code", unique = true, length = 64)
+	private String affiliateCode;
+
+	@Column(name = "affiliate_promotion_url", length = 2048)
+	private String affiliatePromotionUrl;
+
+	@Column(name = "affiliate_qr_code_url", length = 2048)
+	private String affiliateQrCodeUrl;
+
+	@Column(name = "affiliate_paypal_link", length = 2048)
+	private String affiliatePaypalLink;
+
+	@Column(name = "affiliate_joined_at")
+	private LocalDateTime affiliateJoinedAt;
+
 	protected TrackerUser() {
 	}
 
@@ -133,6 +148,26 @@ public class TrackerUser {
 		this.tipQrCodeUrl = tipQrCodeUrl;
 	}
 
+	public void activateAffiliateProfile(String affiliateCode, String promotionUrl, String qrCodeUrl) {
+		this.affiliateCode = affiliateCode;
+		this.affiliatePromotionUrl = promotionUrl;
+		this.affiliateQrCodeUrl = qrCodeUrl;
+		if (this.affiliateJoinedAt == null) {
+			this.affiliateJoinedAt = LocalDateTime.now();
+		}
+	}
+
+	public void completeAffiliateOnboarding(String physicalAddress, String cellphoneNumber, String paypalLink) {
+		completeOnboarding(physicalAddress, cellphoneNumber);
+		this.affiliatePaypalLink = paypalLink;
+		this.onboardingCompleted = physicalAddress != null
+				&& !physicalAddress.isBlank()
+				&& cellphoneNumber != null
+				&& !cellphoneNumber.isBlank()
+				&& paypalLink != null
+				&& !paypalLink.isBlank();
+	}
+
 	@PrePersist
 	void beforeCreate() {
 		LocalDateTime now = LocalDateTime.now();
@@ -144,9 +179,7 @@ public class TrackerUser {
 		if (localizationCountry == null) {
 			localizationCountry = LocalizationCountry.SOUTH_AFRICA;
 		}
-		if (physicalAddress != null && cellphoneNumber != null && !physicalAddress.isBlank() && !cellphoneNumber.isBlank()) {
-			onboardingCompleted = true;
-		}
+		syncOnboardingCompleted();
 
 		modifiedDate = now;
 	}
@@ -156,11 +189,23 @@ public class TrackerUser {
 		if (localizationCountry == null) {
 			localizationCountry = LocalizationCountry.SOUTH_AFRICA;
 		}
-		if (physicalAddress != null && cellphoneNumber != null && !physicalAddress.isBlank() && !cellphoneNumber.isBlank()) {
-			onboardingCompleted = true;
-		}
+		syncOnboardingCompleted();
 
 		modifiedDate = LocalDateTime.now();
+	}
+
+	private void syncOnboardingCompleted() {
+		if (physicalAddress == null || cellphoneNumber == null || physicalAddress.isBlank() || cellphoneNumber.isBlank()) {
+			onboardingCompleted = false;
+			return;
+		}
+		if (privilege != null
+				&& privilege.getName() == PrivilegeRole.Affiliate
+				&& (affiliatePaypalLink == null || affiliatePaypalLink.isBlank())) {
+			onboardingCompleted = false;
+			return;
+		}
+		onboardingCompleted = true;
 	}
 
 	public Long getId() {
@@ -251,5 +296,25 @@ public class TrackerUser {
 
 	public String getTipQrCodeUrl() {
 		return tipQrCodeUrl;
+	}
+
+	public String getAffiliateCode() {
+		return affiliateCode;
+	}
+
+	public String getAffiliatePromotionUrl() {
+		return affiliatePromotionUrl;
+	}
+
+	public String getAffiliateQrCodeUrl() {
+		return affiliateQrCodeUrl;
+	}
+
+	public String getAffiliatePaypalLink() {
+		return affiliatePaypalLink;
+	}
+
+	public LocalDateTime getAffiliateJoinedAt() {
+		return affiliateJoinedAt;
 	}
 }

@@ -17,6 +17,8 @@ public interface TrackerUserRepository extends JpaRepository<TrackerUser, Long> 
 
 	boolean existsByEmailAddress(String emailAddress);
 
+	boolean existsByAffiliateCode(String affiliateCode);
+
 	long countByPrivilege_Name(PrivilegeRole privilegeName);
 
 	long countByBusiness_IdAndPrivilege_Name(Long businessId, PrivilegeRole privilegeName);
@@ -26,5 +28,7 @@ public interface TrackerUserRepository extends JpaRepository<TrackerUser, Long> 
 	Optional<TrackerUser> findByIdAndBusiness_Id(Long id, Long businessId);
 
 	Optional<TrackerUser> findByEmailAddress(String emailAddress);
+
+	Optional<TrackerUser> findByAffiliateCode(String affiliateCode);
 
 }

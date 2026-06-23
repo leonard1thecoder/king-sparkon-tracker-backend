@@ -11,6 +11,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
@@ -79,6 +80,13 @@ public class Business {
 
 	@Column(name = "next_billing_date")
 	private LocalDateTime nextBillingDate;
+
+	@ManyToOne(fetch = FetchType.EAGER)
+	@JoinColumn(name = "affiliate_user_id")
+	private TrackerUser affiliate;
+
+	@Column(name = "affiliate_code", length = 64)
+	private String affiliateCode;
 
 	@Column(nullable = false)
 	private LocalDateTime createdDate;
@@ -190,6 +198,11 @@ public class Business {
 
 	public void cancel() {
 		this.businessStatus = BusinessStatus.CANCELLED;
+	}
+
+	public void assignAffiliate(TrackerUser affiliate, String affiliateCode) {
+		this.affiliate = affiliate;
+		this.affiliateCode = affiliateCode;
 	}
 
 	public Long getId() {
@@ -330,6 +343,14 @@ public class Business {
 
 	public void setNextBillingDate(LocalDateTime nextBillingDate) {
 		this.nextBillingDate = nextBillingDate;
+	}
+
+	public TrackerUser getAffiliate() {
+		return affiliate;
+	}
+
+	public String getAffiliateCode() {
+		return affiliateCode;
 	}
 
 	public LocalDateTime getCreatedDate() {

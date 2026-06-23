@@ -45,6 +45,8 @@ public class BusinessBillingService {
 	private final BillingAuditService billingAuditService;
 	private final Clock clock;
 	private final AppEmailService appEmailService;
+	private final AffiliateService affiliateService;
+	private final TrackerUserService trackerUserService;
 
 	public BusinessBillingService(
 			BusinessRepository businessRepository,
@@ -55,7 +57,9 @@ public class BusinessBillingService {
 			StripeBillingClient stripeBillingClient,
 			BillingAuditService billingAuditService,
 			Clock clock,
-			AppEmailService appEmailService) {
+			AppEmailService appEmailService,
+			AffiliateService affiliateService,
+			TrackerUserService trackerUserService) {
 		this.businessRepository = businessRepository;
 		this.subscriptionRepository = subscriptionRepository;
 		this.userRepository = userRepository;
@@ -65,6 +69,8 @@ public class BusinessBillingService {
 		this.billingAuditService = billingAuditService;
 		this.clock = clock;
 		this.appEmailService = appEmailService;
+		this.affiliateService = affiliateService;
+		this.trackerUserService = trackerUserService;
 	}
 
 	@Transactional(readOnly = true)
@@ -106,6 +112,7 @@ public class BusinessBillingService {
 	public BusinessBillingResponse createSubscription(String actorUsername, CreateBusinessSubscriptionRequest request) {
 		Business business = businessForOwner(actorUsername);
 		validatePaidRequest(request);
+		trackerUserService.applyAffiliateReferral(business, request.affiliateCode());
 
 		BigDecimal amount = amountFor(request.plan(), request.billingInterval(), request.termYears());
 
@@ -152,6 +159,7 @@ public class BusinessBillingService {
 			CreateBusinessSubscriptionRequest request) {
 		Business business = businessForOwner(actorUsername);
 		validatePaidRequest(request);
+		trackerUserService.applyAffiliateReferral(business, request.affiliateCode());
 
 		BigDecimal amount = amountFor(request.plan(), request.billingInterval(), request.termYears());
 
@@ -492,6 +500,7 @@ public class BusinessBillingService {
 				message
 		);
 
+		affiliateService.recordCommission(subscription, business, now);
 		sendBillingActivatedNotification(business, subscription, message);
 	}
 
@@ -526,6 +535,7 @@ public class BusinessBillingService {
 				message
 		);
 
+		affiliateService.recordCommission(subscription, business, now);
 		sendBillingActivatedNotification(business, subscription, message);
 	}
 
