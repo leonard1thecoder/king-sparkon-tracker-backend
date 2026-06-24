@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 
 import com.king_sparkon_tracker.backend.model.Promotion;
+import com.king_sparkon_tracker.backend.model.PromotionAudience;
 import com.king_sparkon_tracker.backend.model.PromotionChannel;
 import com.king_sparkon_tracker.backend.model.PromotionOrigin;
 import com.king_sparkon_tracker.backend.model.PromotionStatus;
@@ -31,6 +32,9 @@ public record PromotionResponse(
 
 		@Schema(description = "Promotion channel.", example = "ANY")
 		PromotionChannel channel,
+
+		@Schema(description = "Promotion audience.", example = "REGISTERED_AFFILIATES")
+		PromotionAudience audience,
 
 		@Schema(description = "Promotion status.", example = "ACTIVE")
 		PromotionStatus status,
@@ -66,6 +70,7 @@ public record PromotionResponse(
 				promotion.getLandingUrl(),
 				promotion.getOrigin(),
 				promotion.getChannel(),
+				promotion.getAudience(),
 				promotion.getStatus(),
 				promotion.getTargetCount(),
 				promotion.getBulkPrice(),
