@@ -26,6 +26,10 @@ public record RegisterUserRequest(
 		@NotBlank
 		String businessName,
 
+		@Schema(description = "Business description captured during owner onboarding.", example = "Barcode-enabled retail store selling beverages and convenience products.")
+		@Size(max = 2000)
+		String businessDescription,
+
 		@JsonAlias({ "LocalizationContry", "localizationContry" })
 		@Schema(description = "User localization country.", example = "SOUTH_AFRICA")
 		LocalizationCountry localizationCountry,
@@ -48,7 +52,7 @@ public record RegisterUserRequest(
 			String password,
 			String businessName,
 			LocalizationCountry localizationCountry) {
-		this(username, emailAddress, password, businessName, localizationCountry, null, null, null);
+		this(username, emailAddress, password, businessName, null, localizationCountry, null, null, null);
 	}
 
 	public RegisterUserRequest(
@@ -59,6 +63,6 @@ public record RegisterUserRequest(
 			LocalizationCountry localizationCountry,
 			String physicalAddress,
 			String cellphoneNumber) {
-		this(username, emailAddress, password, businessName, localizationCountry, physicalAddress, cellphoneNumber, null);
+		this(username, emailAddress, password, businessName, null, localizationCountry, physicalAddress, cellphoneNumber, null);
 	}
 }
