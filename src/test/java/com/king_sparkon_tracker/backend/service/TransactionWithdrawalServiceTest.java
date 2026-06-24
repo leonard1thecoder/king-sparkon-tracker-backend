@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -239,7 +240,7 @@ class TransactionWithdrawalServiceTest {
 
 	private void stubMoney(String amount, String formatted) {
 		BigDecimal value = new BigDecimal(amount);
-		when(priceLocalizationService.base(value))
+		lenient().when(priceLocalizationService.base(value))
 				.thenReturn(new MoneyResponse(value, SupportedCurrency.ZAR, "R", formatted));
 	}
 

@@ -1,9 +1,16 @@
+# syntax=docker/dockerfile:1.7
 FROM maven:3-eclipse-temurin-25 AS build
 WORKDIR /workspace
 COPY pom.xml ./
 COPY .mvn .mvn
 COPY src src
-RUN mvn -B -DskipTests package
+RUN --mount=type=secret,id=app_env,required=false \
+    if [ -f /run/secrets/app_env ]; then \
+      set -a; \
+      . /run/secrets/app_env; \
+      set +a; \
+    fi; \
+    mvn -B clean verify
 
 FROM eclipse-temurin:25-jdk
 WORKDIR /app
