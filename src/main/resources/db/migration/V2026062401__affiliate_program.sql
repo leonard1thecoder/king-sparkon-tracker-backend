@@ -5,8 +5,7 @@ alter table tracker_users add column affiliate_paypal_link varchar(2048);
 alter table tracker_users add column affiliate_joined_at timestamp;
 
 create unique index uk_tracker_users_affiliate_code
-    on tracker_users(affiliate_code)
-    where affiliate_code is not null;
+    on tracker_users(affiliate_code);
 
 alter table businesses add column affiliate_user_id bigint;
 alter table businesses add column affiliate_code varchar(64);
