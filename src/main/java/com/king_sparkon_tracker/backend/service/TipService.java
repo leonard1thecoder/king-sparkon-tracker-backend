@@ -28,23 +28,28 @@ public class TipService {
 	private final TrackerUserService trackerUserService;
 	private final StripeService stripeService;
 	private final NotificationService notificationService;
+	private final SubscriberService subscriberService;
 
 	public TipService(
 			TipRepository tipRepository,
 			TrackerUserService trackerUserService,
 			StripeService stripeService,
-			NotificationService notificationService) {
+			NotificationService notificationService,
+			SubscriberService subscriberService) {
 		this.tipRepository = tipRepository;
 		this.trackerUserService = trackerUserService;
 		this.stripeService = stripeService;
 		this.notificationService = notificationService;
+		this.subscriberService = subscriberService;
 	}
 
 	@Transactional
 	public TipResponse createTip(TipRequest request) {
 		TrackerUser worker = trackerUserService.getUserById(request.workerId());
 		requireTippableUser(worker);
-		return createTipForRecipient(worker, request.tipAmount(), request.callbackUrl());
+		TipResponse response = createTipForRecipient(worker, request.tipAmount(), request.callbackUrl());
+		subscriberService.subscribeTipPaymentClient(request.clientContact());
+		return response;
 	}
 
 	@Transactional

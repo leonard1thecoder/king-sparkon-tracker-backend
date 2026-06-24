@@ -17,6 +17,9 @@ public record TipRequest(
 		BigDecimal tipAmount,
 
 		@Size(max = 2048)
-		String callbackUrl
+		String callbackUrl,
+
+		@Size(max = 320)
+		String clientContact
 ) {
 }

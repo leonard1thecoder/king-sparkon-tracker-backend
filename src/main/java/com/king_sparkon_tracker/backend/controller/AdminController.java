@@ -4,23 +4,31 @@ import java.security.Principal;
 
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.king_sparkon_tracker.backend.config.OpenApiConfig;
 import com.king_sparkon_tracker.backend.dto.AdminBusinessResponse;
 import com.king_sparkon_tracker.backend.dto.AdminOverviewResponse;
+import com.king_sparkon_tracker.backend.dto.CreatePromotionRequest;
 import com.king_sparkon_tracker.backend.dto.PageResponse;
+import com.king_sparkon_tracker.backend.dto.PromotionResponse;
 import com.king_sparkon_tracker.backend.dto.UserResponse;
 import com.king_sparkon_tracker.backend.service.AdministratorService;
+import com.king_sparkon_tracker.backend.service.PromotionService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/api/admin")
@@ -29,15 +37,26 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 public class AdminController {
 
 	private final AdministratorService administratorService;
+	private final PromotionService promotionService;
 
-	public AdminController(AdministratorService administratorService) {
+	public AdminController(AdministratorService administratorService, PromotionService promotionService) {
 		this.administratorService = administratorService;
+		this.promotionService = promotionService;
 	}
 
 	@GetMapping("/overview")
 	@Operation(summary = "Admin overview", description = "Returns platform-level totals for administrators.")
 	public AdminOverviewResponse overview(@Parameter(hidden = true) Principal principal) {
 		return administratorService.overview(principal.getName());
+	}
+
+	@PostMapping("/promotions/registered-subscribers")
+	@ResponseStatus(HttpStatus.CREATED)
+	@Operation(summary = "Create registered-subscriber promotion", description = "Admin-only endpoint for creating a promotion for registered affiliate/subscriber users.")
+	public PromotionResponse createRegisteredSubscriberPromotion(
+			@Valid @RequestBody CreatePromotionRequest request,
+			@Parameter(hidden = true) Principal principal) {
+		return PromotionResponse.from(promotionService.createAdminRegisteredSubscriberPromotion(request, principal.getName()));
 	}
 
 	@GetMapping("/users")
