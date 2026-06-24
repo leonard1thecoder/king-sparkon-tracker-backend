@@ -20,6 +20,8 @@ import com.king_sparkon_tracker.backend.dto.CreateTransactionRequest;
 import com.king_sparkon_tracker.backend.dto.PageResponse;
 import com.king_sparkon_tracker.backend.dto.TransactionResponse;
 import com.king_sparkon_tracker.backend.model.InventoryTransaction;
+import com.king_sparkon_tracker.backend.model.TransactionPaymentType;
+import com.king_sparkon_tracker.backend.repository.InventoryTransactionRepository;
 import com.king_sparkon_tracker.backend.service.SubscriberService;
 import com.king_sparkon_tracker.backend.service.TransactionService;
 
@@ -37,10 +39,15 @@ public class TransactionController {
 
 	private final TransactionService transactionService;
 	private final SubscriberService subscriberService;
+	private final InventoryTransactionRepository transactionRepository;
 
-	public TransactionController(TransactionService transactionService, SubscriberService subscriberService) {
+	public TransactionController(
+			TransactionService transactionService,
+			SubscriberService subscriberService,
+			InventoryTransactionRepository transactionRepository) {
 		this.transactionService = transactionService;
 		this.subscriberService = subscriberService;
+		this.transactionRepository = transactionRepository;
 	}
 
 	/**
@@ -54,8 +61,14 @@ public class TransactionController {
 			@Valid @RequestBody CreateTransactionRequest request,
 			@Parameter(hidden = true) Principal principal) {
 		InventoryTransaction transaction = transactionService.createTransaction(request, principal.getName());
-		String subscriberContact = StringUtils.hasText(request.paymentContact()) ? request.paymentContact() : request.paymentEmail();
-		subscriberService.subscribeWebsitePaymentClient(subscriberContact);
+		if (request.paymentType() == TransactionPaymentType.WEBSITE_PAYMENT) {
+			String subscriberContact = StringUtils.hasText(request.paymentContact()) ? request.paymentContact().trim() : request.paymentEmail();
+			subscriberService.subscribeWebsitePaymentClient(subscriberContact);
+			if (StringUtils.hasText(subscriberContact)) {
+				transaction.setPaymentContact(subscriberContact);
+				transaction = transactionRepository.save(transaction);
+			}
+		}
 		return TransactionResponse.from(transaction);
 	}
 
