@@ -1,11 +1,7 @@
-FROM eclipse-temurin:25-jdk AS build
+FROM maven:3-eclipse-temurin-25 AS build
 WORKDIR /workspace
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends maven \
-    && rm -rf /var/lib/apt/lists/*
 COPY pom.xml ./
 COPY .mvn .mvn
-RUN mvn -B -DskipTests dependency:go-offline
 COPY src src
 RUN mvn -B -DskipTests package
 
