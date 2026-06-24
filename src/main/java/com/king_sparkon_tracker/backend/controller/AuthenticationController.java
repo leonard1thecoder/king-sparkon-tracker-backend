@@ -34,6 +34,14 @@ public class AuthenticationController {
 			TrackerUserService userService,
 			RefreshTokenService refreshTokenService,
 			PasswordResetService passwordResetService,
+			EmailVerificationService emailVerificationService) {
+		this(userService, refreshTokenService, passwordResetService, emailVerificationService, null);
+	}
+
+	public AuthenticationController(
+			TrackerUserService userService,
+			RefreshTokenService refreshTokenService,
+			PasswordResetService passwordResetService,
 			EmailVerificationService emailVerificationService,
 			BusinessRepository businessRepository) {
 		this.emailVerificationService = emailVerificationService;
@@ -53,7 +61,7 @@ public class AuthenticationController {
 	})
 	public UserResponse register(@Valid @RequestBody RegisterUserRequest request) {
 		TrackerUser owner = userService.registerOwner(request);
-		if (owner.getBusiness() != null && StringUtils.hasText(request.businessDescription())) {
+		if (businessRepository != null && owner.getBusiness() != null && StringUtils.hasText(request.businessDescription())) {
 			owner.getBusiness().setDescription(request.businessDescription().trim());
 			businessRepository.save(owner.getBusiness());
 		}
