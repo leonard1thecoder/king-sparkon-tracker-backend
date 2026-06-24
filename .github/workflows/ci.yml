@@ -16,8 +16,6 @@ jobs:
           java-version: '25'
           cache: maven
       - name: Maven verify
-        run: |
-          chmod +x mvnw
-          bash ./mvnw -B clean verify
+        run: mvn -B clean verify --file pom.xml
       - name: Docker build
         run: docker build -t king-sparkon-tracker-backend .
