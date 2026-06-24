@@ -35,6 +35,9 @@ public class Subscriber {
 	@Column(name = "subscriber_type", nullable = false, length = 32)
 	private SubscriberType subscriberType;
 
+	@Column(name = "affiliate_registered", nullable = false)
+	private boolean affiliateRegistered;
+
 	@Enumerated(EnumType.STRING)
 	@Column(name = "preferred_channel", nullable = false, length = 16)
 	private PromotionChannel preferredChannel;
@@ -61,11 +64,13 @@ public class Subscriber {
 			String contactValue,
 			SubscriberContactType contactType,
 			SubscriberType subscriberType,
+			boolean affiliateRegistered,
 			PromotionChannel preferredChannel,
 			String source) {
 		this.contactValue = contactValue;
 		this.contactType = contactType;
 		this.subscriberType = subscriberType;
+		this.affiliateRegistered = affiliateRegistered;
 		this.preferredChannel = preferredChannel;
 		this.source = source;
 		this.active = true;
@@ -96,11 +101,12 @@ public class Subscriber {
 		modifiedDate = OffsetDateTime.now();
 	}
 
-	public void reactivate(SubscriberType subscriberType, PromotionChannel preferredChannel, String source) {
+	public void reactivate(SubscriberType subscriberType, boolean affiliateRegistered, PromotionChannel preferredChannel, String source) {
 		this.active = true;
 		if (subscriberType != null) {
 			this.subscriberType = subscriberType;
 		}
+		this.affiliateRegistered = affiliateRegistered;
 		if (preferredChannel != null) {
 			this.preferredChannel = preferredChannel;
 		}
@@ -131,6 +137,10 @@ public class Subscriber {
 
 	public SubscriberType getSubscriberType() {
 		return subscriberType;
+	}
+
+	public boolean isAffiliateRegistered() {
+		return affiliateRegistered;
 	}
 
 	public PromotionChannel getPreferredChannel() {
