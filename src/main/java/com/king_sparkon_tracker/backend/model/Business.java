@@ -30,6 +30,9 @@ public class Business {
 	@Column(nullable = false)
 	private String name;
 
+	@Column(name = "description", length = 2000)
+	private String description;
+
 	@OneToOne(fetch = FetchType.EAGER, optional = false)
 	@JoinColumn(name = "owner_id", nullable = false, unique = true)
 	private TrackerUser owner;
@@ -98,7 +101,12 @@ public class Business {
 	}
 
 	public Business(String name, TrackerUser owner) {
+		this(name, null, owner);
+	}
+
+	public Business(String name, String description, TrackerUser owner) {
 		this.name = name;
+		this.description = description;
 		this.owner = owner;
 	}
 
@@ -215,6 +223,14 @@ public class Business {
 
 	public void setName(String name) {
 		this.name = name;
+	}
+
+	public String getDescription() {
+		return description;
+	}
+
+	public void setDescription(String description) {
+		this.description = description;
 	}
 
 	public TrackerUser getOwner() {
