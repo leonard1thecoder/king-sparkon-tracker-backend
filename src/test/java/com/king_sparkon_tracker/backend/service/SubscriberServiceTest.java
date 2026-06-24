@@ -38,13 +38,30 @@ class SubscriberServiceTest {
 		when(subscriberRepository.findByContactValue("client@example.com")).thenReturn(Optional.empty());
 		when(subscriberRepository.save(any(Subscriber.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-		Subscriber result = subscriberService.subscribe(new SubscribeRequest(" CLIENT@EXAMPLE.COM ", null, null));
+		Subscriber result = subscriberService.subscribe(new SubscribeRequest(" CLIENT@EXAMPLE.COM ", null, null, null));
 
 		assertThat(result.getContactValue()).isEqualTo("client@example.com");
 		assertThat(result.getContactType()).isEqualTo(SubscriberContactType.EMAIL);
 		assertThat(result.getSubscriberType()).isEqualTo(SubscriberType.KINGSPARKON_SUBSCRIBER);
+		assertThat(result.isAffiliateRegistered()).isFalse();
 		assertThat(result.getPreferredChannel()).isEqualTo(PromotionChannel.ANY);
 		assertThat(result.getSource()).isEqualTo("DIRECT");
+	}
+
+	@Test
+	void affiliateSignupTracksWhetherAffiliateIsRegistered() {
+		when(subscriberRepository.findByContactValue("affiliate@example.com")).thenReturn(Optional.empty());
+		when(subscriberRepository.save(any(Subscriber.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+		Subscriber result = subscriberService.subscribe(new SubscribeRequest(
+				"affiliate@example.com",
+				SubscriberType.AFFILIATE,
+				true,
+				PromotionChannel.EMAIL));
+
+		assertThat(result.getSubscriberType()).isEqualTo(SubscriberType.AFFILIATE);
+		assertThat(result.isAffiliateRegistered()).isTrue();
+		assertThat(result.getPreferredChannel()).isEqualTo(PromotionChannel.EMAIL);
 	}
 
 	@Test
@@ -61,8 +78,20 @@ class SubscriberServiceTest {
 	}
 
 	@Test
+	void websitePaymentClientSignupUsesClientType() {
+		when(subscriberRepository.findByContactValue("website@example.com")).thenReturn(Optional.empty());
+		when(subscriberRepository.save(any(Subscriber.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+		Subscriber result = subscriberService.subscribeWebsitePaymentClient("website@example.com");
+
+		assertThat(result.getContactValue()).isEqualTo("website@example.com");
+		assertThat(result.getSubscriberType()).isEqualTo(SubscriberType.CLIENT);
+		assertThat(result.getSource()).isEqualTo("WEBSITE_PAYMENT");
+	}
+
+	@Test
 	void rejectsCellphoneWithoutInternationalFormat() {
-		assertThatThrownBy(() -> subscriberService.subscribe(new SubscribeRequest("0821234567", null, PromotionChannel.WHATSAPP)))
+		assertThatThrownBy(() -> subscriberService.subscribe(new SubscribeRequest("0821234567", null, null, PromotionChannel.WHATSAPP)))
 				.isInstanceOf(IllegalArgumentException.class)
 				.hasMessage("Cellphone number must be in international format, for example +27821234567");
 	}
