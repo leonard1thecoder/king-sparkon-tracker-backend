@@ -3,7 +3,7 @@ WORKDIR /workspace
 COPY pom.xml ./
 COPY .mvn .mvn
 COPY src src
-RUN mvn -B -DskipTests package
+RUN mvn -B clean verify
 
 FROM eclipse-temurin:25-jdk
 WORKDIR /app
