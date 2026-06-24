@@ -3,8 +3,10 @@ package com.king_sparkon_tracker.backend.service;
 import java.math.BigDecimal;
 import java.util.List;
 
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
+import com.king_sparkon_tracker.backend.config.RedisCacheConfig;
 import com.king_sparkon_tracker.backend.dto.AffiliateCommissionTierResponse;
 import com.king_sparkon_tracker.backend.dto.BillingPlanResponse;
 import com.king_sparkon_tracker.backend.model.Business;
@@ -27,6 +29,7 @@ public class BusinessPlanPolicyService {
 			new AffiliateCommissionTierResponse("After 1 year", 12, null, new BigDecimal("28.00"))
 	);
 
+	@Cacheable(cacheNames = RedisCacheConfig.BUSINESS_PLAN_PRICES_CACHE, key = "#plan.name()")
 	public BigDecimal monthlyPrice(BusinessPlan plan) {
 		return switch (plan) {
 			case FREE_TRIAL -> BigDecimal.ZERO;
@@ -39,6 +42,7 @@ public class BusinessPlanPolicyService {
 		return maxWorkers(planOf(business));
 	}
 
+	@Cacheable(cacheNames = RedisCacheConfig.BUSINESS_PLAN_WORKER_LIMITS_CACHE, key = "#plan.name()")
 	public int maxWorkers(BusinessPlan plan) {
 		return switch (plan) {
 			case FREE_TRIAL -> 2;
@@ -62,6 +66,9 @@ public class BusinessPlanPolicyService {
 		}
 	}
 
+	@Cacheable(
+			cacheNames = RedisCacheConfig.BUSINESS_FEATURE_ACCESS_CACHE,
+			key = "(#business == null ? 'NO_BUSINESS' : #business.id) + ':' + (#business == null || #business.businessPlan == null ? 'FREE_TRIAL' : #business.businessPlan.name()) + ':' + (#business == null || #business.businessStatus == null ? 'NO_STATUS' : #business.businessStatus.name()) + ':' + #feature.name()")
 	public boolean isFeatureEnabled(Business business, BusinessFeature feature) {
 		if (!isActiveOrTrial(business)) {
 			return false;
@@ -88,6 +95,7 @@ public class BusinessPlanPolicyService {
 		}
 	}
 
+	@Cacheable(cacheNames = RedisCacheConfig.BILLING_PLANS_CACHE)
 	public List<BillingPlanResponse> billingPlans() {
 		return List.of(
 				new BillingPlanResponse(
@@ -160,6 +168,7 @@ public class BusinessPlanPolicyService {
 		);
 	}
 
+	@Cacheable(cacheNames = RedisCacheConfig.AFFILIATE_COMMISSION_TIERS_CACHE)
 	public List<AffiliateCommissionTierResponse> affiliateCommissionTiers() {
 		return AFFILIATE_COMMISSION_TIERS;
 	}

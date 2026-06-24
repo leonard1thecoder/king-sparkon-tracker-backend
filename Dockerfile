@@ -3,6 +3,7 @@ FROM maven:3-eclipse-temurin-25 AS build
 WORKDIR /workspace
 COPY pom.xml ./
 COPY .mvn .mvn
+COPY scripts scripts
 COPY src src
 RUN --mount=type=secret,id=app_env,required=false \
     if [ -f /run/secrets/app_env ]; then \
@@ -10,7 +11,7 @@ RUN --mount=type=secret,id=app_env,required=false \
       . /run/secrets/app_env; \
       set +a; \
     fi; \
-    mvn -B clean verify
+    bash scripts/full-maven-scan.sh
 
 FROM eclipse-temurin:25-jdk
 WORKDIR /app

@@ -46,6 +46,9 @@ public class InventoryTransaction {
 	@Column(name = "payment_email")
 	private String paymentEmail;
 
+	@Column(name = "payment_contact", length = 320)
+	private String paymentContact;
+
 	@Column(name = "payment_reference")
 	private String paymentReference;
 
@@ -121,20 +124,31 @@ public class InventoryTransaction {
 		this.paymentType = paymentType;
 		this.paymentStatus = TransactionPaymentStatus.NOT_REQUIRED;
 		this.paymentEmail = paymentEmail;
+		this.paymentContact = paymentEmail;
 		this.paymentReference = null;
 		this.paymentUrl = null;
 	}
 
 	public void prepareWebsitePayment(String paymentEmail) {
+		prepareWebsitePayment(paymentEmail, paymentEmail);
+	}
+
+	public void prepareWebsitePayment(String paymentEmail, String paymentContact) {
 		this.paymentType = TransactionPaymentType.WEBSITE_PAYMENT;
 		this.paymentStatus = TransactionPaymentStatus.PENDING;
 		this.paymentEmail = paymentEmail;
+		this.paymentContact = paymentContact;
 	}
 
 	public void markWebsitePaymentPending(String paymentEmail, String paymentReference, String paymentUrl) {
+		markWebsitePaymentPending(paymentEmail, paymentEmail, paymentReference, paymentUrl);
+	}
+
+	public void markWebsitePaymentPending(String paymentEmail, String paymentContact, String paymentReference, String paymentUrl) {
 		this.paymentType = TransactionPaymentType.WEBSITE_PAYMENT;
 		this.paymentStatus = TransactionPaymentStatus.PENDING;
 		this.paymentEmail = paymentEmail;
+		this.paymentContact = paymentContact;
 		this.paymentReference = paymentReference;
 		this.paymentUrl = paymentUrl;
 	}
@@ -199,6 +213,14 @@ public class InventoryTransaction {
 
 	public void setPaymentEmail(String paymentEmail) {
 		this.paymentEmail = paymentEmail;
+	}
+
+	public String getPaymentContact() {
+		return paymentContact;
+	}
+
+	public void setPaymentContact(String paymentContact) {
+		this.paymentContact = paymentContact;
 	}
 
 	public String getPaymentReference() {
