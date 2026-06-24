@@ -1,9 +1,11 @@
 package com.king_sparkon_tracker.backend.controller;
 
 import com.king_sparkon_tracker.backend.dto.*;
+import com.king_sparkon_tracker.backend.repository.BusinessRepository;
 import com.king_sparkon_tracker.backend.service.EmailVerificationService;
 import com.king_sparkon_tracker.backend.service.RefreshTokenService;
 import org.springframework.http.HttpStatus;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 import com.king_sparkon_tracker.backend.model.TrackerUser;
@@ -26,16 +28,19 @@ public class AuthenticationController {
 	private final RefreshTokenService refreshTokenService;
 	private final PasswordResetService passwordResetService;
 	private final EmailVerificationService emailVerificationService;
+	private final BusinessRepository businessRepository;
 
 	public AuthenticationController(
 			TrackerUserService userService,
 			RefreshTokenService refreshTokenService,
 			PasswordResetService passwordResetService,
-			EmailVerificationService emailVerificationService) {
+			EmailVerificationService emailVerificationService,
+			BusinessRepository businessRepository) {
 		this.emailVerificationService = emailVerificationService;
 		this.userService = userService;
 		this.refreshTokenService = refreshTokenService;
 		this.passwordResetService = passwordResetService;
+		this.businessRepository = businessRepository;
 	}
 
 	@PostMapping("/register")
@@ -47,7 +52,12 @@ public class AuthenticationController {
 			@ApiResponse(responseCode = "409", description = "Username or email already exists")
 	})
 	public UserResponse register(@Valid @RequestBody RegisterUserRequest request) {
-		return UserResponse.from(userService.registerOwner(request));
+		TrackerUser owner = userService.registerOwner(request);
+		if (owner.getBusiness() != null && StringUtils.hasText(request.businessDescription())) {
+			owner.getBusiness().setDescription(request.businessDescription().trim());
+			businessRepository.save(owner.getBusiness());
+		}
+		return UserResponse.from(owner);
 	}
 
 	@PostMapping("/register-admin")
