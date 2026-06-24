@@ -47,6 +47,10 @@ public class Promotion {
 	private PromotionChannel channel;
 
 	@Enumerated(EnumType.STRING)
+	@Column(nullable = false, length = 48)
+	private PromotionAudience audience = PromotionAudience.ALL_SUBSCRIBERS;
+
+	@Enumerated(EnumType.STRING)
 	@Column(nullable = false, length = 16)
 	private PromotionStatus status = PromotionStatus.ACTIVE;
 
@@ -89,12 +93,29 @@ public class Promotion {
 			String createdBy,
 			OffsetDateTime scheduledFor,
 			OffsetDateTime expiresAt) {
+		this(business, title, message, landingUrl, origin, channel, PromotionAudience.ALL_SUBSCRIBERS, targetCount, bulkPrice, createdBy, scheduledFor, expiresAt);
+	}
+
+	public Promotion(
+			Business business,
+			String title,
+			String message,
+			String landingUrl,
+			PromotionOrigin origin,
+			PromotionChannel channel,
+			PromotionAudience audience,
+			int targetCount,
+			BigDecimal bulkPrice,
+			String createdBy,
+			OffsetDateTime scheduledFor,
+			OffsetDateTime expiresAt) {
 		this.business = business;
 		this.title = title;
 		this.message = message;
 		this.landingUrl = landingUrl;
 		this.origin = origin;
 		this.channel = channel;
+		this.audience = audience == null ? PromotionAudience.ALL_SUBSCRIBERS : audience;
 		this.targetCount = targetCount;
 		this.bulkPrice = bulkPrice;
 		this.createdBy = createdBy;
@@ -114,6 +135,9 @@ public class Promotion {
 		}
 		if (scheduledFor == null) {
 			scheduledFor = now;
+		}
+		if (audience == null) {
+			audience = PromotionAudience.ALL_SUBSCRIBERS;
 		}
 		if (status == null) {
 			status = PromotionStatus.ACTIVE;
@@ -159,6 +183,10 @@ public class Promotion {
 
 	public PromotionChannel getChannel() {
 		return channel;
+	}
+
+	public PromotionAudience getAudience() {
+		return audience;
 	}
 
 	public PromotionStatus getStatus() {
