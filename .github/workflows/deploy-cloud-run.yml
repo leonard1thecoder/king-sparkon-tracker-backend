@@ -1,0 +1,148 @@
+name: Deploy Backend to Cloud Run
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+concurrency:
+  group: cloud-run-backend-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write
+
+    env:
+      IMAGE_NAME: king-sparkon-tracker-backend
+      DEFAULT_REGION: africa-south1
+      DEFAULT_ARTIFACT_REPOSITORY: king-sparkon
+      DEFAULT_SERVICE_NAME: king-sparkon-tracker-backend
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+
+      - name: Resolve deployment settings
+        shell: bash
+        env:
+          PROJECT_ID_INPUT: ${{ vars.GCP_PROJECT_ID }}
+          REGION_INPUT: ${{ vars.GCP_REGION }}
+          ARTIFACT_REGION_INPUT: ${{ vars.GCP_ARTIFACT_REGION }}
+          ARTIFACT_REPOSITORY_INPUT: ${{ vars.GCP_ARTIFACT_REPOSITORY }}
+          SERVICE_NAME_INPUT: ${{ vars.CLOUD_RUN_SERVICE_NAME }}
+        run: |
+          set -euo pipefail
+
+          PROJECT_ID="${PROJECT_ID_INPUT}"
+          if [ -z "$PROJECT_ID" ]; then
+            echo "Set GitHub Actions variable GCP_PROJECT_ID before running deployment." >&2
+            exit 1
+          fi
+
+          REGION="${REGION_INPUT:-$DEFAULT_REGION}"
+          ARTIFACT_REGION="${ARTIFACT_REGION_INPUT:-$REGION}"
+          ARTIFACT_REPOSITORY="${ARTIFACT_REPOSITORY_INPUT:-$DEFAULT_ARTIFACT_REPOSITORY}"
+          SERVICE_NAME="${SERVICE_NAME_INPUT:-$DEFAULT_SERVICE_NAME}"
+          IMAGE_URI="$ARTIFACT_REGION-docker.pkg.dev/$PROJECT_ID/$ARTIFACT_REPOSITORY/$IMAGE_NAME:${GITHUB_SHA}"
+
+          {
+            echo "PROJECT_ID=$PROJECT_ID"
+            echo "REGION=$REGION"
+            echo "ARTIFACT_REGION=$ARTIFACT_REGION"
+            echo "ARTIFACT_REPOSITORY=$ARTIFACT_REPOSITORY"
+            echo "SERVICE_NAME=$SERVICE_NAME"
+            echo "IMAGE_URI=$IMAGE_URI"
+          } >> "$GITHUB_ENV"
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v3
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          version: '>= 416.0.0'
+
+      - name: Configure Docker for Artifact Registry
+        shell: bash
+        run: |
+          gcloud auth configure-docker "$ARTIFACT_REGION-docker.pkg.dev" --quiet
+
+      - name: Create Docker CI env file
+        shell: bash
+        run: |
+          printf '%s\n' \
+            'SPRING_PROFILES_ACTIVE=test' \
+            'APP_FRONTEND_BASE_URL=http://localhost:3000' \
+            'RATE_LIMIT_BACKEND=memory' \
+            > .env.ci
+
+      - name: Build Docker image with tests
+        shell: bash
+        env:
+          DOCKER_BUILDKIT: 1
+        run: |
+          set +e
+          docker build --pull --progress=plain --secret id=app_env,src=.env.ci -t "$IMAGE_URI" . 2>&1 | tee docker-build.log
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            echo "--- Docker build failure tail ---"
+            tail -n 120 docker-build.log
+          fi
+          exit "$status"
+
+      - name: Upload Docker build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloud-run-deploy-docker-build-log
+          path: docker-build.log
+
+      - name: Push Docker image to Artifact Registry
+        shell: bash
+        run: |
+          docker push "$IMAGE_URI"
+
+      - name: Deploy image to Cloud Run
+        id: deploy
+        uses: google-github-actions/deploy-cloudrun@v3
+        with:
+          service: ${{ env.SERVICE_NAME }}
+          region: ${{ env.REGION }}
+          image: ${{ env.IMAGE_URI }}
+          flags: >-
+            --allow-unauthenticated
+            --port=8080
+            --cpu=1
+            --memory=1Gi
+            --min-instances=0
+            --max-instances=3
+          env_vars_update_strategy: merge
+          env_vars: |-
+            SPRING_PROFILES_ACTIVE=prod
+            APP_FRONTEND_BASE_URL=${{ vars.APP_FRONTEND_BASE_URL }}
+            RATE_LIMIT_BACKEND=redis
+            SERVER_PORT=8080
+          secrets_update_strategy: merge
+          secrets: |-
+            APP_JWT_SECRET=APP_JWT_SECRET:latest
+            STRIPE_SECRET_KEY=STRIPE_SECRET_KEY:latest
+            STRIPE_WEBHOOK_SECRET=STRIPE_WEBHOOK_SECRET:latest
+            PAYPAL_CLIENT_SECRET=PAYPAL_CLIENT_SECRET:latest
+            PAYPAL_WEBHOOK_ID=PAYPAL_WEBHOOK_ID:latest
+            SPRING_DATA_REDIS_HOST=SPRING_DATA_REDIS_HOST:latest
+            SPRING_DATA_REDIS_PORT=SPRING_DATA_REDIS_PORT:latest
+
+      - name: Show Cloud Run URL
+        shell: bash
+        run: |
+          echo "Cloud Run URL: ${{ steps.deploy.outputs.url }}"
