@@ -54,7 +54,9 @@ public class ProductionConfigurationValidator implements ApplicationRunner {
 			"PAYPAL_CANCEL_URL",
 			"TIPS_PAYPAL_ONBOARDING_URL",
 			"TIPS_WORKER_TIP_URL_TEMPLATE",
-			"TRANSACTIONS_PAYPAL_ONBOARDING_URL"
+			"TRANSACTIONS_PAYPAL_ONBOARDING_URL",
+			"RATE_LIMIT_BACKEND",
+			"SPRING_DATA_REDIS_HOST"
 	);
 
 	private final Environment environment;
@@ -83,6 +85,11 @@ public class ProductionConfigurationValidator implements ApplicationRunner {
 
 		if (!missingEnvVars.isEmpty()) {
 			throw new IllegalStateException("Production Cloud Run environment variables are missing: " + String.join(", ", missingEnvVars));
+		}
+
+		String rateLimitBackend = System.getenv("RATE_LIMIT_BACKEND");
+		if (!"redis".equalsIgnoreCase(rateLimitBackend)) {
+			throw new IllegalStateException("Production rate limiting must use RATE_LIMIT_BACKEND=redis");
 		}
 
 		String jwtSecret = environment.getProperty("app.jwt.secret", "");
