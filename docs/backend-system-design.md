@@ -31,7 +31,7 @@ Stripe, PayPal, SMTP, Twilio WhatsApp
 - Spring Boot application with stateless JWT security.
 - PostgreSQL as the system-of-record database.
 - Flyway migrations with `spring.jpa.hibernate.ddl-auto=validate`.
-- Redis-backed Spring Cache for stable reference and pricing data.
+- Redis-backed Spring Cache for stable reference, feature policy, billing-plan, and pricing data.
 - Stripe for website-payment links and payment webhooks.
 - PayPal for billing and payout onboarding flows.
 - SMTP + Thymeleaf templates for email notifications.
@@ -91,6 +91,22 @@ Frontend may call these without a JWT:
 | `Worker` | Scans barcodes, creates sales, optionally receives tips through QR/payment links. | Worker dashboard/mobile scanner |
 | `Affiliate` | Promotes King Sparkon Tracker and referred businesses. | Affiliate dashboard |
 | `Admin` | Oversees all businesses, users, and platform promotions. | Admin dashboard |
+
+## Business feature policy
+
+Feature access is determined from business status + business plan. The backend caches feature-policy decisions by business id, plan, status, and feature so a plan/status change naturally uses a new Redis key.
+
+| Feature | Free trial | Plus | Pro |
+| --- | --- | --- | --- |
+| `CREATE_WORKERS` | Yes, max 2 workers | Yes, max 5 workers | Yes, unlimited workers |
+| `CREATE_PRODUCTS` | Yes | Yes | Yes |
+| `ADD_BARCODES` | Yes | Yes | Yes |
+| `SCAN_BARCODES` | Yes | Yes | Yes |
+| `WORKER_TIPS_PLATFORM` | No | No | Yes |
+| `BUSINESS_ANALYSIS_AI` | No | No | Yes |
+| `WORKER_CLOCKER` | No | No | Yes |
+
+Frontend should still render locked Pro-only features by plan, but backend remains the source of truth.
 
 ## Owner onboarding business logic
 
@@ -312,12 +328,20 @@ spring.data.redis.timeout=${REDIS_TIMEOUT:2s}
 | --- | ---: | --- |
 | `privileges` | 12 hours | Stable role list for UI/settings/admin screens |
 | `privilegeByRole` | 12 hours | Role lookup during user creation/admin flows |
+| `billingPlans` | 6 hours | Public billing plan cards and frontend plan comparison |
+| `affiliateCommissionTiers` | 6 hours | Affiliate commission display rules |
+| `businessPlanPrices` | 6 hours | Plan monthly price lookups |
+| `businessPlanWorkerLimits` | 6 hours | Worker-limit lookups per plan |
+| `businessFeatureAccess` | 15 minutes | Feature access decisions keyed by business id, plan, status, and feature |
 | `promotionQuotes` | 10 minutes | Bulk promotion pricing quotes |
 
-### Cache invalidation
+### Cache invalidation and safety
 
 - Creating a privilege evicts role caches.
-- Promotion pricing cache is short-lived because pricing is deterministic and audience count changes frequently.
+- Business feature access uses business id + plan + status + feature as the cache key, so plan/status changes produce new cache entries instead of reusing old decisions.
+- Business feature access has a shorter TTL than billing plans because subscription status can change.
+- Promotion pricing cache is short-lived because audience count changes frequently.
+- Do not cache whole business or user entities for authorization decisions.
 
 ## Local Redis with Docker Compose
 
