@@ -1,6 +1,8 @@
 package com.king_sparkon_tracker.backend.security;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -8,6 +10,8 @@ import java.time.Instant;
 import java.time.ZoneId;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.data.redis.core.StringRedisTemplate;
 
 import com.king_sparkon_tracker.backend.model.BusinessPlan;
 
@@ -78,9 +82,15 @@ class RateLimitServiceTest {
 	}
 
 	private RateLimitService serviceWithPlanLimits(int freeTrialLimit, int plusLimit, int proLimit) {
+		@SuppressWarnings("unchecked")
+		ObjectProvider<StringRedisTemplate> redisProvider = mock(ObjectProvider.class);
+		when(redisProvider.getIfAvailable()).thenReturn(null);
+
 		return new RateLimitService(
 				clock,
+				redisProvider,
 				true,
+				"memory",
 				2,
 				60,
 				60,
