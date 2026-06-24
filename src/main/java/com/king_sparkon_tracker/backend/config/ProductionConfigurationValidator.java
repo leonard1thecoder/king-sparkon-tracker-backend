@@ -19,6 +19,7 @@ public class ProductionConfigurationValidator implements ApplicationRunner {
 			"app.cors.allowed-origins",
 			"app.frontend.reset-password-url",
 			"app.frontend.email-verification-url",
+			"app.frontend.login-url",
 			"stripe.secret-key",
 			"stripe.webhook-secret",
 			"stripe.success-url",
@@ -27,7 +28,33 @@ public class ProductionConfigurationValidator implements ApplicationRunner {
 			"paypal.client-secret",
 			"paypal.webhook-id",
 			"paypal.return-url",
-			"paypal.cancel-url"
+			"paypal.cancel-url",
+			"app.tips.paypal-onboarding-url",
+			"app.tips.worker-tip-url-template",
+			"app.transactions.paypal-onboarding-url"
+	);
+
+	private static final List<String> REQUIRED_CLOUD_RUN_ENV_VARS = List.of(
+			"SUPABASE_DB_URL",
+			"SUPABASE_DB_USER",
+			"SUPABASE_DB_PASSWORD",
+			"JWT_SECRET",
+			"CORS_ALLOWED_ORIGINS",
+			"FRONTEND_RESET_PASSWORD_URL",
+			"FRONTEND_EMAIL_VERIFICATION_URL",
+			"FRONTEND_LOGIN_URL",
+			"STRIPE_SECRET_KEY",
+			"STRIPE_WEBHOOK_SECRET",
+			"STRIPE_SUCCESS_URL",
+			"STRIPE_CANCEL_URL",
+			"PAYPAL_CLIENT_ID",
+			"PAYPAL_CLIENT_SECRET",
+			"PAYPAL_WEBHOOK_ID",
+			"PAYPAL_RETURN_URL",
+			"PAYPAL_CANCEL_URL",
+			"TIPS_PAYPAL_ONBOARDING_URL",
+			"TIPS_WORKER_TIP_URL_TEMPLATE",
+			"TRANSACTIONS_PAYPAL_ONBOARDING_URL"
 	);
 
 	private final Environment environment;
@@ -42,12 +69,20 @@ public class ProductionConfigurationValidator implements ApplicationRunner {
 			return;
 		}
 
-		List<String> missing = REQUIRED_PRODUCTION_PROPERTIES.stream()
+		List<String> missingProperties = REQUIRED_PRODUCTION_PROPERTIES.stream()
 				.filter(property -> !StringUtils.hasText(environment.getProperty(property)))
 				.toList();
 
-		if (!missing.isEmpty()) {
-			throw new IllegalStateException("Production configuration is missing required properties: " + String.join(", ", missing));
+		if (!missingProperties.isEmpty()) {
+			throw new IllegalStateException("Production configuration is missing required properties: " + String.join(", ", missingProperties));
+		}
+
+		List<String> missingEnvVars = REQUIRED_CLOUD_RUN_ENV_VARS.stream()
+				.filter(envVar -> !StringUtils.hasText(System.getenv(envVar)))
+				.toList();
+
+		if (!missingEnvVars.isEmpty()) {
+			throw new IllegalStateException("Production Cloud Run environment variables are missing: " + String.join(", ", missingEnvVars));
 		}
 
 		String jwtSecret = environment.getProperty("app.jwt.secret", "");
@@ -61,6 +96,10 @@ public class ProductionConfigurationValidator implements ApplicationRunner {
 		requireNoLocalhost("paypal.cancel-url");
 		requireNoLocalhost("app.frontend.reset-password-url");
 		requireNoLocalhost("app.frontend.email-verification-url");
+		requireNoLocalhost("app.frontend.login-url");
+		requireNoLocalhost("app.tips.paypal-onboarding-url");
+		requireNoLocalhost("app.tips.worker-tip-url-template");
+		requireNoLocalhost("app.transactions.paypal-onboarding-url");
 	}
 
 	private boolean isProductionProfileActive() {
