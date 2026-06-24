@@ -15,5 +15,9 @@ jobs:
           distribution: temurin
           java-version: '25'
           cache: maven
-      - run: ./mvnw -B clean verify
-      - run: docker build -t king-sparkon-tracker-backend .
+      - name: Maven verify
+        run: |
+          chmod +x mvnw
+          bash ./mvnw -B clean verify
+      - name: Docker build
+        run: docker build -t king-sparkon-tracker-backend .
