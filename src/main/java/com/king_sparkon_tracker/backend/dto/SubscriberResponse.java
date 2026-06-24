@@ -22,6 +22,9 @@ public record SubscriberResponse(
 		@Schema(description = "Subscriber type.", example = "CLIENT")
 		SubscriberType subscriberType,
 
+		@Schema(description = "True when an affiliate subscriber already has an affiliate account.", example = "false")
+		boolean affiliateRegistered,
+
 		@Schema(description = "Preferred promotion channel.", example = "ANY")
 		PromotionChannel preferredChannel,
 
@@ -44,6 +47,7 @@ public record SubscriberResponse(
 				subscriber.getContactValue(),
 				subscriber.getContactType(),
 				subscriber.getSubscriberType(),
+				subscriber.isAffiliateRegistered(),
 				subscriber.getPreferredChannel(),
 				subscriber.isActive(),
 				subscriber.getSource(),
