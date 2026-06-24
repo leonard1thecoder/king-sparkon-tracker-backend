@@ -19,6 +19,7 @@ import com.king_sparkon_tracker.backend.model.BusinessSubscription;
 import com.king_sparkon_tracker.backend.model.InventoryTransaction;
 import com.king_sparkon_tracker.backend.model.Product;
 import com.king_sparkon_tracker.backend.model.ProductBarcode;
+import com.king_sparkon_tracker.backend.model.Promotion;
 import com.king_sparkon_tracker.backend.model.TrackerUser;
 import com.king_sparkon_tracker.backend.model.TransactionItem;
 
@@ -142,6 +143,19 @@ public class AppEmailService {
 			log.error("verification_email_failed recipient={}", maskEmail(normalizedTo), ex);
 			throw new IllegalStateException("Could not send email verification. Please try again later.");
 		}
+	}
+
+	public boolean sendPromotionEmail(String to, Promotion promotion) {
+		String normalizedTo = normalizeEmail(to);
+		Context context = new Context(Locale.getDefault());
+		context.setVariable("title", promotion.getTitle());
+		context.setVariable("message", promotion.getMessage());
+		context.setVariable("landingUrl", promotion.getLandingUrl());
+		context.setVariable("supportEmail", mailFrom);
+		context.setVariable("origin", promotion.getOrigin());
+
+		String html = templateEngine.process("email/promotion", context);
+		return sendHtmlEmail(normalizedTo, promotion.getTitle(), html, "promotion_email");
 	}
 
 	public boolean sendContactInquiryConfirmationEmail(String to, String contactName, String businessName) {
