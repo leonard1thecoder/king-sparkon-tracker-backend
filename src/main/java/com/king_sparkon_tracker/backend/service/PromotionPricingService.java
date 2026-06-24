@@ -3,8 +3,10 @@ package com.king_sparkon_tracker.backend.service;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
+import com.king_sparkon_tracker.backend.config.RedisCacheConfig;
 import com.king_sparkon_tracker.backend.dto.PromotionPriceQuoteResponse;
 
 @Service
@@ -13,6 +15,7 @@ public class PromotionPricingService {
 	private static final BigDecimal PLATFORM_FEE = new BigDecimal("49.00");
 	private static final int SCALE = 2;
 
+	@Cacheable(cacheNames = RedisCacheConfig.PROMOTION_QUOTES_CACHE, key = "#targetCount")
 	public PromotionPriceQuoteResponse quote(int targetCount) {
 		int safeTargetCount = Math.max(targetCount, 0);
 		Tier tier = tierFor(safeTargetCount);
