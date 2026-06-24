@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8">
+    <title th:text="${title}">King Sparkon Tracker Promotion</title>
+</head>
+<body style="font-family: Arial, sans-serif; color: #111827; line-height: 1.6;">
+<div style="max-width: 640px; margin: 0 auto; padding: 24px; border: 1px solid #e5e7eb; border-radius: 16px;">
+    <p style="font-size: 12px; text-transform: uppercase; letter-spacing: .12em; color: #f59e0b; font-weight: 700;">King Sparkon Tracker</p>
+    <h1 style="margin: 0 0 16px; font-size: 26px;" th:text="${title}">Promotion title</h1>
+    <p style="font-size: 16px;" th:text="${message}">Promotion message</p>
+
+    <p th:if="${landingUrl != null}" style="margin-top: 24px;">
+        <a th:href="${landingUrl}" style="display: inline-block; background: #111827; color: #ffffff; padding: 12px 18px; border-radius: 999px; text-decoration: none; font-weight: 700;">View offer</a>
+    </p>
+
+    <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 28px 0;">
+    <p style="font-size: 13px; color: #6b7280;">
+        You are receiving this because you subscribed to King Sparkon Tracker updates or requested a tip payment link.
+        We limit promotions so you do not receive more than one promotion notification every 2 days.
+    </p>
+    <p style="font-size: 13px; color: #6b7280;">
+        Need help? Contact <span th:text="${supportEmail}">support@example.com</span>.
+    </p>
+</div>
+</body>
+</html>
