@@ -23,6 +23,16 @@ public record CreateTransactionRequest(
 
 	public CreateTransactionRequest(
 			TransactionType type,
+			TransactionPaymentType paymentType,
+			String paymentEmail,
+			Long employeeId,
+			Long ownerId,
+			List<TransactionItemRequest> items) {
+		this(type, paymentType, paymentEmail, paymentEmail, employeeId, ownerId, items);
+	}
+
+	public CreateTransactionRequest(
+			TransactionType type,
 			Long employeeId,
 			Long ownerId,
 			List<TransactionItemRequest> items) {
