@@ -16,8 +16,8 @@ jobs:
         shell: bash
         run: |
           set +e
-          docker build --pull --progress=plain -t king-sparkon-tracker-backend:${{ github.sha }} . > docker-build.log 2>&1
-          status=$?
+          docker build --pull --progress=plain -t king-sparkon-tracker-backend:${{ github.sha }} . 2>&1 | tee docker-build.log
+          status=${PIPESTATUS[0]}
           if [ "$status" -ne 0 ]; then
             echo "--- Docker build failure tail ---"
             tail -n 120 docker-build.log
