@@ -2,11 +2,11 @@ package com.king_sparkon_tracker.backend.controller;
 
 import com.king_sparkon_tracker.backend.dto.*;
 import com.king_sparkon_tracker.backend.service.EmailVerificationService;
+import com.king_sparkon_tracker.backend.service.RefreshTokenService;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
 import com.king_sparkon_tracker.backend.model.TrackerUser;
-import com.king_sparkon_tracker.backend.security.JwtService;
 import com.king_sparkon_tracker.backend.service.TrackerUserService;
 import com.king_sparkon_tracker.backend.service.PasswordResetService;
 
@@ -19,23 +19,22 @@ import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/api/auth")
-@Tag(name = "Authentication", description = "Owner business registration, JWT login, and password recovery.")
+@Tag(name = "Authentication", description = "Owner business registration, JWT login, refresh-token rotation, and account recovery.")
 public class AuthenticationController {
 
 	private final TrackerUserService userService;
-	private final JwtService jwtService;
+	private final RefreshTokenService refreshTokenService;
 	private final PasswordResetService passwordResetService;
-    private final EmailVerificationService emailVerificationService;
-
+	private final EmailVerificationService emailVerificationService;
 
 	public AuthenticationController(
 			TrackerUserService userService,
-			JwtService jwtService,
-			PasswordResetService passwordResetService
-            ,EmailVerificationService emailVerificationService) {
-        this.emailVerificationService = emailVerificationService;
+			RefreshTokenService refreshTokenService,
+			PasswordResetService passwordResetService,
+			EmailVerificationService emailVerificationService) {
+		this.emailVerificationService = emailVerificationService;
 		this.userService = userService;
-		this.jwtService = jwtService;
+		this.refreshTokenService = refreshTokenService;
 		this.passwordResetService = passwordResetService;
 	}
 
@@ -64,16 +63,35 @@ public class AuthenticationController {
 	}
 
 	@PostMapping("/login")
-	@Operation(summary = "Login", description = "Authenticates a registered owner or worker and returns a JWT access token.")
+	@Operation(summary = "Login", description = "Authenticates a registered owner or worker and returns access plus refresh tokens.")
 	@ApiResponses({
 			@ApiResponse(responseCode = "200", description = "Login successful"),
 			@ApiResponse(responseCode = "400", description = "Invalid login payload"),
 			@ApiResponse(responseCode = "401", description = "Invalid username or password")
 	})
-	public AuthResponse login(@Valid @RequestBody LoginRequest request) {
+	public AuthResponse login(
+			@Valid @RequestBody LoginRequest request,
+			HttpServletRequest servletRequest,
+			@RequestHeader(value = "User-Agent", required = false) String userAgent) {
 		TrackerUser user = userService.authenticate(request);
-		JwtService.TokenResult token = jwtService.generateToken(user);
-		return new AuthResponse("Bearer", token.token(), token.expiresAt(), UserResponse.from(user));
+		RefreshTokenService.TokenPair pair = refreshTokenService.issueTokenPair(user, clientIp(servletRequest), userAgent);
+		return authResponse(pair);
+	}
+
+	@PostMapping("/refresh")
+	@Operation(summary = "Refresh access token", description = "Rotates a refresh token and returns a fresh access token pair.")
+	public AuthResponse refresh(
+			@Valid @RequestBody RefreshTokenRequest request,
+			HttpServletRequest servletRequest,
+			@RequestHeader(value = "User-Agent", required = false) String userAgent) {
+		return authResponse(refreshTokenService.rotate(request.refreshToken(), clientIp(servletRequest), userAgent));
+	}
+
+	@PostMapping("/logout")
+	@Operation(summary = "Logout", description = "Revokes the supplied refresh token.")
+	public MessageResponse logout(@Valid @RequestBody RefreshTokenRequest request) {
+		refreshTokenService.revoke(request.refreshToken());
+		return MessageResponse.of("Logged out successfully.");
 	}
 
 	@PostMapping("/forgot-password")
@@ -86,11 +104,7 @@ public class AuthenticationController {
 			@Valid @RequestBody ForgotPasswordRequest request,
 			HttpServletRequest servletRequest,
 			@RequestHeader(value = "User-Agent", required = false) String userAgent) {
-		passwordResetService.requestPasswordReset(
-				request,
-				clientIp(servletRequest),
-				userAgent);
-
+		passwordResetService.requestPasswordReset(request, clientIp(servletRequest), userAgent);
 		return MessageResponse.of("If the email address exists, a password reset link has been sent.");
 	}
 
@@ -106,23 +120,32 @@ public class AuthenticationController {
 		return MessageResponse.of("Password reset successful. You can now login with your new password.");
 	}
 
-    @GetMapping("/verify-email")
-    public MessageResponse verifyEmail(@RequestParam("token") String token) {
-        emailVerificationService.verifyEmail(token);
-        return MessageResponse.of("Email verified successfully. You can now login.");
-    }
+	@GetMapping("/verify-email")
+	public MessageResponse verifyEmail(@RequestParam("token") String token) {
+		emailVerificationService.verifyEmail(token);
+		return MessageResponse.of("Email verified successfully. You can now login.");
+	}
 
-    @PostMapping("/resend-verification")
-    public MessageResponse resendVerification(
-            @Valid @RequestBody ResendEmailVerificationRequest request,
-            HttpServletRequest servletRequest,
-            @RequestHeader(value = "User-Agent", required = false) String userAgent) {
-        emailVerificationService.resendVerificationEmail(request, clientIp(servletRequest), userAgent);
-        return MessageResponse.of("If the email address exists and is not verified, a verification link has been sent.");
-    }
+	@PostMapping("/resend-verification")
+	public MessageResponse resendVerification(
+			@Valid @RequestBody ResendEmailVerificationRequest request,
+			HttpServletRequest servletRequest,
+			@RequestHeader(value = "User-Agent", required = false) String userAgent) {
+		emailVerificationService.resendVerificationEmail(request, clientIp(servletRequest), userAgent);
+		return MessageResponse.of("If the email address exists and is not verified, a verification link has been sent.");
+	}
 
+	private AuthResponse authResponse(RefreshTokenService.TokenPair pair) {
+		return new AuthResponse(
+				"Bearer",
+				pair.accessToken(),
+				pair.accessTokenExpiresAt(),
+				pair.refreshToken(),
+				pair.refreshTokenExpiresAt(),
+				UserResponse.from(pair.user()));
+	}
 
-    private String clientIp(HttpServletRequest request) {
+	private String clientIp(HttpServletRequest request) {
 		String forwardedFor = request.getHeader("X-Forwarded-For");
 		if (forwardedFor != null && !forwardedFor.isBlank()) {
 			return forwardedFor.split(",")[0].trim();
