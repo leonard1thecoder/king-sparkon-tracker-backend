@@ -20,10 +20,10 @@ import org.springframework.web.util.UriComponentsBuilder;
 import com.king_sparkon_tracker.backend.dto.ForgotPasswordRequest;
 import com.king_sparkon_tracker.backend.dto.ResetPasswordRequest;
 import com.king_sparkon_tracker.backend.exception.InvalidCredentialsException;
-import com.king_sparkon_tracker.backend.model.TrackerUser;
 import com.king_sparkon_tracker.backend.model.PasswordResetToken;
-import com.king_sparkon_tracker.backend.repository.TrackerUserRepository;
+import com.king_sparkon_tracker.backend.model.TrackerUser;
 import com.king_sparkon_tracker.backend.repository.PasswordResetTokenRepository;
+import com.king_sparkon_tracker.backend.repository.TrackerUserRepository;
 
 @Service
 @Transactional
@@ -36,6 +36,7 @@ public class PasswordResetService {
 	private final PasswordResetTokenRepository tokenRepository;
 	private final PasswordEncoder passwordEncoder;
 	private final AppEmailService appEmailService;
+	private final RefreshTokenService refreshTokenService;
 	private final String resetPasswordUrl;
 	private final long expirationMinutes;
 
@@ -44,12 +45,14 @@ public class PasswordResetService {
 			PasswordResetTokenRepository tokenRepository,
 			PasswordEncoder passwordEncoder,
 			AppEmailService appEmailService,
+			RefreshTokenService refreshTokenService,
 			@Value("${app.frontend.reset-password-url}") String resetPasswordUrl,
 			@Value("${app.password-reset.expiration-minutes:30}") long expirationMinutes) {
 		this.userRepository = userRepository;
 		this.tokenRepository = tokenRepository;
 		this.passwordEncoder = passwordEncoder;
 		this.appEmailService = appEmailService;
+		this.refreshTokenService = refreshTokenService;
 		this.resetPasswordUrl = resetPasswordUrl;
 		this.expirationMinutes = expirationMinutes;
 	}
@@ -94,6 +97,7 @@ public class PasswordResetService {
 
 		userRepository.save(user);
 		tokenRepository.save(resetToken);
+		refreshTokenService.revokeAllForUser(user.getId());
 
 		log.info("password_reset_success userId={} username={}", user.getId(), user.getUsername());
 	}
