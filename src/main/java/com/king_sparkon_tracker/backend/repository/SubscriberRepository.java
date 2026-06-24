@@ -11,6 +11,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import com.king_sparkon_tracker.backend.model.PromotionChannel;
 import com.king_sparkon_tracker.backend.model.Subscriber;
 import com.king_sparkon_tracker.backend.model.SubscriberContactType;
+import com.king_sparkon_tracker.backend.model.SubscriberType;
 
 public interface SubscriberRepository extends JpaRepository<Subscriber, Long> {
 
@@ -20,6 +21,10 @@ public interface SubscriberRepository extends JpaRepository<Subscriber, Long> {
 
 	long countByActiveTrueAndContactType(SubscriberContactType contactType);
 
+	long countByActiveTrueAndSubscriberTypeAndAffiliateRegistered(SubscriberType subscriberType, boolean affiliateRegistered);
+
+	long countByActiveTrueAndAffiliateRegistered(boolean affiliateRegistered);
+
 	Page<Subscriber> findByActiveTrue(Pageable pageable);
 
 	List<Subscriber> findTop200ByActiveTrueAndLastNotifiedAtIsNullOrActiveTrueAndLastNotifiedAtBeforeOrderByCreatedDateAsc(OffsetDateTime cutoff);
@@ -28,6 +33,20 @@ public interface SubscriberRepository extends JpaRepository<Subscriber, Long> {
 			SubscriberContactType firstContactType,
 			OffsetDateTime cutoff,
 			SubscriberContactType secondContactType,
+			OffsetDateTime secondCutoff);
+
+	List<Subscriber> findTop200ByActiveTrueAndSubscriberTypeAndAffiliateRegisteredAndLastNotifiedAtIsNullOrActiveTrueAndSubscriberTypeAndAffiliateRegisteredAndLastNotifiedAtBeforeOrderByCreatedDateAsc(
+			SubscriberType firstSubscriberType,
+			boolean firstAffiliateRegistered,
+			OffsetDateTime cutoff,
+			SubscriberType secondSubscriberType,
+			boolean secondAffiliateRegistered,
+			OffsetDateTime secondCutoff);
+
+	List<Subscriber> findTop200ByActiveTrueAndAffiliateRegisteredAndLastNotifiedAtIsNullOrActiveTrueAndAffiliateRegisteredAndLastNotifiedAtBeforeOrderByCreatedDateAsc(
+			boolean firstAffiliateRegistered,
+			OffsetDateTime cutoff,
+			boolean secondAffiliateRegistered,
 			OffsetDateTime secondCutoff);
 
 	List<Subscriber> findTop200ByActiveTrueAndPreferredChannelAndLastNotifiedAtIsNullOrActiveTrueAndPreferredChannelAndLastNotifiedAtBeforeOrderByCreatedDateAsc(
