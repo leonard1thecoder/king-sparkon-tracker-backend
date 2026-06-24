@@ -5,6 +5,7 @@ import java.security.Principal;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -18,6 +19,8 @@ import com.king_sparkon_tracker.backend.config.OpenApiConfig;
 import com.king_sparkon_tracker.backend.dto.CreateTransactionRequest;
 import com.king_sparkon_tracker.backend.dto.PageResponse;
 import com.king_sparkon_tracker.backend.dto.TransactionResponse;
+import com.king_sparkon_tracker.backend.model.InventoryTransaction;
+import com.king_sparkon_tracker.backend.service.SubscriberService;
 import com.king_sparkon_tracker.backend.service.TransactionService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -33,13 +36,16 @@ import jakarta.validation.Valid;
 public class TransactionController {
 
 	private final TransactionService transactionService;
+	private final SubscriberService subscriberService;
 
-	public TransactionController(TransactionService transactionService) {
+	public TransactionController(TransactionService transactionService, SubscriberService subscriberService) {
 		this.transactionService = transactionService;
+		this.subscriberService = subscriberService;
 	}
 
 	/**
-	 * Records a stock movement, applies stock changes, and captures the authenticated actor.
+	 * Records a stock movement, applies stock changes, captures the authenticated actor,
+	 * and auto-subscribes website-payment contacts after a successful transaction.
 	 */
 	@PostMapping
 	@ResponseStatus(HttpStatus.CREATED)
@@ -47,7 +53,10 @@ public class TransactionController {
 	public TransactionResponse createTransaction(
 			@Valid @RequestBody CreateTransactionRequest request,
 			@Parameter(hidden = true) Principal principal) {
-		return TransactionResponse.from(transactionService.createTransaction(request, principal.getName()));
+		InventoryTransaction transaction = transactionService.createTransaction(request, principal.getName());
+		String subscriberContact = StringUtils.hasText(request.paymentContact()) ? request.paymentContact() : request.paymentEmail();
+		subscriberService.subscribeWebsitePaymentClient(subscriberContact);
+		return TransactionResponse.from(transaction);
 	}
 
 	/**
