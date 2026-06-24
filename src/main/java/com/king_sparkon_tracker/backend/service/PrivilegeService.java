@@ -4,9 +4,12 @@ import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.king_sparkon_tracker.backend.config.RedisCacheConfig;
 import com.king_sparkon_tracker.backend.exception.ResourceNotFoundException;
 import com.king_sparkon_tracker.backend.model.Privilege;
 import com.king_sparkon_tracker.backend.model.PrivilegeRole;
@@ -27,6 +30,7 @@ public class PrivilegeService {
 	/**
 	 * Creates a role only when it is missing so startup seeding remains idempotent.
 	 */
+	@CacheEvict(cacheNames = { RedisCacheConfig.PRIVILEGES_CACHE, RedisCacheConfig.PRIVILEGE_BY_ROLE_CACHE }, allEntries = true)
 	public Privilege createPrivilege(PrivilegeRole role) {
 		if (role == null) {
 			throw new IllegalArgumentException("Privilege role is required");
@@ -42,6 +46,7 @@ public class PrivilegeService {
 	 * Looks up one privilege by role name for authorization and administration responses.
 	 */
 	@Transactional(readOnly = true)
+	@Cacheable(cacheNames = RedisCacheConfig.PRIVILEGE_BY_ROLE_CACHE, key = "#role.name()")
 	public Privilege getPrivilege(PrivilegeRole role) {
 		return privilegeRepository.findByName(role)
 				.orElseThrow(() -> new ResourceNotFoundException("Privilege not found: " + role));
@@ -51,6 +56,7 @@ public class PrivilegeService {
 	 * Returns all privileges currently available to the application.
 	 */
 	@Transactional(readOnly = true)
+	@Cacheable(cacheNames = RedisCacheConfig.PRIVILEGES_CACHE)
 	public List<Privilege> listPrivileges() {
 		log.debug("privileges_list_requested");
 		return privilegeRepository.findAll();
