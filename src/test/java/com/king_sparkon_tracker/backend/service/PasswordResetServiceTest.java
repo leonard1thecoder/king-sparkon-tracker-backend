@@ -29,12 +29,12 @@ import org.springframework.test.util.ReflectionTestUtils;
 import com.king_sparkon_tracker.backend.dto.ForgotPasswordRequest;
 import com.king_sparkon_tracker.backend.dto.ResetPasswordRequest;
 import com.king_sparkon_tracker.backend.exception.InvalidCredentialsException;
-import com.king_sparkon_tracker.backend.model.TrackerUser;
 import com.king_sparkon_tracker.backend.model.PasswordResetToken;
 import com.king_sparkon_tracker.backend.model.Privilege;
 import com.king_sparkon_tracker.backend.model.PrivilegeRole;
-import com.king_sparkon_tracker.backend.repository.TrackerUserRepository;
+import com.king_sparkon_tracker.backend.model.TrackerUser;
 import com.king_sparkon_tracker.backend.repository.PasswordResetTokenRepository;
+import com.king_sparkon_tracker.backend.repository.TrackerUserRepository;
 
 @ExtendWith(MockitoExtension.class)
 class PasswordResetServiceTest {
@@ -51,6 +51,9 @@ class PasswordResetServiceTest {
 	@Mock
 	private AppEmailService appEmailService;
 
+	@Mock
+	private RefreshTokenService refreshTokenService;
+
 	private PasswordResetService passwordResetService;
 
 	@BeforeEach
@@ -60,6 +63,7 @@ class PasswordResetServiceTest {
 				tokenRepository,
 				passwordEncoder,
 				appEmailService,
+				refreshTokenService,
 				"http://localhost:3000/reset-password",
 				30);
 	}
@@ -112,7 +116,7 @@ class PasswordResetServiceTest {
 	}
 
 	@Test
-	void resetPasswordUpdatesPasswordAndMarksTokenUsed() {
+	void resetPasswordUpdatesPasswordMarksTokenUsedAndRevokesRefreshTokens() {
 		String rawToken = "valid-reset-token";
 		String tokenHash = sha256(rawToken);
 
@@ -139,6 +143,7 @@ class PasswordResetServiceTest {
 
 		verify(userRepository).save(user);
 		verify(tokenRepository).save(token);
+		verify(refreshTokenService).revokeAllForUser(20L);
 	}
 
 	@Test

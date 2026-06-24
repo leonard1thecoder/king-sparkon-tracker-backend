@@ -1,0 +1,52 @@
+{
+  "title": "King Sparkon Tracker Backend",
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "tags": ["king-sparkon", "spring-boot", "cloud-run"],
+  "panels": [
+    {
+      "type": "stat",
+      "title": "HTTP Requests / min",
+      "gridPos": {"x": 0, "y": 0, "w": 6, "h": 4},
+      "targets": [{"expr": "sum(rate(http_server_requests_seconds_count{application=\"backend\"}[1m])) * 60"}]
+    },
+    {
+      "type": "stat",
+      "title": "5xx Error Rate",
+      "gridPos": {"x": 6, "y": 0, "w": 6, "h": 4},
+      "targets": [{"expr": "sum(rate(http_server_requests_seconds_count{application=\"backend\",status=~\"5..\"}[5m])) / sum(rate(http_server_requests_seconds_count{application=\"backend\"}[5m]))"}]
+    },
+    {
+      "type": "timeseries",
+      "title": "P95 Latency",
+      "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+      "targets": [{"expr": "histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{application=\"backend\"}[5m])) by (le, uri, method))"}]
+    },
+    {
+      "type": "timeseries",
+      "title": "JVM Memory Used",
+      "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8},
+      "targets": [{"expr": "sum(jvm_memory_used_bytes{application=\"backend\"}) by (area)"}]
+    },
+    {
+      "type": "timeseries",
+      "title": "CPU Usage",
+      "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8},
+      "targets": [{"expr": "process_cpu_usage{application=\"backend\"}"}]
+    },
+    {
+      "type": "timeseries",
+      "title": "Database Connections",
+      "gridPos": {"x": 0, "y": 16, "w": 12, "h": 8},
+      "targets": [{"expr": "hikaricp_connections{application=\"backend\"}"}]
+    },
+    {
+      "type": "timeseries",
+      "title": "Rate Limited Requests",
+      "gridPos": {"x": 12, "y": 16, "w": 12, "h": 8},
+      "targets": [{"expr": "sum(rate(http_server_requests_seconds_count{application=\"backend\",status=\"429\"}[5m])) by (uri)"}]
+    }
+  ]
+}

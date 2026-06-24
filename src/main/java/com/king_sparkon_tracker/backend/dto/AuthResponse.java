@@ -9,8 +9,16 @@ public record AuthResponse(
 		String tokenType,
 		@Schema(description = "JWT access token.")
 		String accessToken,
-		@Schema(description = "Token expiration timestamp.")
+		@Schema(description = "Access token expiration timestamp.")
 		Instant expiresAt,
+		@Schema(description = "Opaque refresh token. Store securely and never log it.")
+		String refreshToken,
+		@Schema(description = "Refresh token expiration timestamp.")
+		Instant refreshTokenExpiresAt,
 		@Schema(description = "Authenticated user profile.")
 		UserResponse user) {
+
+	public AuthResponse(String tokenType, String accessToken, Instant expiresAt, UserResponse user) {
+		this(tokenType, accessToken, expiresAt, null, null, user);
+	}
 }

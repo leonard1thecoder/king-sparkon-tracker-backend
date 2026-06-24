@@ -1,80 +1,88 @@
 package com.king_sparkon_tracker.backend.exception;
 
+import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-import com.king_sparkon_tracker.backend.dto.ApiError;
+import jakarta.servlet.http.HttpServletRequest;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
 
 	private static final Logger log = LoggerFactory.getLogger(ApiExceptionHandler.class);
 
-	/**
-	 * Maps duplicate usernames to a conflict response the client can correct.
-	 */
 	@ExceptionHandler(DuplicateUsernameException.class)
-	ResponseEntity<ApiError> handleDuplicateUsername(DuplicateUsernameException exception) {
-		return error(HttpStatus.CONFLICT, exception.getMessage());
+	ResponseEntity<Map<String, Object>> handleDuplicateUsername(DuplicateUsernameException exception, HttpServletRequest request) {
+		return error(HttpStatus.CONFLICT, ErrorCode.DUPLICATE_USERNAME, exception.getMessage(), request);
 	}
 
 	@ExceptionHandler(EmailNotVerifiedException.class)
-	ResponseEntity<ApiError> handleEmailNotVerified(EmailNotVerifiedException exception) {
-		return error(HttpStatus.FORBIDDEN, exception.getMessage());
+	ResponseEntity<Map<String, Object>> handleEmailNotVerified(EmailNotVerifiedException exception, HttpServletRequest request) {
+		return error(HttpStatus.FORBIDDEN, ErrorCode.EMAIL_NOT_VERIFIED, exception.getMessage(), request);
 	}
 
-
-	/**
-	 * Maps duplicate email addresses to a conflict response the client can correct.
-	 */
 	@ExceptionHandler(DuplicateEmailAddressException.class)
-	ResponseEntity<ApiError> handleDuplicateEmailAddress(DuplicateEmailAddressException exception) {
-		return error(HttpStatus.CONFLICT, exception.getMessage());
+	ResponseEntity<Map<String, Object>> handleDuplicateEmailAddress(DuplicateEmailAddressException exception, HttpServletRequest request) {
+		return error(HttpStatus.CONFLICT, ErrorCode.DUPLICATE_EMAIL_ADDRESS, exception.getMessage(), request);
 	}
 
-	/**
-	 * Maps duplicate product barcodes to a conflict response for catalogue screens.
-	 */
 	@ExceptionHandler(DuplicateBarcodeException.class)
-	ResponseEntity<ApiError> handleDuplicateBarcode(DuplicateBarcodeException exception) {
-		return error(HttpStatus.CONFLICT, exception.getMessage());
+	ResponseEntity<Map<String, Object>> handleDuplicateBarcode(DuplicateBarcodeException exception, HttpServletRequest request) {
+		return error(HttpStatus.CONFLICT, ErrorCode.DUPLICATE_BARCODE, exception.getMessage(), request);
 	}
 
-	/**
-	 * Maps authentication failures without exposing which credential was incorrect to API clients.
-	 */
 	@ExceptionHandler(InvalidCredentialsException.class)
-	ResponseEntity<ApiError> handleInvalidCredentials(InvalidCredentialsException exception) {
-		return error(HttpStatus.UNAUTHORIZED, exception.getMessage());
+	ResponseEntity<Map<String, Object>> handleInvalidCredentials(InvalidCredentialsException exception, HttpServletRequest request) {
+		return error(HttpStatus.UNAUTHORIZED, ErrorCode.AUTHENTICATION_FAILED, exception.getMessage(), request);
 	}
 
-	/**
-	 * Maps missing records to HTTP 404 responses.
-	 */
 	@ExceptionHandler(ResourceNotFoundException.class)
-	ResponseEntity<ApiError> handleResourceNotFound(ResourceNotFoundException exception) {
-		return error(HttpStatus.NOT_FOUND, exception.getMessage());
+	ResponseEntity<Map<String, Object>> handleResourceNotFound(ResourceNotFoundException exception, HttpServletRequest request) {
+		return error(HttpStatus.NOT_FOUND, ErrorCode.RESOURCE_NOT_FOUND, exception.getMessage(), request);
 	}
 
-	/**
-	 * Maps validation and business rule failures to HTTP 400 responses.
-	 */
-	@ExceptionHandler({ IllegalArgumentException.class, MethodArgumentNotValidException.class })
-	ResponseEntity<ApiError> handleBadRequest(Exception exception) {
-		return error(HttpStatus.BAD_REQUEST, exception.getMessage());
+	@ExceptionHandler(MethodArgumentNotValidException.class)
+	ResponseEntity<Map<String, Object>> handleValidation(MethodArgumentNotValidException exception, HttpServletRequest request) {
+		String message = exception.getBindingResult().getFieldErrors().stream()
+				.findFirst()
+				.map(error -> error.getField() + ": " + error.getDefaultMessage())
+				.orElse("Validation failed");
+		return error(HttpStatus.BAD_REQUEST, ErrorCode.VALIDATION_FAILED, message, request);
 	}
 
-	/**
-	 * Produces the shared error envelope and logs the sanitized failure reason.
-	 */
-	private ResponseEntity<ApiError> error(HttpStatus status, String message) {
-		log.warn("api_error status={} reason={} message={}", status.value(), status.getReasonPhrase(), message);
-		return ResponseEntity.status(status)
-				.body(ApiError.of(status.value(), status.getReasonPhrase(), message));
+	@ExceptionHandler(IllegalArgumentException.class)
+	ResponseEntity<Map<String, Object>> handleBadRequest(IllegalArgumentException exception, HttpServletRequest request) {
+		ErrorCode code = exception.getMessage() != null && exception.getMessage().toLowerCase().contains("stock")
+				? ErrorCode.INSUFFICIENT_STOCK
+				: ErrorCode.VALIDATION_FAILED;
+		return error(HttpStatus.BAD_REQUEST, code, exception.getMessage(), request);
+	}
+
+	@ExceptionHandler(RuntimeException.class)
+	ResponseEntity<Map<String, Object>> handleRuntime(RuntimeException exception, HttpServletRequest request) {
+		log.error("api_unhandled_error path={} requestId={} reason={}", request.getRequestURI(), MDC.get("requestId"), exception.getMessage(), exception);
+		return error(HttpStatus.INTERNAL_SERVER_ERROR, ErrorCode.INTERNAL_ERROR, "Unexpected server error", request);
+	}
+
+	private ResponseEntity<Map<String, Object>> error(HttpStatus status, ErrorCode code, String message, HttpServletRequest request) {
+		log.warn("api_error status={} code={} path={} requestId={} message={}", status.value(), code, request.getRequestURI(), MDC.get("requestId"), message);
+		Map<String, Object> body = new LinkedHashMap<>();
+		body.put("timestamp", LocalDateTime.now().toString());
+		body.put("status", status.value());
+		body.put("error", status.getReasonPhrase());
+		body.put("code", code.name());
+		body.put("message", message);
+		body.put("path", request.getRequestURI());
+		body.put("requestId", MDC.get("requestId"));
+		return ResponseEntity.status(status).body(body);
 	}
 }

@@ -1,10 +1,9 @@
-name: Docker Image CI
+name: Backend Docker CI
 
 on:
-  push:
-    branches: [ "main" ]
   pull_request:
-    branches: [ "main" ]
+  push:
+    branches: [ main ]
 
 jobs:
   docker-image:
@@ -28,7 +27,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: docker-image-ci-build-log
+          name: backend-docker-build-log
           path: docker-build.log
       - name: Inspect backend Docker image
         run: docker image inspect king-sparkon-tracker-backend:${{ github.sha }}
