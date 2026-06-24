@@ -19,7 +19,7 @@ import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/api/auth")
-@Tag(name = "Authentication", description = "Owner business registration, JWT login, refresh-token rotation, and account recovery.")
+@Tag(name = "Authentication", description = "Owner business registration, administrator registration, JWT login, refresh-token rotation, and account recovery.")
 public class AuthenticationController {
 
 	private final TrackerUserService userService;
@@ -50,6 +50,21 @@ public class AuthenticationController {
 		return UserResponse.from(userService.registerOwner(request));
 	}
 
+	@PostMapping("/register-admin")
+	@ResponseStatus(HttpStatus.CREATED)
+	@Operation(
+			summary = "Register administrator",
+			description = "Creates the single platform administrator account. The email address must end with @kingsparkon.com and onboarding address details are required."
+	)
+	@ApiResponses({
+			@ApiResponse(responseCode = "201", description = "Administrator registered"),
+			@ApiResponse(responseCode = "400", description = "Invalid administrator registration details"),
+			@ApiResponse(responseCode = "409", description = "Administrator already exists, username already exists, or email already exists")
+	})
+	public UserResponse registerAdministrator(@Valid @RequestBody RegisterAdministratorRequest request) {
+		return UserResponse.from(userService.registerAdministrator(request));
+	}
+
 	@PostMapping("/register-affiliate")
 	@ResponseStatus(HttpStatus.CREATED)
 	@Operation(summary = "Register affiliate", description = "Creates an affiliate account with a promotion code and QR link.")
@@ -63,7 +78,7 @@ public class AuthenticationController {
 	}
 
 	@PostMapping("/login")
-	@Operation(summary = "Login", description = "Authenticates a registered owner or worker and returns access plus refresh tokens.")
+	@Operation(summary = "Login", description = "Authenticates a registered administrator, owner, affiliate, or worker and returns access plus refresh tokens.")
 	@ApiResponses({
 			@ApiResponse(responseCode = "200", description = "Login successful"),
 			@ApiResponse(responseCode = "400", description = "Invalid login payload"),
