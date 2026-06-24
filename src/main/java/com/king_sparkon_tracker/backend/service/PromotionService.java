@@ -16,6 +16,7 @@ import com.king_sparkon_tracker.backend.dto.PromotionPriceQuoteResponse;
 import com.king_sparkon_tracker.backend.model.Business;
 import com.king_sparkon_tracker.backend.model.PrivilegeRole;
 import com.king_sparkon_tracker.backend.model.Promotion;
+import com.king_sparkon_tracker.backend.model.PromotionAudience;
 import com.king_sparkon_tracker.backend.model.PromotionChannel;
 import com.king_sparkon_tracker.backend.model.PromotionNotification;
 import com.king_sparkon_tracker.backend.model.PromotionNotificationStatus;
@@ -23,6 +24,7 @@ import com.king_sparkon_tracker.backend.model.PromotionOrigin;
 import com.king_sparkon_tracker.backend.model.PromotionStatus;
 import com.king_sparkon_tracker.backend.model.Subscriber;
 import com.king_sparkon_tracker.backend.model.SubscriberContactType;
+import com.king_sparkon_tracker.backend.model.SubscriberType;
 import com.king_sparkon_tracker.backend.model.TrackerUser;
 import com.king_sparkon_tracker.backend.repository.PromotionNotificationRepository;
 import com.king_sparkon_tracker.backend.repository.PromotionRepository;
@@ -33,7 +35,6 @@ import com.king_sparkon_tracker.backend.repository.SubscriberRepository;
 public class PromotionService {
 
 	private static final Logger log = LoggerFactory.getLogger(PromotionService.class);
-	private static final int BATCH_SIZE = 200;
 
 	private final PromotionRepository promotionRepository;
 	private final PromotionNotificationRepository notificationRepository;
@@ -67,28 +68,56 @@ public class PromotionService {
 		}
 
 		Business business = trackerUserService.businessForActor(actorUsername);
-		int targetCount = Math.toIntExact(Math.min(subscriberRepository.countByActiveTrue(), Integer.MAX_VALUE));
+		return createPromotion(
+				business,
+				request,
+				PromotionOrigin.OWNER,
+				PromotionAudience.ALL_SUBSCRIBERS,
+				actorUsername);
+	}
+
+	public Promotion createAdminRegisteredSubscriberPromotion(CreatePromotionRequest request, String actorUsername) {
+		TrackerUser admin = trackerUserService.getUserByUsername(actorUsername);
+		if (admin.getPrivilege() == null || admin.getPrivilege().getName() != PrivilegeRole.Admin) {
+			throw new IllegalArgumentException("Only administrators can create registered-subscriber promotions");
+		}
+		return createPromotion(
+				null,
+				request,
+				PromotionOrigin.KING_SPARKON_AUTOMATED,
+				PromotionAudience.REGISTERED_SUBSCRIBERS,
+				actorUsername);
+	}
+
+	private Promotion createPromotion(
+			Business business,
+			CreatePromotionRequest request,
+			PromotionOrigin origin,
+			PromotionAudience audience,
+			String createdBy) {
+		int targetCount = targetCountFor(audience);
 		PromotionPriceQuoteResponse quote = pricingService.quote(targetCount);
 		Promotion promotion = new Promotion(
 				business,
 				normalizeRequired(request.title(), "Promotion title is required"),
 				normalizeRequired(request.message(), "Promotion message is required"),
 				normalizeOptional(request.landingUrl()),
-				PromotionOrigin.OWNER,
+				origin,
 				request.channel() == null ? PromotionChannel.ANY : request.channel(),
+				audience,
 				targetCount,
 				quote.totalPrice(),
-				actorUsername,
+				createdBy,
 				request.scheduledFor() == null ? OffsetDateTime.now() : request.scheduledFor(),
 				OffsetDateTime.now().plusDays(7));
 		Promotion savedPromotion = promotionRepository.save(promotion);
-		log.info("owner_promotion_created promotionId={} businessId={} targetCount={} price={} actor={}",
-				savedPromotion.getId(), business.getId(), targetCount, quote.totalPrice(), actorUsername);
+		log.info("promotion_created promotionId={} audience={} targetCount={} price={} actor={}",
+				savedPromotion.getId(), audience, targetCount, quote.totalPrice(), createdBy);
 		return savedPromotion;
 	}
 
 	public Promotion createAutomatedKingSparkonPromotion() {
-		int targetCount = Math.toIntExact(Math.min(subscriberRepository.countByActiveTrue(), Integer.MAX_VALUE));
+		int targetCount = targetCountFor(PromotionAudience.ALL_SUBSCRIBERS);
 		PromotionPriceQuoteResponse quote = pricingService.quote(targetCount);
 		Promotion promotion = new Promotion(
 				null,
@@ -97,6 +126,7 @@ public class PromotionService {
 				"https://kingsparkon.com",
 				PromotionOrigin.KING_SPARKON_AUTOMATED,
 				PromotionChannel.ANY,
+				PromotionAudience.ALL_SUBSCRIBERS,
 				targetCount,
 				quote.totalPrice(),
 				"system",
@@ -107,9 +137,30 @@ public class PromotionService {
 		return savedPromotion;
 	}
 
+	public Promotion createAutomatedAffiliateProgramPromotion() {
+		int targetCount = targetCountFor(PromotionAudience.UNREGISTERED_AFFILIATES);
+		PromotionPriceQuoteResponse quote = pricingService.quote(targetCount);
+		Promotion promotion = new Promotion(
+				null,
+				"Earn from King Sparkon Tracker as an affiliate",
+				"Register as a King Sparkon affiliate, promote worker tips and the affiliate program, and earn from referred businesses.",
+				"https://kingsparkon.com/affiliates",
+				PromotionOrigin.KING_SPARKON_AUTOMATED,
+				PromotionChannel.ANY,
+				PromotionAudience.UNREGISTERED_AFFILIATES,
+				targetCount,
+				quote.totalPrice(),
+				"system",
+				OffsetDateTime.now(),
+				OffsetDateTime.now().plusDays(7));
+		Promotion savedPromotion = promotionRepository.save(promotion);
+		log.info("automated_affiliate_program_promotion_created promotionId={} targetCount={}", savedPromotion.getId(), targetCount);
+		return savedPromotion;
+	}
+
 	@Transactional(readOnly = true)
 	public PromotionPriceQuoteResponse quoteCurrentAudience() {
-		return pricingService.quote(Math.toIntExact(Math.min(subscriberRepository.countByActiveTrue(), Integer.MAX_VALUE)));
+		return pricingService.quote(targetCountFor(PromotionAudience.ALL_SUBSCRIBERS));
 	}
 
 	@Transactional(readOnly = true)
@@ -132,6 +183,7 @@ public class PromotionService {
 			return;
 		}
 		createAutomatedKingSparkonPromotion();
+		createAutomatedAffiliateProgramPromotion();
 	}
 
 	private void processPromotion(Promotion promotion, OffsetDateTime now) {
@@ -164,10 +216,22 @@ public class PromotionService {
 		}
 		promotion.markProcessed(now);
 		promotionRepository.save(promotion);
-		log.info("promotion_processed promotionId={} selected={} sent={}", promotion.getId(), subscribers.size(), sentCount);
+		log.info("promotion_processed promotionId={} audience={} selected={} sent={}", promotion.getId(), promotion.getAudience(), subscribers.size(), sentCount);
 	}
 
 	private List<Subscriber> dueSubscribers(Promotion promotion, OffsetDateTime cutoff) {
+		if (promotion.getAudience() == PromotionAudience.UNREGISTERED_AFFILIATES) {
+			return subscriberRepository.findTop200ByActiveTrueAndSubscriberTypeAndAffiliateRegisteredAndLastNotifiedAtIsNullOrActiveTrueAndSubscriberTypeAndAffiliateRegisteredAndLastNotifiedAtBeforeOrderByCreatedDateAsc(
+					SubscriberType.AFFILIATE, false, cutoff, SubscriberType.AFFILIATE, false, cutoff);
+		}
+		if (promotion.getAudience() == PromotionAudience.REGISTERED_AFFILIATES) {
+			return subscriberRepository.findTop200ByActiveTrueAndSubscriberTypeAndAffiliateRegisteredAndLastNotifiedAtIsNullOrActiveTrueAndSubscriberTypeAndAffiliateRegisteredAndLastNotifiedAtBeforeOrderByCreatedDateAsc(
+					SubscriberType.AFFILIATE, true, cutoff, SubscriberType.AFFILIATE, true, cutoff);
+		}
+		if (promotion.getAudience() == PromotionAudience.REGISTERED_SUBSCRIBERS) {
+			return subscriberRepository.findTop200ByActiveTrueAndAffiliateRegisteredAndLastNotifiedAtIsNullOrActiveTrueAndAffiliateRegisteredAndLastNotifiedAtBeforeOrderByCreatedDateAsc(
+					true, cutoff, true, cutoff);
+		}
 		PromotionChannel channel = promotion.getChannel();
 		if (channel == PromotionChannel.EMAIL) {
 			return subscriberRepository.findTop200ByActiveTrueAndContactTypeAndLastNotifiedAtIsNullOrActiveTrueAndContactTypeAndLastNotifiedAtBeforeOrderByCreatedDateAsc(
@@ -178,6 +242,20 @@ public class PromotionService {
 					SubscriberContactType.CELLPHONE, cutoff, SubscriberContactType.CELLPHONE, cutoff);
 		}
 		return subscriberRepository.findTop200ByActiveTrueAndLastNotifiedAtIsNullOrActiveTrueAndLastNotifiedAtBeforeOrderByCreatedDateAsc(cutoff);
+	}
+
+	private int targetCountFor(PromotionAudience audience) {
+		long count;
+		if (audience == PromotionAudience.UNREGISTERED_AFFILIATES) {
+			count = subscriberRepository.countByActiveTrueAndSubscriberTypeAndAffiliateRegistered(SubscriberType.AFFILIATE, false);
+		} else if (audience == PromotionAudience.REGISTERED_AFFILIATES) {
+			count = subscriberRepository.countByActiveTrueAndSubscriberTypeAndAffiliateRegistered(SubscriberType.AFFILIATE, true);
+		} else if (audience == PromotionAudience.REGISTERED_SUBSCRIBERS) {
+			count = subscriberRepository.countByActiveTrueAndAffiliateRegistered(true);
+		} else {
+			count = subscriberRepository.countByActiveTrue();
+		}
+		return Math.toIntExact(Math.min(count, Integer.MAX_VALUE));
 	}
 
 	private PromotionChannel resolveChannel(Promotion promotion, Subscriber subscriber) {
