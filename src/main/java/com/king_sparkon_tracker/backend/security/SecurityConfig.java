@@ -57,6 +57,7 @@ public class SecurityConfig {
 			RateLimitService rateLimitService,
 			ObjectMapper objectMapper,
 			@Value("${app.security.h2-console-enabled:false}") boolean h2ConsoleEnabled) throws Exception {
+		String adminAuthority = PrivilegeRole.Admin.name();
 		String ownerAuthority = PrivilegeRole.Owner.name();
 		String affiliateAuthority = PrivilegeRole.Affiliate.name();
 
@@ -72,6 +73,7 @@ public class SecurityConfig {
 						.requestMatchers(
 								HttpMethod.POST,
 								"/api/auth/register",
+								"/api/auth/register-admin",
 								"/api/auth/register-affiliate",
 								"/api/auth/login",
 								"/api/auth/forgot-password",
@@ -101,7 +103,7 @@ public class SecurityConfig {
 						.requestMatchers("/api/privileges/**").hasAuthority(ownerAuthority)
 						.requestMatchers(HttpMethod.GET, "/api/billing/plans").permitAll()
 						.requestMatchers("/api/billing/**").hasAuthority(ownerAuthority)
-						.requestMatchers("/api/admin/**").hasAuthority(ownerAuthority)
+						.requestMatchers("/api/admin/**").hasAuthority(adminAuthority)
 						.requestMatchers(HttpMethod.POST, "/api/products/*/barcodes")
 						.hasAuthority(PrivilegeRole.Worker.name())
 						.requestMatchers(HttpMethod.POST, "/api/products/*/submit-approval")
