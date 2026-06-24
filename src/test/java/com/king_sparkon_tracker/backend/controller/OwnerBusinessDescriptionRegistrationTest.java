@@ -8,6 +8,7 @@ import static org.mockito.Mockito.when;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import com.king_sparkon_tracker.backend.dto.RegisterUserRequest;
 import com.king_sparkon_tracker.backend.model.Business;
@@ -35,8 +36,8 @@ class OwnerBusinessDescriptionRegistrationTest {
 				userService,
 				mock(RefreshTokenService.class),
 				mock(PasswordResetService.class),
-				mock(EmailVerificationService.class),
-				businessRepository);
+				mock(EmailVerificationService.class));
+		ReflectionTestUtils.setField(controller, "businessRepository", businessRepository);
 	}
 
 	@Test
