@@ -10,12 +10,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          show-progress: false
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '25'
           cache: maven
       - name: Maven verify
-        run: mvn -B clean verify --file pom.xml
+        run: mvn -q -B -Dstyle.color=never clean verify --file pom.xml
       - name: Docker build
         run: docker build -t king-sparkon-tracker-backend .
