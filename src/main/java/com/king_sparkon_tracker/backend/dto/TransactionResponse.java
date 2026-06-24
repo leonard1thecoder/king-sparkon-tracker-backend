@@ -30,6 +30,8 @@ public record TransactionResponse(
 		Long transactionWithdrawalId,
 		@Schema(description = "Customer payment or returnable-reference email.", example = "customer@example.com")
 		String paymentEmail,
+		@Schema(description = "Customer website-payment contact. Can be an email address or international cellphone number.", example = "+27821234567")
+		String paymentContact,
 		@Schema(description = "Transaction total amount.", example = "53.00")
 		BigDecimal totalAmount,
 		@Schema(description = "Business id this transaction belongs to.", example = "3")
@@ -59,6 +61,7 @@ public record TransactionResponse(
 				transaction.getPaymentUrl(),
 				transaction.getTransactionWithdrawalId(),
 				transaction.getPaymentEmail(),
+				transaction.getPaymentContact(),
 				transaction.getTotalAmount(),
 				transaction.getBusiness() == null ? null : transaction.getBusiness().getId(),
 				transaction.getBusiness() == null ? null : transaction.getBusiness().getName(),
