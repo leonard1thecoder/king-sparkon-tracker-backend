@@ -13,6 +13,21 @@ jobs:
         with:
           show-progress: false
       - name: Build backend Docker image
-        run: docker build --pull -t king-sparkon-tracker-backend:${{ github.sha }} .
+        shell: bash
+        run: |
+          set +e
+          docker build --pull --progress=plain -t king-sparkon-tracker-backend:${{ github.sha }} . > docker-build.log 2>&1
+          status=$?
+          if [ "$status" -ne 0 ]; then
+            echo "--- Docker build failure tail ---"
+            tail -n 120 docker-build.log
+          fi
+          exit "$status"
+      - name: Upload Docker build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-docker-build-log
+          path: docker-build.log
       - name: Inspect backend Docker image
         run: docker image inspect king-sparkon-tracker-backend:${{ github.sha }}
