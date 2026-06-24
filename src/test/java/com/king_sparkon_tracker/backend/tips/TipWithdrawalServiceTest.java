@@ -3,6 +3,7 @@ package com.king_sparkon_tracker.backend.tips;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -22,9 +23,9 @@ import com.king_sparkon_tracker.backend.dto.PayPalAccountOnboardingRequest;
 import com.king_sparkon_tracker.backend.dto.PayPalAccountResponse;
 import com.king_sparkon_tracker.backend.dto.WithdrawalRequest;
 import com.king_sparkon_tracker.backend.dto.WithdrawalResponse;
-import com.king_sparkon_tracker.backend.model.SupportedCurrency;
 import com.king_sparkon_tracker.backend.model.Privilege;
 import com.king_sparkon_tracker.backend.model.PrivilegeRole;
+import com.king_sparkon_tracker.backend.model.SupportedCurrency;
 import com.king_sparkon_tracker.backend.model.Tip;
 import com.king_sparkon_tracker.backend.model.TipStatus;
 import com.king_sparkon_tracker.backend.model.TipWithdrawal;
@@ -127,7 +128,7 @@ class TipWithdrawalServiceTest {
 			ReflectionTestUtils.setField(withdrawal, "id", 77L);
 			return withdrawal;
 		});
-		when(priceLocalizationService.base(new BigDecimal("1098.00")))
+		lenient().when(priceLocalizationService.base(new BigDecimal("1098.00")))
 				.thenReturn(new MoneyResponse(new BigDecimal("1098.00"), SupportedCurrency.ZAR, "R", "R1,098.00"));
 
 		WithdrawalResponse response = withdrawalService.requestWithdrawal(new WithdrawalRequest(10L), "owner");
