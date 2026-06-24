@@ -19,6 +19,7 @@ import org.springframework.util.StringUtils;
 import com.king_sparkon_tracker.backend.dto.CreateWorkerRequest;
 import com.king_sparkon_tracker.backend.dto.CompleteOnboardingRequest;
 import com.king_sparkon_tracker.backend.dto.LoginRequest;
+import com.king_sparkon_tracker.backend.dto.RegisterAdministratorRequest;
 import com.king_sparkon_tracker.backend.dto.RegisterAffiliateRequest;
 import com.king_sparkon_tracker.backend.dto.RegisterUserRequest;
 import com.king_sparkon_tracker.backend.exception.DuplicateEmailAddressException;
@@ -40,6 +41,8 @@ import com.king_sparkon_tracker.backend.repository.BusinessRepository;
 public class TrackerUserService {
 
 	private static final Logger log = LoggerFactory.getLogger(TrackerUserService.class);
+	private static final String ADMIN_EMAIL_DOMAIN = "@kingsparkon.com";
+	private static final long MAX_ADMINISTRATORS = 1L;
 
 	private final TrackerUserRepository userRepository;
 	private final BusinessRepository businessRepository;
@@ -130,6 +133,53 @@ public class TrackerUserService {
 		);
 
 		return savedOwner;
+	}
+
+	public TrackerUser registerAdministrator(RegisterAdministratorRequest request) {
+		String username = normalizeRequired(request.username(), "Username is required");
+		String emailAddress = normalizeEmailAddress(request.emailAddress());
+		String password = normalizeRequired(request.password(), "Password is required");
+		LocalizationCountry localizationCountry = normalizeLocalizationCountry(request.localizationCountry());
+		String physicalAddress = normalizeRequired(request.physicalAddress(), "Physical address is required");
+		String cellphoneNumber = normalizeRequired(request.cellphoneNumber(), "Cellphone number is required");
+
+		requireAdministratorEmailDomain(emailAddress);
+		requireAdministratorSlotAvailable();
+
+		TrackerUser administrator = createUser(
+				username,
+				emailAddress,
+				password,
+				PrivilegeRole.Admin,
+				null,
+				localizationCountry
+		);
+		administrator.completeOnboarding(physicalAddress, cellphoneNumber);
+
+		TrackerUser savedAdministrator = userRepository.save(administrator);
+
+		auditLogService.record(
+				"ADMINISTRATOR_REGISTERED",
+				"TrackerUser",
+				String.valueOf(savedAdministrator.getId()),
+				username,
+				"Administrator registered with kingsparkon.com domain, localizationCountry: "
+						+ savedAdministrator.getLocalizationCountry(),
+				null
+		);
+
+		emailVerificationService.sendVerificationEmail(savedAdministrator, null, null);
+
+		log.info(
+				"administrator_registered userId={} username={} emailDomain={} localizationCountry={} onboardingCompleted={}",
+				savedAdministrator.getId(),
+				username,
+				ADMIN_EMAIL_DOMAIN,
+				savedAdministrator.getLocalizationCountry(),
+				savedAdministrator.isOnboardingCompleted()
+		);
+
+		return savedAdministrator;
 	}
 
 	public TrackerUser registerAffiliate(RegisterAffiliateRequest request) {
@@ -266,9 +316,8 @@ public class TrackerUserService {
 			throw new InvalidCredentialsException();
 		}
 
-		if ((user.getPrivilege().getName() == PrivilegeRole.Owner
-				|| user.getPrivilege().getName() == PrivilegeRole.Affiliate)
-				&& !user.isEmailVerified()) {
+		PrivilegeRole role = user.getPrivilege().getName();
+		if (requiresVerifiedEmail(role) && !user.isEmailVerified()) {
 			log.warn("login_failed username={} reason=email_not_verified", username);
 			throw new EmailNotVerifiedException();
 		}
@@ -277,7 +326,7 @@ public class TrackerUserService {
 				"login_succeeded userId={} username={} role={} localizationCountry={}",
 				user.getId(),
 				username,
-				user.getPrivilege().getName(),
+				role,
 				user.getLocalizationCountry()
 		);
 
@@ -359,6 +408,25 @@ public class TrackerUserService {
 	@Transactional(readOnly = true)
 	public Business businessForActor(String actorUsername) {
 		return requireBusiness(getUserByUsername(actorUsername));
+	}
+
+	private void requireAdministratorEmailDomain(String emailAddress) {
+		if (!emailAddress.endsWith(ADMIN_EMAIL_DOMAIN)) {
+			throw new IllegalArgumentException("Administrator email must use the @kingsparkon.com domain");
+		}
+	}
+
+	private void requireAdministratorSlotAvailable() {
+		long administratorCount = userRepository.countByPrivilege_Name(PrivilegeRole.Admin);
+		if (administratorCount >= MAX_ADMINISTRATORS) {
+			throw new IllegalArgumentException("Administrator account is already registered");
+		}
+	}
+
+	private boolean requiresVerifiedEmail(PrivilegeRole role) {
+		return role == PrivilegeRole.Admin
+				|| role == PrivilegeRole.Owner
+				|| role == PrivilegeRole.Affiliate;
 	}
 
 	private void requireWorkerLimitAvailable(Business business, String actorUsername) {
