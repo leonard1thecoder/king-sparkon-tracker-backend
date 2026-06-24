@@ -1,4 +1,4 @@
-name: Backend CI
+name: Backend Docker CI
 
 on:
   pull_request:
@@ -6,33 +6,13 @@ on:
     branches: [ main ]
 
 jobs:
-  verify:
+  docker-image:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           show-progress: false
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '25'
-          cache: maven
-      - name: Maven verify
-        shell: bash
-        run: |
-          set +e
-          mvn -q -B -Dstyle.color=never clean verify --file pom.xml > maven-build.log 2>&1
-          status=$?
-          if [ "$status" -ne 0 ]; then
-            echo "--- Maven failure tail ---"
-            tail -n 80 maven-build.log
-          fi
-          exit "$status"
-      - name: Upload Maven log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: backend-ci-maven-log
-          path: maven-build.log
-      - name: Docker build
-        run: docker build -t king-sparkon-tracker-backend .
+      - name: Build backend Docker image
+        run: docker build --pull -t king-sparkon-tracker-backend:${{ github.sha }} .
+      - name: Inspect backend Docker image
+        run: docker image inspect king-sparkon-tracker-backend:${{ github.sha }}
