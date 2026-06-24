@@ -3,15 +3,19 @@ package com.king_sparkon_tracker.backend.config;
 import java.time.Duration;
 import java.util.Map;
 
-import org.springframework.boot.autoconfigure.cache.RedisCacheManagerBuilderCustomizer;
+import org.springframework.cache.CacheManager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
 import org.springframework.data.redis.cache.RedisCacheConfiguration;
+import org.springframework.data.redis.cache.RedisCacheManager;
+import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.RedisSerializationContext.SerializationPair;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
-@Configuration
+@Configuration(proxyBeanMethods = false)
+@Profile("redis")
 public class RedisCacheConfig {
 
 	public static final String PRIVILEGES_CACHE = "privileges";
@@ -32,9 +36,19 @@ public class RedisCacheConfig {
 				.serializeValuesWith(SerializationPair.fromSerializer(new GenericJackson2JsonRedisSerializer()));
 	}
 
-	@Bean
-	RedisCacheManagerBuilderCustomizer redisCacheManagerBuilderCustomizer(RedisCacheConfiguration redisCacheConfiguration) {
-		Map<String, RedisCacheConfiguration> cacheConfigurations = Map.of(
+	@Bean(name = "cacheManager")
+	CacheManager redisCacheManager(
+			RedisConnectionFactory redisConnectionFactory,
+			RedisCacheConfiguration redisCacheConfiguration) {
+		return RedisCacheManager.builder(redisConnectionFactory)
+				.cacheDefaults(redisCacheConfiguration)
+				.withInitialCacheConfigurations(cacheConfigurations(redisCacheConfiguration))
+				.transactionAware()
+				.build();
+	}
+
+	private Map<String, RedisCacheConfiguration> cacheConfigurations(RedisCacheConfiguration redisCacheConfiguration) {
+		return Map.of(
 				PRIVILEGES_CACHE, redisCacheConfiguration.entryTtl(Duration.ofHours(12)),
 				PRIVILEGE_BY_ROLE_CACHE, redisCacheConfiguration.entryTtl(Duration.ofHours(12)),
 				PROMOTION_QUOTES_CACHE, redisCacheConfiguration.entryTtl(Duration.ofMinutes(10)),
@@ -42,8 +56,7 @@ public class RedisCacheConfig {
 				AFFILIATE_COMMISSION_TIERS_CACHE, redisCacheConfiguration.entryTtl(Duration.ofHours(6)),
 				BUSINESS_PLAN_PRICES_CACHE, redisCacheConfiguration.entryTtl(Duration.ofHours(6)),
 				BUSINESS_PLAN_WORKER_LIMITS_CACHE, redisCacheConfiguration.entryTtl(Duration.ofHours(6)),
-				BUSINESS_FEATURE_ACCESS_CACHE, redisCacheConfiguration.entryTtl(Duration.ofMinutes(15)));
-
-		return builder -> builder.withInitialCacheConfigurations(cacheConfigurations);
+				BUSINESS_FEATURE_ACCESS_CACHE, redisCacheConfiguration.entryTtl(Duration.ofMinutes(15))
+		);
 	}
 }
