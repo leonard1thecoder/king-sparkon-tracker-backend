@@ -44,7 +44,6 @@ public class TipWithdrawalService {
 	private final int holdDays;
 	private final String defaultOnboardingUrl;
 	private final BigDecimal withdrawalFeePercent;
-	private final BigDecimal additionalWithdrawalFeePercent;
 
 	public TipWithdrawalService(
 			TipRepository tipRepository,
@@ -56,8 +55,7 @@ public class TipWithdrawalService {
 			@Value("${app.tips.withdrawal-minimum-zar:1000}") BigDecimal minimumWithdrawalAmount,
 			@Value("${app.tips.withdrawal-hold-days:7}") int holdDays,
 			@Value("${app.tips.paypal-onboarding-url:http://localhost:3000/dashboard/owner/paypal/onboarding}") String defaultOnboardingUrl,
-			@Value("${app.tips.withdrawal-fee-percent:8.5}") BigDecimal withdrawalFeePercent,
-			@Value("${app.tips.additional-withdrawal-fee-percent:2.03}") BigDecimal additionalWithdrawalFeePercent) {
+			@Value("${app.tips.withdrawal-fee-percent:8.5}") BigDecimal withdrawalFeePercent) {
 		this.tipRepository = tipRepository;
 		this.payoutAccountRepository = payoutAccountRepository;
 		this.withdrawalRepository = withdrawalRepository;
@@ -68,7 +66,6 @@ public class TipWithdrawalService {
 		this.holdDays = holdDays;
 		this.defaultOnboardingUrl = defaultOnboardingUrl;
 		this.withdrawalFeePercent = withdrawalFeePercent;
-		this.additionalWithdrawalFeePercent = additionalWithdrawalFeePercent;
 	}
 
 	@Transactional
@@ -171,9 +168,8 @@ public class TipWithdrawalService {
 
 	private BigDecimal netAmount(BigDecimal tipAmount) {
 		BigDecimal normalizedTipAmount = normalizeMoney(tipAmount);
-		BigDecimal effectiveWithdrawalFeePercent = withdrawalFeePercent.add(additionalWithdrawalFeePercent);
 		BigDecimal withdrawalFee = normalizedTipAmount
-				.multiply(effectiveWithdrawalFeePercent)
+				.multiply(withdrawalFeePercent)
 				.divide(new BigDecimal("100"), MONEY_SCALE, RoundingMode.HALF_UP);
 		return normalizedTipAmount.subtract(withdrawalFee).setScale(MONEY_SCALE, RoundingMode.HALF_UP);
 	}
