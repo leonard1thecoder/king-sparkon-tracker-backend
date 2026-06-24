@@ -41,6 +41,11 @@ public class TransactionController {
 	private final SubscriberService subscriberService;
 	private final InventoryTransactionRepository transactionRepository;
 
+	public TransactionController(TransactionService transactionService) {
+		this(transactionService, null, null);
+	}
+
+	@org.springframework.beans.factory.annotation.Autowired
 	public TransactionController(
 			TransactionService transactionService,
 			SubscriberService subscriberService,
@@ -61,7 +66,9 @@ public class TransactionController {
 			@Valid @RequestBody CreateTransactionRequest request,
 			@Parameter(hidden = true) Principal principal) {
 		InventoryTransaction transaction = transactionService.createTransaction(request, principal.getName());
-		if (request.paymentType() == TransactionPaymentType.WEBSITE_PAYMENT) {
+		if (subscriberService != null
+				&& transactionRepository != null
+				&& request.paymentType() == TransactionPaymentType.WEBSITE_PAYMENT) {
 			String subscriberContact = StringUtils.hasText(request.paymentContact()) ? request.paymentContact().trim() : request.paymentEmail();
 			subscriberService.subscribeWebsitePaymentClient(subscriberContact);
 			if (StringUtils.hasText(subscriberContact)) {
