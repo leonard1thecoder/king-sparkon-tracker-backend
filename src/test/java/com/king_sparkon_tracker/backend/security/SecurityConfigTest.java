@@ -54,6 +54,7 @@ import com.king_sparkon_tracker.backend.service.ProductPricingService;
 import com.king_sparkon_tracker.backend.service.ProductService;
 import com.king_sparkon_tracker.backend.service.RefreshTokenService;
 import com.king_sparkon_tracker.backend.service.TipService;
+import com.king_sparkon_tracker.backend.service.TipWithdrawalService;
 import com.king_sparkon_tracker.backend.service.TrackerUserService;
 
 @WebMvcTest(controllers = {
@@ -92,6 +93,9 @@ class SecurityConfigTest {
 
 	@MockitoBean
 	private TipService tipService;
+
+	@MockitoBean
+	private TipWithdrawalService tipWithdrawalService;
 
 	@MockitoBean
 	private AffiliateLinkService affiliateLinkService;
