@@ -32,6 +32,7 @@ import com.king_sparkon_tracker.backend.model.TrackerUser;
 import com.king_sparkon_tracker.backend.repository.TipRepository;
 import com.king_sparkon_tracker.backend.service.NotificationService;
 import com.king_sparkon_tracker.backend.service.StripeService;
+import com.king_sparkon_tracker.backend.service.SubscriberService;
 import com.king_sparkon_tracker.backend.service.TipService;
 import com.king_sparkon_tracker.backend.service.TrackerUserService;
 
@@ -50,11 +51,14 @@ class TipServiceTest {
 	@Mock
 	private NotificationService notificationService;
 
+	@Mock
+	private SubscriberService subscriberService;
+
 	private TipService tipService;
 
 	@BeforeEach
 	void setUp() {
-		tipService = new TipService(tipRepository, trackerUserService, stripeService, notificationService);
+		tipService = new TipService(tipRepository, trackerUserService, stripeService, notificationService, subscriberService);
 	}
 
 	@Test
@@ -74,7 +78,8 @@ class TipServiceTest {
 		TipResponse response = tipService.createTip(new TipRequest(
 				10L,
 				new BigDecimal("100.00"),
-				"https://app.example/tips/return"));
+				"https://app.example/tips/return",
+				"+27821234567"));
 
 		assertThat(response.id()).isEqualTo(42L);
 		assertThat(response.workerId()).isEqualTo(10L);
@@ -90,6 +95,7 @@ class TipServiceTest {
 		verify(tipRepository, org.mockito.Mockito.times(2)).save(tipCaptor.capture());
 		assertThat(tipCaptor.getAllValues().get(1).getPaymentReference()).isEqualTo("plink_123");
 		verify(notificationService).logTipPaymentLink(any(Tip.class), eq("https://pay.stripe.com/plink_123"));
+		verify(subscriberService).subscribeTipPaymentClient("+27821234567");
 	}
 
 	@Test
