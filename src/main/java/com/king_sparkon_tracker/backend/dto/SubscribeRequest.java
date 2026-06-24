@@ -13,8 +13,11 @@ public record SubscribeRequest(
 		@Size(max = 320)
 		String contact,
 
-		@Schema(description = "Subscriber type. Defaults to KINGSPARKON_SUBSCRIBER for direct signups.", example = "KINGSPARKON_SUBSCRIBER")
+		@Schema(description = "Subscriber type. Use AFFILIATE for affiliate-program subscription leads.", example = "KINGSPARKON_SUBSCRIBER")
 		SubscriberType subscriberType,
+
+		@Schema(description = "True when this affiliate subscriber already has a system affiliate account.", example = "false")
+		Boolean affiliateRegistered,
 
 		@Schema(description = "Preferred promotion channel.", example = "ANY")
 		PromotionChannel preferredChannel
