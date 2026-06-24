@@ -28,27 +28,18 @@ public class AuthenticationController {
 	private final RefreshTokenService refreshTokenService;
 	private final PasswordResetService passwordResetService;
 	private final EmailVerificationService emailVerificationService;
-	private final BusinessRepository businessRepository;
+	@org.springframework.beans.factory.annotation.Autowired(required = false)
+	private BusinessRepository businessRepository;
 
 	public AuthenticationController(
 			TrackerUserService userService,
 			RefreshTokenService refreshTokenService,
 			PasswordResetService passwordResetService,
 			EmailVerificationService emailVerificationService) {
-		this(userService, refreshTokenService, passwordResetService, emailVerificationService, null);
-	}
-
-	public AuthenticationController(
-			TrackerUserService userService,
-			RefreshTokenService refreshTokenService,
-			PasswordResetService passwordResetService,
-			EmailVerificationService emailVerificationService,
-			BusinessRepository businessRepository) {
 		this.emailVerificationService = emailVerificationService;
 		this.userService = userService;
 		this.refreshTokenService = refreshTokenService;
 		this.passwordResetService = passwordResetService;
-		this.businessRepository = businessRepository;
 	}
 
 	@PostMapping("/register")
@@ -70,10 +61,7 @@ public class AuthenticationController {
 
 	@PostMapping("/register-admin")
 	@ResponseStatus(HttpStatus.CREATED)
-	@Operation(
-			summary = "Register administrator",
-			description = "Creates the single platform administrator account. The email address must end with @kingsparkon.com and onboarding address details are required."
-	)
+	@Operation(summary = "Register administrator", description = "Creates the single platform administrator account. The email address must end with @kingsparkon.com and onboarding address details are required.")
 	@ApiResponses({
 			@ApiResponse(responseCode = "201", description = "Administrator registered"),
 			@ApiResponse(responseCode = "400", description = "Invalid administrator registration details"),
@@ -102,10 +90,7 @@ public class AuthenticationController {
 			@ApiResponse(responseCode = "400", description = "Invalid login payload"),
 			@ApiResponse(responseCode = "401", description = "Invalid username or password")
 	})
-	public AuthResponse login(
-			@Valid @RequestBody LoginRequest request,
-			HttpServletRequest servletRequest,
-			@RequestHeader(value = "User-Agent", required = false) String userAgent) {
+	public AuthResponse login(@Valid @RequestBody LoginRequest request, HttpServletRequest servletRequest, @RequestHeader(value = "User-Agent", required = false) String userAgent) {
 		TrackerUser user = userService.authenticate(request);
 		RefreshTokenService.TokenPair pair = refreshTokenService.issueTokenPair(user, clientIp(servletRequest), userAgent);
 		return authResponse(pair);
@@ -113,10 +98,7 @@ public class AuthenticationController {
 
 	@PostMapping("/refresh")
 	@Operation(summary = "Refresh access token", description = "Rotates a refresh token and returns a fresh access token pair.")
-	public AuthResponse refresh(
-			@Valid @RequestBody RefreshTokenRequest request,
-			HttpServletRequest servletRequest,
-			@RequestHeader(value = "User-Agent", required = false) String userAgent) {
+	public AuthResponse refresh(@Valid @RequestBody RefreshTokenRequest request, HttpServletRequest servletRequest, @RequestHeader(value = "User-Agent", required = false) String userAgent) {
 		return authResponse(refreshTokenService.rotate(request.refreshToken(), clientIp(servletRequest), userAgent));
 	}
 
@@ -133,10 +115,7 @@ public class AuthenticationController {
 			@ApiResponse(responseCode = "200", description = "Request accepted"),
 			@ApiResponse(responseCode = "400", description = "Invalid request")
 	})
-	public MessageResponse forgotPassword(
-			@Valid @RequestBody ForgotPasswordRequest request,
-			HttpServletRequest servletRequest,
-			@RequestHeader(value = "User-Agent", required = false) String userAgent) {
+	public MessageResponse forgotPassword(@Valid @RequestBody ForgotPasswordRequest request, HttpServletRequest servletRequest, @RequestHeader(value = "User-Agent", required = false) String userAgent) {
 		passwordResetService.requestPasswordReset(request, clientIp(servletRequest), userAgent);
 		return MessageResponse.of("If the email address exists, a password reset link has been sent.");
 	}
@@ -160,22 +139,13 @@ public class AuthenticationController {
 	}
 
 	@PostMapping("/resend-verification")
-	public MessageResponse resendVerification(
-			@Valid @RequestBody ResendEmailVerificationRequest request,
-			HttpServletRequest servletRequest,
-			@RequestHeader(value = "User-Agent", required = false) String userAgent) {
+	public MessageResponse resendVerification(@Valid @RequestBody ResendEmailVerificationRequest request, HttpServletRequest servletRequest, @RequestHeader(value = "User-Agent", required = false) String userAgent) {
 		emailVerificationService.resendVerificationEmail(request, clientIp(servletRequest), userAgent);
 		return MessageResponse.of("If the email address exists and is not verified, a verification link has been sent.");
 	}
 
 	private AuthResponse authResponse(RefreshTokenService.TokenPair pair) {
-		return new AuthResponse(
-				"Bearer",
-				pair.accessToken(),
-				pair.accessTokenExpiresAt(),
-				pair.refreshToken(),
-				pair.refreshTokenExpiresAt(),
-				UserResponse.from(pair.user()));
+		return new AuthResponse("Bearer", pair.accessToken(), pair.accessTokenExpiresAt(), pair.refreshToken(), pair.refreshTokenExpiresAt(), UserResponse.from(pair.user()));
 	}
 
 	private String clientIp(HttpServletRequest request) {
