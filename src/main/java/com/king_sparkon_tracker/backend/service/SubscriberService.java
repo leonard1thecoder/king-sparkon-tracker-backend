@@ -28,9 +28,14 @@ public class SubscriberService {
 	}
 
 	public Subscriber subscribe(SubscribeRequest request) {
+		SubscriberType subscriberType = request.subscriberType() == null
+				? SubscriberType.KINGSPARKON_SUBSCRIBER
+				: request.subscriberType();
+		boolean affiliateRegistered = Boolean.TRUE.equals(request.affiliateRegistered());
 		return subscribe(
 				request.contact(),
-				request.subscriberType() == null ? SubscriberType.KINGSPARKON_SUBSCRIBER : request.subscriberType(),
+				subscriberType,
+				affiliateRegistered,
 				request.preferredChannel() == null ? PromotionChannel.ANY : request.preferredChannel(),
 				"DIRECT");
 	}
@@ -39,10 +44,17 @@ public class SubscriberService {
 		if (!StringUtils.hasText(contact)) {
 			return null;
 		}
-		return subscribe(contact, SubscriberType.CLIENT, PromotionChannel.ANY, "TIP_PAYMENT_LINK");
+		return subscribe(contact, SubscriberType.CLIENT, false, PromotionChannel.ANY, "TIP_PAYMENT_LINK");
 	}
 
-	public Subscriber subscribe(String rawContact, SubscriberType subscriberType, PromotionChannel preferredChannel, String source) {
+	public Subscriber subscribeWebsitePaymentClient(String contact) {
+		if (!StringUtils.hasText(contact)) {
+			return null;
+		}
+		return subscribe(contact, SubscriberType.CLIENT, false, PromotionChannel.ANY, "WEBSITE_PAYMENT");
+	}
+
+	public Subscriber subscribe(String rawContact, SubscriberType subscriberType, boolean affiliateRegistered, PromotionChannel preferredChannel, String source) {
 		String contact = normalizeContact(rawContact);
 		SubscriberContactType contactType = detectContactType(contact);
 		PromotionChannel normalizedChannel = preferredChannel == null ? PromotionChannel.ANY : preferredChannel;
@@ -56,17 +68,18 @@ public class SubscriberService {
 
 		Subscriber subscriber = subscriberRepository.findByContactValue(contact)
 				.map(existing -> {
-					existing.reactivate(subscriberType, normalizedChannel, source);
+					existing.reactivate(subscriberType, affiliateRegistered, normalizedChannel, source);
 					return existing;
 				})
-				.orElseGet(() -> new Subscriber(contact, contactType, subscriberType, normalizedChannel, source));
+				.orElseGet(() -> new Subscriber(contact, contactType, subscriberType, affiliateRegistered, normalizedChannel, source));
 
 		Subscriber savedSubscriber = subscriberRepository.save(subscriber);
 		log.info(
-				"subscriber_saved subscriberId={} contactType={} subscriberType={} preferredChannel={} source={}",
+				"subscriber_saved subscriberId={} contactType={} subscriberType={} affiliateRegistered={} preferredChannel={} source={}",
 				savedSubscriber.getId(),
 				savedSubscriber.getContactType(),
 				savedSubscriber.getSubscriberType(),
+				savedSubscriber.isAffiliateRegistered(),
 				savedSubscriber.getPreferredChannel(),
 				savedSubscriber.getSource());
 		return savedSubscriber;
