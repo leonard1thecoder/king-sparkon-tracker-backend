@@ -21,23 +21,22 @@ import org.springframework.security.config.annotation.web.configurers.HeadersCon
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
-import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
 
-import com.nimbusds.jose.jwk.source.ImmutableSecret;
-
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.king_sparkon_tracker.backend.model.PrivilegeRole;
 import com.king_sparkon_tracker.backend.service.BusinessAccessService;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nimbusds.jose.jwk.source.ImmutableSecret;
 
 @Configuration
 @EnableMethodSecurity
@@ -83,6 +82,12 @@ public class SecurityConfig {
 						.requestMatchers(HttpMethod.POST, "/api/contact-inquiries").permitAll()
 						.requestMatchers(HttpMethod.POST, "/api/paypal/webhooks").permitAll()
 						.requestMatchers(HttpMethod.POST, "/api/stripe/webhooks").permitAll()
+						.requestMatchers(HttpMethod.GET, "/api/affiliate-links/public/random").permitAll()
+						.requestMatchers(HttpMethod.POST, "/api/affiliate-links/*/click").permitAll()
+						.requestMatchers(HttpMethod.GET, "/api/affiliate-links/random").authenticated()
+						.requestMatchers(HttpMethod.POST, "/api/affiliate-links").hasAuthority(ownerAuthority)
+						.requestMatchers(HttpMethod.PATCH, "/api/affiliate-links/**").hasAuthority(ownerAuthority)
+						.requestMatchers(HttpMethod.GET, "/api/affiliate-links", "/api/affiliate-links/**").hasAuthority(ownerAuthority)
 						.requestMatchers(HttpMethod.POST, "/api/tips").hasAuthority(PrivilegeRole.Worker.name())
 						.requestMatchers("/h2-console/**").access((authentication, context) -> h2ConsoleEnabled
 								? new org.springframework.security.authorization.AuthorizationDecision(true)
