@@ -22,12 +22,12 @@ import com.king_sparkon_tracker.backend.model.BusinessPlan;
 public class RateLimitService {
 
 	private static final Logger log = LoggerFactory.getLogger(RateLimitService.class);
-	private static final String REDIS_BACKEND = "redis";
+	private static final String REDIS = "redis";
 
 	private final Clock clock;
 	private final boolean enabled;
 	private final String backend;
-	private final StringRedisTemplate redisTemplate;
+	private final StringRedisTemplate redis;
 	private final RateLimitRule publicAuthRule;
 	private final RateLimitRule freeTrialRule;
 	private final RateLimitRule plusRule;
@@ -36,9 +36,9 @@ public class RateLimitService {
 
 	public RateLimitService(
 			Clock clock,
-			ObjectProvider<StringRedisTemplate> redisTemplateProvider,
+			ObjectProvider<StringRedisTemplate> redisProvider,
 			@Value("${app.rate-limit.enabled:true}") boolean enabled,
-			@Value("${app.rate-limit.backend:memory}") String backend,
+			@Value("${RATE_LIMIT_BACKEND:${app.rate-limit.backend:memory}}") String backend,
 			@Value("${app.rate-limit.public-auth.limit:10}") int publicAuthLimit,
 			@Value("${app.rate-limit.public-auth.window-seconds:60}") long publicAuthWindowSeconds,
 			@Value("${app.rate-limit.public-auth.retry-after-seconds:60}") long publicAuthRetryAfterSeconds,
@@ -52,7 +52,7 @@ public class RateLimitService {
 			@Value("${app.rate-limit.pro.window-seconds:60}") long proWindowSeconds,
 			@Value("${app.rate-limit.pro.retry-after-seconds:5}") long proRetryAfterSeconds) {
 		this.clock = clock;
-		this.redisTemplate = redisTemplateProvider.getIfAvailable();
+		this.redis = redisProvider.getIfAvailable();
 		this.enabled = enabled;
 		this.backend = backend == null ? "memory" : backend.trim().toLowerCase(Locale.ROOT);
 		this.publicAuthRule = new RateLimitRule("PUBLIC_AUTH", null, publicAuthLimit, publicAuthWindowSeconds, publicAuthRetryAfterSeconds);
@@ -66,108 +66,80 @@ public class RateLimitService {
 	}
 
 	public RateLimitDecision checkBusiness(String businessId, BusinessPlan plan) {
-		RateLimitRule rule = ruleFor(plan);
-		return check("business:" + businessId, rule);
+		return check("business:" + businessId, ruleFor(plan));
 	}
 
 	private RateLimitDecision check(String key, RateLimitRule rule) {
 		if (!enabled || rule.limit() <= 0) {
 			return new RateLimitDecision(true, rule.label(), rule.limit(), Integer.MAX_VALUE, 0, 0);
 		}
-
-		if (usesRedis()) {
+		if (REDIS.equals(backend) && redis != null) {
 			try {
-				return checkWithRedis(key, rule);
-			} catch (DataAccessException exception) {
-				log.warn("rate_limit_redis_unavailable backend=memory rule={} reason={}", rule.label(), exception.getMessage());
+				return checkRedis(key, rule);
+			} catch (DataAccessException ex) {
+				log.warn("rate_limit_redis_unavailable fallback=memory rule={} reason={}", rule.label(), ex.getMessage());
 			}
 		}
-
-		return checkInMemory(key, rule);
+		return checkMemory(key, rule);
 	}
 
-	private boolean usesRedis() {
-		return REDIS_BACKEND.equals(backend) && redisTemplate != null;
-	}
+	private RateLimitDecision checkRedis(String key, RateLimitRule rule) {
+		long now = clock.instant().getEpochSecond();
+		long window = Math.max(1, rule.windowSeconds());
+		long windowStart = (now / window) * window;
+		String base = "rate-limit:" + rule.label().toLowerCase(Locale.ROOT) + ":" + key;
+		String blockKey = base + ":blocked";
+		String countKey = base + ":" + windowStart;
 
-	private RateLimitDecision checkWithRedis(String key, RateLimitRule rule) {
-		long nowSeconds = clock.instant().getEpochSecond();
-		long windowSeconds = Math.max(1, rule.windowSeconds());
-		long retryAfterSeconds = Math.max(1, rule.retryAfterSeconds());
-		long windowStart = (nowSeconds / windowSeconds) * windowSeconds;
-		String baseKey = "rate-limit:" + rule.label().toLowerCase(Locale.ROOT) + ":" + key;
-		String blockKey = baseKey + ":blocked";
-		String counterKey = baseKey + ":" + windowStart;
-
-		Long blockedTtl = redisTemplate.getExpire(blockKey, TimeUnit.SECONDS);
+		Long blockedTtl = redis.getExpire(blockKey, TimeUnit.SECONDS);
 		if (blockedTtl != null && blockedTtl > 0) {
 			return new RateLimitDecision(false, rule.label(), rule.limit(), 0, blockedTtl, blockedTtl);
 		}
 
-		Long used = redisTemplate.opsForValue().increment(counterKey);
+		Long used = redis.opsForValue().increment(countKey);
 		if (used != null && used == 1L) {
-			redisTemplate.expire(counterKey, windowSeconds + 1, TimeUnit.SECONDS);
+			redis.expire(countKey, window + 1, TimeUnit.SECONDS);
 		}
 
-		long resetAfter = secondsUntilReset(counterKey, windowStart, windowSeconds, nowSeconds);
 		long usedCount = used == null ? 0 : used;
-
+		long reset = resetSeconds(countKey, windowStart, window, now);
 		if (usedCount > rule.limit()) {
-			redisTemplate.opsForValue().set(blockKey, "1", retryAfterSeconds, TimeUnit.SECONDS);
-			redisTemplate.delete(counterKey);
-			return new RateLimitDecision(false, rule.label(), rule.limit(), 0, retryAfterSeconds, retryAfterSeconds);
+			long retry = Math.max(1, rule.retryAfterSeconds());
+			redis.opsForValue().set(blockKey, "1", retry, TimeUnit.SECONDS);
+			redis.delete(countKey);
+			return new RateLimitDecision(false, rule.label(), rule.limit(), 0, retry, retry);
 		}
-
-		int remaining = Math.max(0, rule.limit() - Math.toIntExact(usedCount));
-		return new RateLimitDecision(true, rule.label(), rule.limit(), remaining, 0, resetAfter);
+		int remaining = Math.max(0, rule.limit() - (int) Math.min(Integer.MAX_VALUE, usedCount));
+		return new RateLimitDecision(true, rule.label(), rule.limit(), remaining, 0, reset);
 	}
 
-	private long secondsUntilReset(String counterKey, long windowStart, long windowSeconds, long nowSeconds) {
-		Long ttl = redisTemplate.getExpire(counterKey, TimeUnit.SECONDS);
-		if (ttl != null && ttl > 0) {
-			return ttl;
-		}
-		return Math.max(1, windowStart + windowSeconds - nowSeconds);
+	private long resetSeconds(String countKey, long windowStart, long window, long now) {
+		Long ttl = redis.getExpire(countKey, TimeUnit.SECONDS);
+		return ttl != null && ttl > 0 ? ttl : Math.max(1, windowStart + window - now);
 	}
 
-	private RateLimitDecision checkInMemory(String key, RateLimitRule rule) {
+	private RateLimitDecision checkMemory(String key, RateLimitRule rule) {
 		Instant now = clock.instant();
 		BucketState state = buckets.computeIfAbsent(key, ignored -> new BucketState(now));
-
 		synchronized (state) {
 			state.refresh(now, rule);
-
 			if (state.blockedUntil != null && state.blockedUntil.isAfter(now)) {
 				return blockedDecision(state, rule, now);
 			}
-
 			if (state.used >= rule.limit()) {
 				state.blockedUntil = now.plusSeconds(rule.retryAfterSeconds());
 				state.used = 0;
 				state.windowStart = state.blockedUntil;
 				return blockedDecision(state, rule, now);
 			}
-
 			state.used++;
-			return new RateLimitDecision(
-					true,
-					rule.label(),
-					rule.limit(),
-					Math.max(0, rule.limit() - state.used),
-					0,
-					resetAfterSeconds(state, rule, now));
+			return new RateLimitDecision(true, rule.label(), rule.limit(), Math.max(0, rule.limit() - state.used), 0, resetAfterSeconds(state, rule, now));
 		}
 	}
 
 	private RateLimitDecision blockedDecision(BucketState state, RateLimitRule rule, Instant now) {
-		long retryAfterSeconds = Math.max(1, Duration.between(now, state.blockedUntil).toSeconds());
-		return new RateLimitDecision(
-				false,
-				rule.label(),
-				rule.limit(),
-				0,
-				retryAfterSeconds,
-				retryAfterSeconds);
+		long retry = Math.max(1, Duration.between(now, state.blockedUntil).toSeconds());
+		return new RateLimitDecision(false, rule.label(), rule.limit(), 0, retry, retry);
 	}
 
 	private long resetAfterSeconds(BucketState state, RateLimitRule rule, Instant now) {
@@ -185,7 +157,6 @@ public class RateLimitService {
 	}
 
 	private static class BucketState {
-
 		private Instant windowStart;
 		private Instant blockedUntil;
 		private int used;
@@ -201,9 +172,7 @@ public class RateLimitService {
 				used = 0;
 				return;
 			}
-
-			long elapsedSeconds = Duration.between(windowStart, now).toSeconds();
-			if (elapsedSeconds >= rule.windowSeconds()) {
+			if (Duration.between(windowStart, now).toSeconds() >= rule.windowSeconds()) {
 				windowStart = now;
 				used = 0;
 			}
