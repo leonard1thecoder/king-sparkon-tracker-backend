@@ -1,6 +1,7 @@
 name: Backend Docker CI
 
 on:
+  workflow_dispatch:
   pull_request:
   push:
     branches: [ main ]
