@@ -12,10 +12,19 @@ jobs:
       - uses: actions/checkout@v4
         with:
           show-progress: false
+
       - name: Create Docker CI env file
         shell: bash
+        env:
+          APP_ENV: ${{ secrets.APP_ENV }}
         run: |
-          cat > .env.ci <<'EOF'
+          set -euo pipefail
+
+          if [ -n "${APP_ENV:-}" ]; then
+            printf '%s\n' "$APP_ENV" > .env.ci
+            echo "Using APP_ENV from GitHub Actions secrets."
+          else
+            cat > .env.ci <<'EOF'
           SPRING_PROFILES_ACTIVE=test
           APP_JWT_SECRET=ci-local-jwt-secret-must-be-at-least-32-characters
           APP_FRONTEND_BASE_URL=http://localhost:3000
@@ -32,6 +41,9 @@ jobs:
           SPRING_DATA_REDIS_HOST=localhost
           SPRING_DATA_REDIS_PORT=6379
           EOF
+            echo "Using fallback CI env values because APP_ENV secret is not configured."
+          fi
+
       - name: Build backend Docker image
         shell: bash
         env:
@@ -45,11 +57,13 @@ jobs:
             tail -n 120 docker-build.log
           fi
           exit "$status"
+
       - name: Upload Docker build log
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: backend-docker-build-log
           path: docker-build.log
+
       - name: Inspect backend Docker image
         run: docker image inspect king-sparkon-tracker-backend:${{ github.sha }}
