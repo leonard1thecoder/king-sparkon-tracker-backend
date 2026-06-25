@@ -8,13 +8,7 @@ COPY .mvn .mvn
 COPY scripts scripts
 COPY src src
 
-RUN --mount=type=secret,id=app_env,required=false \
-    if [ -f /run/secrets/app_env ]; then \
-      set -a; \
-      . /run/secrets/app_env; \
-      set +a; \
-    fi; \
-    bash scripts/full-maven-scan.sh
+RUN bash scripts/full-maven-scan.sh
 
 FROM eclipse-temurin:25-jdk
 
