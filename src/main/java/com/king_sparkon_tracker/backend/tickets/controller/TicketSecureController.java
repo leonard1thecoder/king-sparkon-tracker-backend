@@ -2,9 +2,9 @@ package com.king_sparkon_tracker.backend.tickets.controller;
 
 import com.king_sparkon_tracker.backend.tickets.dto.TicketDtos.PurchaseTicketsRequest;
 import com.king_sparkon_tracker.backend.tickets.dto.TicketDtos.TicketPurchaseResponse;
-import com.king_sparkon_tracker.backend.tickets.dto.TicketDtos.UserTicketResponse;
 import com.king_sparkon_tracker.backend.tickets.security.TicketSecurityContext;
 import com.king_sparkon_tracker.backend.tickets.service.TicketManagementService;
+import com.king_sparkon_tracker.backend.tickets.service.UserTicketResponse;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.http.HttpStatus;
