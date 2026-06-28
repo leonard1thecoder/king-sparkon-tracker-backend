@@ -20,8 +20,8 @@ public class TicketStripeCheckoutService {
 
     public TicketStripeCheckoutService(
             @Value("${stripe.api-key:}") String stripeSecretKey,
-            @Value("${stripe.publishable-key:}") String stripePublishableKey,
-            @Value("${app.tickets.checkout-success-url:http://localhost:3000/tickets/my-tickets?stripe=success&session_id={CHECKOUT_SESSION_ID}}") String successUrl,
+            @Value("${stripe.publishable-key:${STRIPE_PUBLISHABLE_KEY:}}") String stripePublishableKey,
+            @Value("${app.tickets.checkout-success-url:http://localhost:3000/tickets/my-tickets?stripe=success}") String successUrl,
             @Value("${app.tickets.checkout-cancel-url:http://localhost:3000/tickets?stripe=cancelled}") String cancelUrl
     ) {
         this.stripeSecretKey = stripeSecretKey;
