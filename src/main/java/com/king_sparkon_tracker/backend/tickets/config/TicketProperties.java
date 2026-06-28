@@ -2,7 +2,9 @@ package com.king_sparkon_tracker.backend.tickets.config;
 
 import java.math.BigDecimal;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.stereotype.Component;
 
+@Component
 @ConfigurationProperties(prefix = "app.tickets")
 public record TicketProperties(
         BigDecimal withdrawalFeePercent,
