@@ -50,7 +50,7 @@ data:
   PAYPAL_CANCEL_URL: "https://YOUR_FRONTEND_DOMAIN/billing/cancel"
 
   STRIPE_SUCCESS_URL: "https://YOUR_FRONTEND_DOMAIN/dashboard/owner?billing=stripe-success"
-  STRIPE_CANCEL_URL: "https://YOUR_FRONTEND_DOMAIN?billing=stripe-cancelled"
+  STRIPE_CANCEL_URL: "https://YOUR_FRONTEND_DOMAIN/dashboard/owner?billing=stripe-cancelled"
 
   APP_MAIL_ENABLED: "true"
   APP_MAIL_FROM: "no-reply@kingsparkon-tracker.com"
