@@ -39,6 +39,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Validate Kubernetes and GitHub Actions env wiring
+        shell: bash
+        run: bash scripts/validate-k8s-env.sh
+
       - name: Validate required GitHub variables
         shell: bash
         run: |
