@@ -31,27 +31,23 @@ public interface SubscriberRepository extends JpaRepository<Subscriber, Long> {
 
 	List<Subscriber> findTop200ByActiveTrueAndContactTypeAndLastNotifiedAtIsNullOrActiveTrueAndContactTypeAndLastNotifiedAtBeforeOrderByCreatedDateAsc(
 			SubscriberContactType firstContactType,
-			OffsetDateTime cutoff,
 			SubscriberContactType secondContactType,
-			OffsetDateTime secondCutoff);
+			OffsetDateTime cutoff);
 
 	List<Subscriber> findTop200ByActiveTrueAndSubscriberTypeAndAffiliateRegisteredAndLastNotifiedAtIsNullOrActiveTrueAndSubscriberTypeAndAffiliateRegisteredAndLastNotifiedAtBeforeOrderByCreatedDateAsc(
 			SubscriberType firstSubscriberType,
 			boolean firstAffiliateRegistered,
-			OffsetDateTime cutoff,
 			SubscriberType secondSubscriberType,
 			boolean secondAffiliateRegistered,
-			OffsetDateTime secondCutoff);
+			OffsetDateTime cutoff);
 
 	List<Subscriber> findTop200ByActiveTrueAndAffiliateRegisteredAndLastNotifiedAtIsNullOrActiveTrueAndAffiliateRegisteredAndLastNotifiedAtBeforeOrderByCreatedDateAsc(
 			boolean firstAffiliateRegistered,
-			OffsetDateTime cutoff,
 			boolean secondAffiliateRegistered,
-			OffsetDateTime secondCutoff);
+			OffsetDateTime cutoff);
 
 	List<Subscriber> findTop200ByActiveTrueAndPreferredChannelAndLastNotifiedAtIsNullOrActiveTrueAndPreferredChannelAndLastNotifiedAtBeforeOrderByCreatedDateAsc(
 			PromotionChannel firstPreferredChannel,
-			OffsetDateTime cutoff,
 			PromotionChannel secondPreferredChannel,
-			OffsetDateTime secondCutoff);
+			OffsetDateTime cutoff);
 }
