@@ -28,6 +28,8 @@ env:
   IMAGE_NAME: ${{ vars.IMAGE_NAME || 'king-sparkon-tracker-backend' }}
   K8S_NAMESPACE: ${{ vars.K8S_NAMESPACE || 'king-sparkon' }}
   FRONTEND_DOMAIN: ${{ vars.FRONTEND_DOMAIN }}
+  WIF_PROVIDER: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+  CD_SERVICE_ACCOUNT: ${{ vars.GCP_SERVICE_ACCOUNT_EMAIL }}
 
 jobs:
   deploy:
@@ -49,20 +51,20 @@ jobs:
           set -euo pipefail
           missing=0
 
-          for name in PROJECT_ID; do
+          for name in PROJECT_ID WIF_PROVIDER CD_SERVICE_ACCOUNT; do
             if [ -z "${!name:-}" ]; then
               echo "::error::$name is required. Add it as a GitHub Actions repository variable."
               missing=1
             fi
           done
 
-          if [ -z "${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}" ]; then
-            echo "::error::GCP_WORKLOAD_IDENTITY_PROVIDER is required. Add it as a GitHub Actions repository variable."
+          if [[ "${WIF_PROVIDER:-}" == *PROJECT_NUMBER* || "${WIF_PROVIDER:-}" == *PROJECT_ID* ]]; then
+            echo "::error::GCP_WORKLOAD_IDENTITY_PROVIDER contains a placeholder. Replace it with the real Google Cloud provider resource name."
             missing=1
           fi
 
-          if [ -z "${{ vars.GCP_SERVICE_ACCOUNT_EMAIL }}" ]; then
-            echo "::error::GCP_SERVICE_ACCOUNT_EMAIL is required. Add it as a GitHub Actions repository variable."
+          if [[ ! "${WIF_PROVIDER:-}" =~ ^projects/[0-9]+/locations/global/workloadIdentityPools/[^/]+/providers/[^/]+$ ]]; then
+            echo "::error::GCP_WORKLOAD_IDENTITY_PROVIDER must look like projects/<numeric-project-number>/locations/global/workloadIdentityPools/<pool>/providers/<provider>."
             missing=1
           fi
 
@@ -75,8 +77,8 @@ jobs:
         uses: google-github-actions/auth@v3
         with:
           project_id: ${{ env.PROJECT_ID }}
-          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ vars.GCP_SERVICE_ACCOUNT_EMAIL }}
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.CD_SERVICE_ACCOUNT }}
 
       - name: Set up Google Cloud SDK
         uses: google-github-actions/setup-gcloud@v3
