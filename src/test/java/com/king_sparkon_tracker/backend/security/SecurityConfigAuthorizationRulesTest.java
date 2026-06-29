@@ -27,4 +27,46 @@ class SecurityConfigAuthorizationRulesTest {
 		assertThat(subscriberRule).isGreaterThanOrEqualTo(0);
 		assertThat(fallbackRule).isGreaterThan(subscriberRule);
 	}
+
+	@Test
+	void adminRegistrationIsProtectedByDefault() throws Exception {
+		String source = Files.readString(Path.of("src/main/java/com/king_sparkon_tracker/backend/security/SecurityConfig.java"));
+		String properties = Files.readString(Path.of("src/main/resources/application.properties"));
+
+		assertThat(properties).contains("app.security.public-admin-registration-enabled=${PUBLIC_ADMIN_REGISTRATION_ENABLED:false}");
+		assertThat(source).contains("@Value(\"${app.security.public-admin-registration-enabled:false}\") boolean publicAdminRegistrationEnabled");
+		assertThat(source).contains("authorize.requestMatchers(HttpMethod.POST, REGISTER_ADMIN_PATH).hasAuthority(adminAuthority)");
+	}
+
+	@Test
+	void userDashboardAndPublicTicketsHaveExplicitRules() throws Exception {
+		String source = Files.readString(Path.of("src/main/java/com/king_sparkon_tracker/backend/security/SecurityConfig.java"));
+
+		assertThat(source).contains(".requestMatchers(HttpMethod.GET, \"/api/v1/tickets/events\", \"/api/v1/tickets/events/**\").permitAll()");
+		assertThat(source).contains(".requestMatchers(\"/api/user-dashboard\", \"/api/user-dashboard/**\").authenticated()");
+		assertThat(source).contains(".requestMatchers(HttpMethod.POST, \"/api/v1/tickets/verify\").hasAuthority(workerAuthority)");
+	}
+
+	@Test
+	void businessAccessFilterOnlyRequiresBusinessForBusinessScopedRoles() throws Exception {
+		String source = Files.readString(Path.of("src/main/java/com/king_sparkon_tracker/backend/security/BusinessAccessFilter.java"));
+
+		assertThat(source).contains("BUSINESS_SCOPED_AUTHORITIES");
+		assertThat(source).contains("PrivilegeRole.Owner.name()");
+		assertThat(source).contains("PrivilegeRole.Worker.name()");
+		assertThat(source).contains("PrivilegeRole.Affiliate.name()");
+		assertThat(source).doesNotContain("PrivilegeRole.User.name()");
+		assertThat(source).contains("/api/stripe/webhooks");
+	}
+
+	@Test
+	void rateLimitCoversAuthAndExcludesWebhooks() throws Exception {
+		String source = Files.readString(Path.of("src/main/java/com/king_sparkon_tracker/backend/security/RateLimitingFilter.java"));
+		String properties = Files.readString(Path.of("src/main/resources/application.properties"));
+
+		assertThat(source).contains("/api/auth/register-admin");
+		assertThat(source).contains("/api/stripe/webhooks");
+		assertThat(source).contains("normalizedPath(request)");
+		assertThat(properties).contains("app.rate-limit.backend=${RATE_LIMIT_BACKEND:memory}");
+	}
 }
