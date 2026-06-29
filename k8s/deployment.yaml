@@ -27,7 +27,7 @@ spec:
       containers:
         - name: backend
           image: africa-south1-docker.pkg.dev/PROJECT_ID/king-sparkon-tracker/king-sparkon-tracker-backend:latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           ports:
             - name: http
               containerPort: 8080
