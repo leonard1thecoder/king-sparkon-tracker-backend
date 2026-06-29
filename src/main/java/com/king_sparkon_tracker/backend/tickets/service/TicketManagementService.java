@@ -4,6 +4,8 @@ import com.king_sparkon_tracker.backend.model.Business;
 import com.king_sparkon_tracker.backend.model.BusinessAccountEntryType;
 import com.king_sparkon_tracker.backend.model.BusinessAccountLedgerEntry;
 import com.king_sparkon_tracker.backend.service.BusinessAccountService;
+import com.king_sparkon_tracker.backend.service.StripeService;
+import com.king_sparkon_tracker.backend.service.StripeService.CreatedTicketPaymentLink;
 import com.king_sparkon_tracker.backend.service.TrackerUserService;
 import com.king_sparkon_tracker.backend.tickets.config.TicketProperties;
 import com.king_sparkon_tracker.backend.tickets.domain.TicketBusinessRules;
@@ -65,7 +67,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class TicketManagementService {
 
     private static final Logger log = LoggerFactory.getLogger(TicketManagementService.class);
-    private static final String PAYMENT_PROVIDER_PLACEHOLDER = "STRIPE_PLACEHOLDER";
+    private static final String STRIPE_PROVIDER = "STRIPE";
 
     private final TicketEventRepository ticketEventRepository;
     private final EventTicketTypeRepository eventTicketTypeRepository;
@@ -76,6 +78,7 @@ public class TicketManagementService {
     private final TicketEventBoostRepository ticketEventBoostRepository;
     private final BusinessAccountService businessAccountService;
     private final TrackerUserService trackerUserService;
+    private final StripeService stripeService;
     private final TicketProperties ticketProperties;
 
     public TicketManagementService(
@@ -88,6 +91,7 @@ public class TicketManagementService {
             TicketEventBoostRepository ticketEventBoostRepository,
             BusinessAccountService businessAccountService,
             TrackerUserService trackerUserService,
+            StripeService stripeService,
             TicketProperties ticketProperties
     ) {
         this.ticketEventRepository = ticketEventRepository;
@@ -99,6 +103,7 @@ public class TicketManagementService {
         this.ticketEventBoostRepository = ticketEventBoostRepository;
         this.businessAccountService = businessAccountService;
         this.trackerUserService = trackerUserService;
+        this.stripeService = stripeService;
         this.ticketProperties = ticketProperties;
     }
 
@@ -198,10 +203,13 @@ public class TicketManagementService {
         payment.setSubtotalAmount(subtotal);
         payment.setCheckoutServiceFeeAmount(checkoutFee);
         payment.setTotalAmount(total);
-        payment.setStatus(TicketPaymentStatus.SUCCESS);
-        payment.setPaymentProvider(PAYMENT_PROVIDER_PLACEHOLDER);
-        payment.setPaymentReference("KST-PAY-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase());
+        payment.setStatus(TicketPaymentStatus.PENDING);
+        payment.setPaymentProvider(STRIPE_PROVIDER);
+        payment.setPaymentReference("PENDING");
         TicketPayment savedPayment = ticketPaymentRepository.save(payment);
+        CreatedTicketPaymentLink paymentLink = stripeService.createTicketPaymentLink(savedPayment, event, request.callbackUrl());
+        savedPayment.setPaymentReference(paymentLink.stripeId());
+        savedPayment = ticketPaymentRepository.save(savedPayment);
 
         List<UserTicket> createdTickets = new ArrayList<>();
         for (int index = 0; index < request.quantity(); index++) {
@@ -223,11 +231,11 @@ public class TicketManagementService {
         ticketType.setAvailable(TicketBusinessRules.calculateAvailable(ticketType.getCapacity(), ticketType.getSold()));
         eventTicketTypeRepository.save(ticketType);
 
-        audit(event.getOwnerId(), event.getId(), null, request.userId(), "TICKETS_PURCHASED", TicketAuditLevel.INFO,
-                request.quantity() + " " + request.ticketType() + " ticket(s) purchased for " + event.getName());
-        log.info("ticket_purchase_success eventId={} userId={} ticketType={} quantity={} total={}", event.getId(), request.userId(), request.ticketType(), request.quantity(), total);
+        audit(event.getOwnerId(), event.getId(), null, request.userId(), "TICKETS_CHECKOUT_CREATED", TicketAuditLevel.INFO,
+                request.quantity() + " " + request.ticketType() + " ticket checkout created for " + event.getName());
+        log.info("ticket_checkout_created eventId={} userId={} ticketType={} quantity={} total={} stripePaymentLink={}", event.getId(), request.userId(), request.ticketType(), request.quantity(), total, paymentLink.stripeId());
 
-        return new TicketPurchaseResponse(toPaymentResponse(savedPayment), createdTickets.stream().map(this::toUserTicketResponse).toList());
+        return new TicketPurchaseResponse(toPaymentResponse(savedPayment, paymentLink.paymentUrl(), paymentLink.qrCodeUrl()), createdTickets.stream().map(this::toUserTicketResponse).toList());
     }
 
     public TicketEventPromotionResponse promoteEvent(String eventId, PromoteTicketEventRequest request, String actorUsername) {
@@ -476,7 +484,11 @@ public class TicketManagementService {
     }
 
     private TicketPaymentResponse toPaymentResponse(TicketPayment payment) {
-        return new TicketPaymentResponse(payment.getId(), payment.getEventId(), payment.getUserId(), payment.getTicketType(), payment.getQuantity(), payment.getSubtotalAmount(), payment.getCheckoutServiceFeeAmount(), payment.getTotalAmount(), payment.getStatus(), payment.getPaymentProvider(), payment.getPaymentReference(), payment.getCreatedAt());
+        return toPaymentResponse(payment, null, null);
+    }
+
+    private TicketPaymentResponse toPaymentResponse(TicketPayment payment, String paymentUrl, String qrCodeUrl) {
+        return new TicketPaymentResponse(payment.getId(), payment.getEventId(), payment.getUserId(), payment.getTicketType(), payment.getQuantity(), payment.getSubtotalAmount(), payment.getCheckoutServiceFeeAmount(), payment.getTotalAmount(), payment.getStatus(), payment.getPaymentProvider(), payment.getPaymentReference(), paymentUrl, qrCodeUrl, payment.getCreatedAt());
     }
 
     private TicketWithdrawalResponse toWithdrawalResponse(TicketWithdrawal withdrawal) {
