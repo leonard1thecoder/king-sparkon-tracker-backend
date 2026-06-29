@@ -33,6 +33,8 @@ public class BusinessAccessFilter extends OncePerRequestFilter {
 			"/api/health",
 			"/ready",
 			"/api/ready",
+			"/actuator/health",
+			"/actuator/info",
 			"/api/auth",
 			"/api/contact-inquiries",
 			"/api/subscribers",
