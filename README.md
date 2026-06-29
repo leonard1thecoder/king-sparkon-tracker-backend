@@ -4,7 +4,7 @@ Spring Boot backend for King Sparkon Tracker: barcode inventory, business tenant
 
 This backend is designed for Google Cloud Run with PostgreSQL, Flyway, JWT sessions, Redis-compatible caching/rate limiting, Stripe payment links, PayPal billing/payout support, email, WhatsApp notifications, Actuator metrics, Prometheus, Grafana, and Docker CI.
 
-> Payment note: this system uses Stripe-backed payment links for tips, ticket checkout, business account top-ups, and website transactions. Google Pay placeholders were removed because Google Pay is not part of the current implementation scope.
+> Payment note: this system uses Stripe-backed payment links for tips, ticket checkout, business account top-ups, and website transactions. Unsupported wallet placeholders were removed because they are not part of the current implementation scope.
 
 ## Key Features Added
 
