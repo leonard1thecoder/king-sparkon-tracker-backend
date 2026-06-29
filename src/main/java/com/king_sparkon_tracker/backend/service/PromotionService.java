@@ -14,6 +14,7 @@ import org.springframework.util.StringUtils;
 import com.king_sparkon_tracker.backend.dto.CreatePromotionRequest;
 import com.king_sparkon_tracker.backend.dto.PromotionPriceQuoteResponse;
 import com.king_sparkon_tracker.backend.model.Business;
+import com.king_sparkon_tracker.backend.model.BusinessAccountEntryType;
 import com.king_sparkon_tracker.backend.model.PrivilegeRole;
 import com.king_sparkon_tracker.backend.model.Promotion;
 import com.king_sparkon_tracker.backend.model.PromotionAudience;
@@ -41,6 +42,7 @@ public class PromotionService {
 	private final SubscriberRepository subscriberRepository;
 	private final TrackerUserService trackerUserService;
 	private final PromotionPricingService pricingService;
+	private final BusinessAccountService businessAccountService;
 	private final AppEmailService appEmailService;
 	private final TwilioWhatsAppService whatsAppService;
 
@@ -50,6 +52,7 @@ public class PromotionService {
 			SubscriberRepository subscriberRepository,
 			TrackerUserService trackerUserService,
 			PromotionPricingService pricingService,
+			BusinessAccountService businessAccountService,
 			AppEmailService appEmailService,
 			TwilioWhatsAppService whatsAppService) {
 		this.promotionRepository = promotionRepository;
@@ -57,6 +60,7 @@ public class PromotionService {
 		this.subscriberRepository = subscriberRepository;
 		this.trackerUserService = trackerUserService;
 		this.pricingService = pricingService;
+		this.businessAccountService = businessAccountService;
 		this.appEmailService = appEmailService;
 		this.whatsAppService = whatsAppService;
 	}
@@ -95,12 +99,24 @@ public class PromotionService {
 			PromotionOrigin origin,
 			PromotionAudience audience,
 			String createdBy) {
+		String title = normalizeRequired(request.title(), "Promotion title is required");
+		String message = normalizeRequired(request.message(), "Promotion message is required");
 		int targetCount = targetCountFor(audience);
 		PromotionPriceQuoteResponse quote = pricingService.quote(targetCount);
+
+		if (business != null) {
+			businessAccountService.debitPromotion(
+					business,
+					quote.totalPrice(),
+					BusinessAccountEntryType.PROMOTION_DEBIT,
+					"Promotion campaign: " + title,
+					createdBy);
+		}
+
 		Promotion promotion = new Promotion(
 				business,
-				normalizeRequired(request.title(), "Promotion title is required"),
-				normalizeRequired(request.message(), "Promotion message is required"),
+				title,
+				message,
 				normalizeOptional(request.landingUrl()),
 				origin,
 				request.channel() == null ? PromotionChannel.ANY : request.channel(),
@@ -259,33 +275,21 @@ public class PromotionService {
 	}
 
 	private PromotionChannel resolveChannel(Promotion promotion, Subscriber subscriber) {
-		if (promotion.getChannel() != PromotionChannel.ANY) {
-			return promotion.getChannel();
+		if (promotion.getChannel() == PromotionChannel.EMAIL) {
+			return PromotionChannel.EMAIL;
 		}
-		if (subscriber.getPreferredChannel() != PromotionChannel.ANY) {
-			return subscriber.getPreferredChannel();
+		if (promotion.getChannel() == PromotionChannel.WHATSAPP) {
+			return PromotionChannel.WHATSAPP;
 		}
 		return subscriber.getContactType() == SubscriberContactType.EMAIL ? PromotionChannel.EMAIL : PromotionChannel.WHATSAPP;
 	}
 
 	private boolean sendPromotion(PromotionChannel channel, Subscriber subscriber, Promotion promotion) {
+		String landingUrl = promotion.getLandingUrl();
 		if (channel == PromotionChannel.EMAIL) {
-			return appEmailService.sendPromotionEmail(subscriber.getContactValue(), promotion);
+			return appEmailService.sendPromotionEmail(subscriber.getContact(), promotion.getTitle(), promotion.getMessage(), landingUrl);
 		}
-		if (channel == PromotionChannel.WHATSAPP) {
-			return whatsAppService.sendPromotion(subscriber.getContactValue(), whatsAppMessage(promotion));
-		}
-		return false;
-	}
-
-	private String whatsAppMessage(Promotion promotion) {
-		StringBuilder builder = new StringBuilder();
-		builder.append(promotion.getTitle()).append("\n\n").append(promotion.getMessage());
-		if (StringUtils.hasText(promotion.getLandingUrl())) {
-			builder.append("\n\n").append(promotion.getLandingUrl());
-		}
-		builder.append("\n\nYou will not receive more than one King Sparkon promotion every 2 days.");
-		return builder.toString();
+		return whatsAppService.sendPromotion(subscriber.getContact(), promotion.getTitle(), promotion.getMessage(), landingUrl);
 	}
 
 	private String normalizeRequired(String value, String message) {
