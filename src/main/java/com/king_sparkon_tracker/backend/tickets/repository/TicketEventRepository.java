@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface TicketEventRepository extends JpaRepository<TicketEvent, String> {
     List<TicketEvent> findByStatusInAndEventDateGreaterThanEqualOrderByEventDateAscEventTimeAsc(Collection<TicketEventStatus> statuses, LocalDate date);
     List<TicketEvent> findByOwnerIdOrderByUpdatedAtDesc(String ownerId);
+    List<TicketEvent> findByOwnerIdAndStatusInAndEventDateGreaterThanEqualOrderByEventDateAscEventTimeAsc(String ownerId, Collection<TicketEventStatus> statuses, LocalDate date);
     long countByOwnerId(String ownerId);
     long countByOwnerIdAndStatusAndEventDateGreaterThanEqual(String ownerId, TicketEventStatus status, LocalDate date);
 }
