@@ -19,4 +19,7 @@ public record CompleteOnboardingRequest(
 		@Size(max = 2048)
 		String profilePictureUrl
 ) {
+	public CompleteOnboardingRequest(String physicalAddress, String cellphoneNumber) {
+		this(physicalAddress, cellphoneNumber, null);
+	}
 }
