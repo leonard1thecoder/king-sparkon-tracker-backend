@@ -110,7 +110,7 @@ class UserDashboardServiceTest {
 				new BigDecimal("50.00"),
 				BigDecimal.ZERO,
 				new BigDecimal("50.00"),
-				TipStatus.CREATED,
+				TipStatus.UNPAID,
 				"plink_123",
 				"https://stripe.example.com/pay/plink_123",
 				"https://qr.example.com/plink_123",
