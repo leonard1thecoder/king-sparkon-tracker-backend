@@ -1,11 +1,14 @@
 package com.king_sparkon_tracker.backend.tickets.model;
 
 import jakarta.persistence.CascadeType;
+import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
+import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
@@ -44,6 +47,19 @@ public class TicketEvent {
 
     @Column(length = 1024)
     private String bannerUrl;
+
+    @Column(length = 2048)
+    private String posterPhotoUrl;
+
+    @ElementCollection
+    @CollectionTable(name = "ticket_event_workers", joinColumns = @JoinColumn(name = "event_id"))
+    @Column(name = "worker_id", length = 64)
+    private List<String> workerIds = new ArrayList<>();
+
+    @ElementCollection
+    @CollectionTable(name = "ticket_event_affiliates", joinColumns = @JoinColumn(name = "event_id"))
+    @Column(name = "affiliate_id", length = 64)
+    private List<String> affiliateIds = new ArrayList<>();
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 24)
@@ -137,6 +153,30 @@ public class TicketEvent {
 
     public void setBannerUrl(String bannerUrl) {
         this.bannerUrl = bannerUrl;
+    }
+
+    public String getPosterPhotoUrl() {
+        return posterPhotoUrl;
+    }
+
+    public void setPosterPhotoUrl(String posterPhotoUrl) {
+        this.posterPhotoUrl = posterPhotoUrl;
+    }
+
+    public List<String> getWorkerIds() {
+        return workerIds;
+    }
+
+    public void setWorkerIds(List<String> workerIds) {
+        this.workerIds = workerIds == null ? new ArrayList<>() : new ArrayList<>(workerIds);
+    }
+
+    public List<String> getAffiliateIds() {
+        return affiliateIds;
+    }
+
+    public void setAffiliateIds(List<String> affiliateIds) {
+        this.affiliateIds = affiliateIds == null ? new ArrayList<>() : new ArrayList<>(affiliateIds);
     }
 
     public TicketEventStatus getStatus() {
