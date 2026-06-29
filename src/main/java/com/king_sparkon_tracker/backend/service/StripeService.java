@@ -12,6 +12,8 @@ import org.springframework.stereotype.Service;
 import com.king_sparkon_tracker.backend.model.Business;
 import com.king_sparkon_tracker.backend.model.InventoryTransaction;
 import com.king_sparkon_tracker.backend.model.Tip;
+import com.king_sparkon_tracker.backend.tickets.model.TicketEvent;
+import com.king_sparkon_tracker.backend.tickets.model.TicketPayment;
 import com.stripe.exception.StripeException;
 import com.stripe.model.PaymentLink;
 import com.stripe.net.RequestOptions;
@@ -90,6 +92,26 @@ public class StripeService {
 			return new CreatedBusinessTopUpPaymentLink(paymentLink.getId(), paymentLink.getUrl(), qrCodeUrl(paymentLink.getUrl()));
 		} catch (StripeException exception) {
 			throw new IllegalStateException("Stripe business account top-up link creation failed", exception);
+		}
+	}
+
+	public CreatedTicketPaymentLink createTicketPaymentLink(TicketPayment payment, TicketEvent event, String callbackUrl) {
+		requireApiKey();
+
+		try {
+			PaymentLink paymentLink = PaymentLink.create(
+					ticketPaymentLinkParams(payment, event, callbackUrl),
+					RequestOptions.builder()
+							.setApiKey(apiKey)
+							.build());
+
+			if (paymentLink.getId() == null || paymentLink.getUrl() == null) {
+				throw new IllegalStateException("Stripe ticket payment link creation failed");
+			}
+
+			return new CreatedTicketPaymentLink(paymentLink.getId(), paymentLink.getUrl(), qrCodeUrl(paymentLink.getUrl()));
+		} catch (StripeException exception) {
+			throw new IllegalStateException("Stripe ticket payment link creation failed", exception);
 		}
 	}
 
@@ -202,6 +224,47 @@ public class StripeService {
 		return builder.build();
 	}
 
+	private PaymentLinkCreateParams ticketPaymentLinkParams(TicketPayment payment, TicketEvent event, String callbackUrl) {
+		if (payment.getTotalAmount().compareTo(BigDecimal.ZERO) <= 0) {
+			throw new IllegalArgumentException("Ticket payment total must be greater than zero");
+		}
+
+		Map<String, String> metadata = Map.of(
+				"ticketPaymentId", payment.getId(),
+				"eventId", payment.getEventId(),
+				"userId", payment.getUserId(),
+				"ticketType", payment.getTicketType().name(),
+				"quantity", String.valueOf(payment.getQuantity())
+		);
+
+		PaymentLinkCreateParams.Builder builder = PaymentLinkCreateParams.builder()
+				.putAllMetadata(metadata)
+				.setPaymentIntentData(PaymentLinkCreateParams.PaymentIntentData.builder()
+						.putAllMetadata(metadata)
+						.build())
+				.addLineItem(PaymentLinkCreateParams.LineItem.builder()
+						.setQuantity(1L)
+						.setPriceData(PaymentLinkCreateParams.LineItem.PriceData.builder()
+								.setCurrency("zar")
+								.setUnitAmount(unitAmountInCents(payment.getTotalAmount()))
+								.setProductData(PaymentLinkCreateParams.LineItem.PriceData.ProductData.builder()
+										.setName("King Sparkon ticket checkout - " + event.getName())
+										.build())
+								.build())
+						.build());
+
+		if (callbackUrl != null && !callbackUrl.isBlank()) {
+			builder.setAfterCompletion(PaymentLinkCreateParams.AfterCompletion.builder()
+					.setType(PaymentLinkCreateParams.AfterCompletion.Type.REDIRECT)
+					.setRedirect(PaymentLinkCreateParams.AfterCompletion.Redirect.builder()
+							.setUrl(callbackUrl.trim())
+							.build())
+					.build());
+		}
+
+		return builder.build();
+	}
+
 	private void requireApiKey() {
 		if (apiKey == null || apiKey.isBlank()) {
 			throw new IllegalStateException("Stripe API key is not configured");
@@ -236,6 +299,13 @@ public class StripeService {
 	}
 
 	public record CreatedBusinessTopUpPaymentLink(
+			String stripeId,
+			String paymentUrl,
+			String qrCodeUrl
+	) {
+	}
+
+	public record CreatedTicketPaymentLink(
 			String stripeId,
 			String paymentUrl,
 			String qrCodeUrl
