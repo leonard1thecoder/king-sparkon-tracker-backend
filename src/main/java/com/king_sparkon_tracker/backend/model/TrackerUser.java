@@ -67,6 +67,9 @@ public class TrackerUser {
 	@Column(name = "cellphone_number", length = 32)
 	private String cellphoneNumber;
 
+	@Column(name = "profile_picture_url", length = 2048)
+	private String profilePictureUrl;
+
 	@Column(name = "job_title", length = 120)
 	private String jobTitle;
 
@@ -131,9 +134,20 @@ public class TrackerUser {
 	}
 
 	public void completeOnboarding(String physicalAddress, String cellphoneNumber) {
+		completeOnboarding(physicalAddress, cellphoneNumber, this.profilePictureUrl);
+	}
+
+	public void completeOnboarding(String physicalAddress, String cellphoneNumber, String profilePictureUrl) {
 		this.physicalAddress = physicalAddress;
 		this.cellphoneNumber = cellphoneNumber;
+		updateProfilePicture(profilePictureUrl);
 		this.onboardingCompleted = true;
+	}
+
+	public void updateProfilePicture(String profilePictureUrl) {
+		if (profilePictureUrl != null && !profilePictureUrl.isBlank()) {
+			this.profilePictureUrl = profilePictureUrl.trim();
+		}
 	}
 
 	public void updateWorkerProfile(String jobTitle, boolean tipQrCodeEnabled) {
@@ -158,7 +172,11 @@ public class TrackerUser {
 	}
 
 	public void completeAffiliateOnboarding(String physicalAddress, String cellphoneNumber, String paypalLink) {
-		completeOnboarding(physicalAddress, cellphoneNumber);
+		completeAffiliateOnboarding(physicalAddress, cellphoneNumber, paypalLink, this.profilePictureUrl);
+	}
+
+	public void completeAffiliateOnboarding(String physicalAddress, String cellphoneNumber, String paypalLink, String profilePictureUrl) {
+		completeOnboarding(physicalAddress, cellphoneNumber, profilePictureUrl);
 		this.affiliatePaypalLink = paypalLink;
 		this.onboardingCompleted = physicalAddress != null
 				&& !physicalAddress.isBlank()
@@ -276,6 +294,10 @@ public class TrackerUser {
 
 	public String getCellphoneNumber() {
 		return cellphoneNumber;
+	}
+
+	public String getProfilePictureUrl() {
+		return profilePictureUrl;
 	}
 
 	public String getJobTitle() {

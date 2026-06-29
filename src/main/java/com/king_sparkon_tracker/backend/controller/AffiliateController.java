@@ -23,6 +23,7 @@ import com.king_sparkon_tracker.backend.dto.TipResponse;
 import com.king_sparkon_tracker.backend.dto.WithdrawalEligibilityResponse;
 import com.king_sparkon_tracker.backend.dto.WithdrawalResponse;
 import com.king_sparkon_tracker.backend.service.AffiliateService;
+import com.king_sparkon_tracker.backend.service.OnboardingProfileService;
 import com.king_sparkon_tracker.backend.service.TipService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -38,24 +39,26 @@ public class AffiliateController {
 
 	private final AffiliateService affiliateService;
 	private final TipService tipService;
+	private final OnboardingProfileService onboardingProfileService;
 
-	public AffiliateController(AffiliateService affiliateService, TipService tipService) {
+	public AffiliateController(AffiliateService affiliateService, TipService tipService, OnboardingProfileService onboardingProfileService) {
 		this.affiliateService = affiliateService;
 		this.tipService = tipService;
+		this.onboardingProfileService = onboardingProfileService;
 	}
 
 	@GetMapping("/me")
-	@Operation(summary = "Current affiliate profile", description = "Returns affiliate profile, promotion link, and QR code URL.")
+	@Operation(summary = "Current affiliate profile", description = "Returns affiliate profile, promotion link, QR code URL, and profile picture.")
 	public AffiliateProfileResponse profile(Principal principal) {
 		return affiliateService.profile(principal.getName());
 	}
 
 	@PatchMapping("/me/onboarding")
-	@Operation(summary = "Complete affiliate onboarding", description = "Stores affiliate address, cellphone number, and PayPal payout link.")
+	@Operation(summary = "Complete affiliate onboarding", description = "Stores affiliate address, cellphone number, PayPal payout link, and optional profile picture.")
 	public AffiliateProfileResponse completeOnboarding(
 			@Valid @RequestBody AffiliateOnboardingRequest request,
 			Principal principal) {
-		return affiliateService.completeOnboarding(request, principal.getName());
+		return onboardingProfileService.completeAffiliateOnboarding(request, principal.getName());
 	}
 
 	@GetMapping("/me/commissions")

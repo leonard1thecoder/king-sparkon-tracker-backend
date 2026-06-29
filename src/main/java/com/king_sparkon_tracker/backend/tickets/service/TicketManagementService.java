@@ -1,13 +1,20 @@
 package com.king_sparkon_tracker.backend.tickets.service;
 
+import com.king_sparkon_tracker.backend.model.Business;
+import com.king_sparkon_tracker.backend.model.BusinessAccountEntryType;
+import com.king_sparkon_tracker.backend.model.BusinessAccountLedgerEntry;
+import com.king_sparkon_tracker.backend.service.BusinessAccountService;
+import com.king_sparkon_tracker.backend.service.TrackerUserService;
 import com.king_sparkon_tracker.backend.tickets.config.TicketProperties;
 import com.king_sparkon_tracker.backend.tickets.domain.TicketBusinessRules;
 import com.king_sparkon_tracker.backend.tickets.dto.TicketDtos.CreateEventRequest;
 import com.king_sparkon_tracker.backend.tickets.dto.TicketDtos.EventTicketTypeRequest;
 import com.king_sparkon_tracker.backend.tickets.dto.TicketDtos.EventTicketTypeResponse;
 import com.king_sparkon_tracker.backend.tickets.dto.TicketDtos.OwnerTicketDashboardResponse;
+import com.king_sparkon_tracker.backend.tickets.dto.TicketDtos.PromoteTicketEventRequest;
 import com.king_sparkon_tracker.backend.tickets.dto.TicketDtos.PurchaseTicketsRequest;
 import com.king_sparkon_tracker.backend.tickets.dto.TicketDtos.TicketAuditLogResponse;
+import com.king_sparkon_tracker.backend.tickets.dto.TicketDtos.TicketEventPromotionResponse;
 import com.king_sparkon_tracker.backend.tickets.dto.TicketDtos.TicketEventResponse;
 import com.king_sparkon_tracker.backend.tickets.dto.TicketDtos.TicketPaymentResponse;
 import com.king_sparkon_tracker.backend.tickets.dto.TicketDtos.TicketPurchaseResponse;
@@ -19,9 +26,11 @@ import com.king_sparkon_tracker.backend.tickets.model.EventTicketType;
 import com.king_sparkon_tracker.backend.tickets.model.TicketAuditLevel;
 import com.king_sparkon_tracker.backend.tickets.model.TicketAuditLog;
 import com.king_sparkon_tracker.backend.tickets.model.TicketEvent;
+import com.king_sparkon_tracker.backend.tickets.model.TicketEventPromotion;
 import com.king_sparkon_tracker.backend.tickets.model.TicketEventStatus;
 import com.king_sparkon_tracker.backend.tickets.model.TicketPayment;
 import com.king_sparkon_tracker.backend.tickets.model.TicketPaymentStatus;
+import com.king_sparkon_tracker.backend.tickets.model.TicketPromotionStatus;
 import com.king_sparkon_tracker.backend.tickets.model.TicketType;
 import com.king_sparkon_tracker.backend.tickets.model.TicketWithdrawal;
 import com.king_sparkon_tracker.backend.tickets.model.TicketWithdrawalStatus;
@@ -29,6 +38,7 @@ import com.king_sparkon_tracker.backend.tickets.model.UserTicket;
 import com.king_sparkon_tracker.backend.tickets.model.UserTicketStatus;
 import com.king_sparkon_tracker.backend.tickets.repository.EventTicketTypeRepository;
 import com.king_sparkon_tracker.backend.tickets.repository.TicketAuditLogRepository;
+import com.king_sparkon_tracker.backend.tickets.repository.TicketEventBoostRepository;
 import com.king_sparkon_tracker.backend.tickets.repository.TicketEventRepository;
 import com.king_sparkon_tracker.backend.tickets.repository.TicketPaymentRepository;
 import com.king_sparkon_tracker.backend.tickets.repository.TicketWithdrawalRepository;
@@ -63,6 +73,9 @@ public class TicketManagementService {
     private final TicketPaymentRepository ticketPaymentRepository;
     private final TicketWithdrawalRepository ticketWithdrawalRepository;
     private final TicketAuditLogRepository ticketAuditLogRepository;
+    private final TicketEventBoostRepository ticketEventBoostRepository;
+    private final BusinessAccountService businessAccountService;
+    private final TrackerUserService trackerUserService;
     private final TicketProperties ticketProperties;
 
     public TicketManagementService(
@@ -72,6 +85,9 @@ public class TicketManagementService {
             TicketPaymentRepository ticketPaymentRepository,
             TicketWithdrawalRepository ticketWithdrawalRepository,
             TicketAuditLogRepository ticketAuditLogRepository,
+            TicketEventBoostRepository ticketEventBoostRepository,
+            BusinessAccountService businessAccountService,
+            TrackerUserService trackerUserService,
             TicketProperties ticketProperties
     ) {
         this.ticketEventRepository = ticketEventRepository;
@@ -80,6 +96,9 @@ public class TicketManagementService {
         this.ticketPaymentRepository = ticketPaymentRepository;
         this.ticketWithdrawalRepository = ticketWithdrawalRepository;
         this.ticketAuditLogRepository = ticketAuditLogRepository;
+        this.ticketEventBoostRepository = ticketEventBoostRepository;
+        this.businessAccountService = businessAccountService;
+        this.trackerUserService = trackerUserService;
         this.ticketProperties = ticketProperties;
     }
 
@@ -108,6 +127,9 @@ public class TicketManagementService {
         event.setEventDate(request.eventDate());
         event.setEventTime(request.eventTime());
         event.setBannerUrl(blankToNull(request.bannerUrl()));
+        event.setPosterPhotoUrl(blankToNull(request.posterPhotoUrl()));
+        event.setWorkerIds(copyIds(request.workerIds()));
+        event.setAffiliateIds(copyIds(request.affiliateIds()));
         event.setStatus(request.status());
 
         request.ticketTypes().stream()
@@ -127,6 +149,9 @@ public class TicketManagementService {
         if (request.eventDate() != null) event.setEventDate(request.eventDate());
         if (request.eventTime() != null) event.setEventTime(request.eventTime());
         if (request.bannerUrl() != null) event.setBannerUrl(blankToNull(request.bannerUrl()));
+        if (request.posterPhotoUrl() != null) event.setPosterPhotoUrl(blankToNull(request.posterPhotoUrl()));
+        if (request.workerIds() != null) event.setWorkerIds(copyIds(request.workerIds()));
+        if (request.affiliateIds() != null) event.setAffiliateIds(copyIds(request.affiliateIds()));
         if (request.status() != null) event.setStatus(request.status());
 
         if (request.ticketTypes() != null && !request.ticketTypes().isEmpty()) {
@@ -203,6 +228,39 @@ public class TicketManagementService {
         log.info("ticket_purchase_success eventId={} userId={} ticketType={} quantity={} total={}", event.getId(), request.userId(), request.ticketType(), request.quantity(), total);
 
         return new TicketPurchaseResponse(toPaymentResponse(savedPayment), createdTickets.stream().map(this::toUserTicketResponse).toList());
+    }
+
+    public TicketEventPromotionResponse promoteEvent(String eventId, PromoteTicketEventRequest request, String actorUsername) {
+        TicketEvent event = findEvent(eventId);
+        Business business = trackerUserService.businessForActor(actorUsername);
+        requireOwnerControlsEvent(event, business);
+
+        BigDecimal amount = request.amount() == null ? ticketProperties.promotionPriceZar() : request.amount();
+        BusinessAccountLedgerEntry ledgerEntry = businessAccountService.debitPromotion(
+                business,
+                amount,
+                BusinessAccountEntryType.TICKET_PROMOTION_DEBIT,
+                "Ticket event boost: " + event.getName(),
+                actorUsername);
+
+        TicketEventPromotion promotion = new TicketEventPromotion();
+        promotion.setId(newId("ticket-event-boost"));
+        promotion.setEventId(event.getId());
+        promotion.setOwnerId(event.getOwnerId());
+        promotion.setAmount(TicketBusinessRules.money(amount));
+        promotion.setCurrency("ZAR");
+        promotion.setStatus(TicketPromotionStatus.ACTIVE);
+        promotion.setStartsAt(request.startsAt() == null ? Instant.now() : request.startsAt());
+        promotion.setEndsAt(request.endsAt());
+        promotion.setBusinessAccountEntryId(ledgerEntry.getId());
+        TicketEventPromotion saved = ticketEventBoostRepository.save(promotion);
+        audit(event.getOwnerId(), event.getId(), null, actorUsername, "TICKET_EVENT_BOOSTED", TicketAuditLevel.INFO, "Ticket event boosted from business account: " + amount);
+        return toPromotionResponse(saved);
+    }
+
+    @Transactional(readOnly = true)
+    public List<TicketEventPromotionResponse> getOwnerEventPromotions(String ownerId) {
+        return ticketEventBoostRepository.findByOwnerIdOrderByCreatedAtDesc(ownerId).stream().map(this::toPromotionResponse).toList();
     }
 
     @Transactional(readOnly = true)
@@ -321,6 +379,14 @@ public class TicketManagementService {
         }
     }
 
+    private void requireOwnerControlsEvent(TicketEvent event, Business business) {
+        String businessOwnerId = business.getOwner() == null || business.getOwner().getId() == null ? null : String.valueOf(business.getOwner().getId());
+        String businessOwnerUsername = business.getOwner() == null ? null : business.getOwner().getUsername();
+        if (!event.getOwnerId().equals(businessOwnerId) && !event.getOwnerId().equals(businessOwnerUsername)) {
+            throw new IllegalArgumentException("Ticket event does not belong to this business owner");
+        }
+    }
+
     private EventTicketType toTicketTypeEntity(String eventId, EventTicketTypeRequest request) {
         EventTicketType entity = new EventTicketType();
         entity.setId(eventId + "-" + request.type().name().toLowerCase());
@@ -356,6 +422,17 @@ public class TicketManagementService {
         return value == null || value.isBlank() ? null : value.trim();
     }
 
+    private List<String> copyIds(List<String> ids) {
+        if (ids == null) {
+            return List.of();
+        }
+        return ids.stream()
+                .filter(id -> id != null && !id.isBlank())
+                .map(String::trim)
+                .distinct()
+                .toList();
+    }
+
     private void audit(String ownerId, String eventId, String ticketId, String actorId, String action, TicketAuditLevel level, String message) {
         TicketAuditLog auditLog = new TicketAuditLog();
         auditLog.setId(newId("ticket-log"));
@@ -380,8 +457,11 @@ public class TicketManagementService {
                 event.getEventDate(),
                 event.getEventTime(),
                 event.getBannerUrl(),
+                event.getPosterPhotoUrl(),
                 event.getStatus(),
                 event.getTicketTypes().stream().map(this::toTicketTypeResponse).sorted(Comparator.comparing(EventTicketTypeResponse::type)).toList(),
+                List.copyOf(event.getWorkerIds()),
+                List.copyOf(event.getAffiliateIds()),
                 event.getCreatedAt(),
                 event.getUpdatedAt()
         );
@@ -401,6 +481,10 @@ public class TicketManagementService {
 
     private TicketWithdrawalResponse toWithdrawalResponse(TicketWithdrawal withdrawal) {
         return new TicketWithdrawalResponse(withdrawal.getId(), withdrawal.getOwnerId(), withdrawal.getGrossAmount(), withdrawal.getServiceFeePercent(), withdrawal.getServiceFeeAmount(), withdrawal.getNetAmount(), withdrawal.getStatus(), withdrawal.getRequestedAt(), withdrawal.getProcessedAt(), withdrawal.getNotes());
+    }
+
+    private TicketEventPromotionResponse toPromotionResponse(TicketEventPromotion promotion) {
+        return new TicketEventPromotionResponse(promotion.getId(), promotion.getEventId(), promotion.getOwnerId(), promotion.getAmount(), promotion.getCurrency(), promotion.getStatus(), promotion.getStartsAt(), promotion.getEndsAt(), promotion.getBusinessAccountEntryId(), promotion.getCreatedAt(), promotion.getUpdatedAt());
     }
 
     private TicketAuditLogResponse toLogResponse(TicketAuditLog log) {

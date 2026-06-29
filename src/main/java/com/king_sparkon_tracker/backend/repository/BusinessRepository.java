@@ -16,6 +16,8 @@ public interface BusinessRepository extends JpaRepository<Business, Long> {
 
 	List<Business> findByBusinessStatusIn(Collection<BusinessStatus> statuses);
 
+	List<Business> findTop50ByOrderByModifiedDateDesc();
+
 	List<Business> findByBusinessStatusAndTrialEndDateBefore(BusinessStatus status, LocalDateTime dateTime);
 
 	List<Business> findByBusinessStatusAndCurrentBillingPeriodEndDateBefore(BusinessStatus status, LocalDateTime dateTime);

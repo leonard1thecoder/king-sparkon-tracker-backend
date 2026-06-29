@@ -21,6 +21,7 @@ import com.king_sparkon_tracker.backend.dto.UserResponse;
 import com.king_sparkon_tracker.backend.dto.CompleteOnboardingRequest;
 import com.king_sparkon_tracker.backend.dto.CreateWorkerRequest;
 import com.king_sparkon_tracker.backend.dto.PageResponse;
+import com.king_sparkon_tracker.backend.service.OnboardingProfileService;
 import com.king_sparkon_tracker.backend.service.TrackerUserService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -36,9 +37,11 @@ import jakarta.validation.Valid;
 public class UserController {
 
 	private final TrackerUserService userService;
+	private final OnboardingProfileService onboardingProfileService;
 
-	public UserController(TrackerUserService userService) {
+	public UserController(TrackerUserService userService, OnboardingProfileService onboardingProfileService) {
 		this.userService = userService;
+		this.onboardingProfileService = onboardingProfileService;
 	}
 
 	@GetMapping
@@ -78,11 +81,11 @@ public class UserController {
 	}
 
 	@PatchMapping("/me/onboarding")
-	@Operation(summary = "Complete current-user onboarding", description = "Stores physical address and cellphone number so first-login onboarding can be dismissed.")
+	@Operation(summary = "Complete current-user onboarding", description = "Stores physical address, cellphone number, and optional profile picture so first-login onboarding can be dismissed.")
 	public UserResponse completeOnboarding(
 			@Valid @RequestBody CompleteOnboardingRequest request,
 			@Parameter(hidden = true) Principal principal) {
-		return UserResponse.from(userService.completeOnboarding(request, principal.getName()));
+		return UserResponse.from(onboardingProfileService.completeUserOnboarding(request, principal.getName()));
 	}
 
 	@GetMapping("/{id}")
