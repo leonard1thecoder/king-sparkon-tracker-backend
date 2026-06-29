@@ -65,10 +65,12 @@ require_contains "k8s/configmap.yaml" 'APP_GOOGLE_STORAGE_MAX_FILE_SIZE_BYTES: "
 require_not_contains "k8s/configmap.yaml" 'APP_GOOGLE_STORAGE_PROJECT_ID: "PROJECT_ID"' "Unrendered Google Storage project placeholder"
 require_not_contains "k8s/kustomization.yaml" 'secret.example.yaml' "Secret example in kustomization resources"
 
-if grep -R "GOOGLE_APPLICATION_CREDENTIALS" k8s .github/workflows docs scripts --exclude='validate-k8s-env.sh' >/dev/null 2>&1; then
-  fail "GOOGLE_APPLICATION_CREDENTIALS must not be required for GKE/CD; use Workload Identity"
+# Active GKE/CD runtime files must not require a Google service-account JSON path.
+# Documentation may mention GOOGLE_APPLICATION_CREDENTIALS for local laptop testing only.
+if grep -R "GOOGLE_APPLICATION_CREDENTIALS" k8s .github/workflows --exclude='validate-k8s-env.sh' >/dev/null 2>&1; then
+  fail "GOOGLE_APPLICATION_CREDENTIALS must not be required in active GKE/CD files; use Workload Identity"
 else
-  pass "No Google JSON credential path required"
+  pass "No Google JSON credential path required in active GKE/CD files"
 fi
 
 for secret_name in \
