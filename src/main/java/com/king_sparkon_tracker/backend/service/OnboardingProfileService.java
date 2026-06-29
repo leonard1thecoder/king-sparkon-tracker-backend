@@ -1,5 +1,6 @@
 package com.king_sparkon_tracker.backend.service;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -18,6 +19,9 @@ public class OnboardingProfileService {
 
 	private final TrackerUserRepository userRepository;
 
+	@Autowired(required = false)
+	private GoogleStorageService googleStorageService;
+
 	public OnboardingProfileService(TrackerUserRepository userRepository) {
 		this.userRepository = userRepository;
 	}
@@ -27,7 +31,7 @@ public class OnboardingProfileService {
 		user.completeOnboarding(
 				normalizeRequired(request.physicalAddress(), "Physical address is required"),
 				normalizeRequired(request.cellphoneNumber(), "Cellphone number is required"),
-				normalizeOptional(request.profilePictureUrl()));
+				storeProfilePicture(request.profilePictureUrl(), "profiles/users", username));
 		return userRepository.save(user);
 	}
 
@@ -40,7 +44,7 @@ public class OnboardingProfileService {
 				normalizeRequired(request.physicalAddress(), "Physical address is required"),
 				normalizeRequired(request.cellphoneNumber(), "Cellphone number is required"),
 				normalizeRequired(request.paypalLink(), "PayPal link is required"),
-				normalizeOptional(request.profilePictureUrl()));
+				storeProfilePicture(request.profilePictureUrl(), "profiles/affiliates", username));
 		return AffiliateProfileResponse.from(userRepository.save(affiliate));
 	}
 
@@ -48,6 +52,13 @@ public class OnboardingProfileService {
 		String normalizedUsername = normalizeRequired(username, "Username is required");
 		return userRepository.findByUsername(normalizedUsername)
 				.orElseThrow(() -> new ResourceNotFoundException("User not found: " + normalizedUsername));
+	}
+
+	private String storeProfilePicture(String value, String folder, String ownerKey) {
+		if (googleStorageService == null) {
+			return normalizeOptional(value);
+		}
+		return googleStorageService.storeImageValue(value, folder, ownerKey);
 	}
 
 	private String normalizeRequired(String value, String message) {
