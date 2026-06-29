@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Set;
 
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
@@ -43,7 +44,6 @@ public class BusinessAccessFilter extends OncePerRequestFilter {
 			"/api/admin",
 			"/api/paypal/webhooks",
 			"/api/stripe/webhooks",
-			"/api/v1/tickets/events",
 			"/v3/api-docs",
 			"/swagger-ui",
 			"/h2-console"
@@ -95,6 +95,9 @@ public class BusinessAccessFilter extends OncePerRequestFilter {
 
 	private boolean shouldSkip(HttpServletRequest request) {
 		String path = request.getRequestURI();
+		if (HttpMethod.GET.matches(request.getMethod()) && path.startsWith("/api/v1/tickets/events")) {
+			return true;
+		}
 
 		return EXCLUDED_PREFIXES.stream().anyMatch(path::startsWith);
 	}
