@@ -4,5 +4,6 @@ public enum PrivilegeRole {
 	Admin,
 	Owner,
 	Worker,
-	Affiliate
+	Affiliate,
+	User
 }

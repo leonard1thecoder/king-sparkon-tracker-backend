@@ -33,6 +33,9 @@ public class Business {
 	@Column(name = "description", length = 2000)
 	private String description;
 
+	@Column(name = "qr_code_url", length = 2048)
+	private String qrCodeUrl;
+
 	@OneToOne(fetch = FetchType.EAGER, optional = false)
 	@JoinColumn(name = "owner_id", nullable = false, unique = true)
 	private TrackerUser owner;
@@ -213,6 +216,10 @@ public class Business {
 		this.affiliateCode = affiliateCode;
 	}
 
+	public void assignQrCodeUrl(String qrCodeUrl) {
+		this.qrCodeUrl = qrCodeUrl;
+	}
+
 	public Long getId() {
 		return id;
 	}
@@ -231,6 +238,14 @@ public class Business {
 
 	public void setDescription(String description) {
 		this.description = description;
+	}
+
+	public String getQrCodeUrl() {
+		return qrCodeUrl;
+	}
+
+	public void setQrCodeUrl(String qrCodeUrl) {
+		this.qrCodeUrl = qrCodeUrl;
 	}
 
 	public TrackerUser getOwner() {

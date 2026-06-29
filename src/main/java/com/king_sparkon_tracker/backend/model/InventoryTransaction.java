@@ -1,9 +1,11 @@
 package com.king_sparkon_tracker.backend.model;
 
+import java.math.BigDecimal;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.math.BigDecimal;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -54,6 +56,9 @@ public class InventoryTransaction {
 
 	@Column(name = "payment_url", length = 2048)
 	private String paymentUrl;
+
+	@Column(name = "payment_qr_code_url", length = 2048)
+	private String paymentQrCodeUrl;
 
 	@Column(name = "transaction_withdrawal_id")
 	private Long transactionWithdrawalId;
@@ -127,6 +132,7 @@ public class InventoryTransaction {
 		this.paymentContact = paymentEmail;
 		this.paymentReference = null;
 		this.paymentUrl = null;
+		this.paymentQrCodeUrl = null;
 	}
 
 	public void prepareWebsitePayment(String paymentEmail) {
@@ -138,6 +144,7 @@ public class InventoryTransaction {
 		this.paymentStatus = TransactionPaymentStatus.PENDING;
 		this.paymentEmail = paymentEmail;
 		this.paymentContact = paymentContact;
+		this.paymentQrCodeUrl = null;
 	}
 
 	public void markWebsitePaymentPending(String paymentEmail, String paymentReference, String paymentUrl) {
@@ -151,6 +158,7 @@ public class InventoryTransaction {
 		this.paymentContact = paymentContact;
 		this.paymentReference = paymentReference;
 		this.paymentUrl = paymentUrl;
+		this.paymentQrCodeUrl = qrCodeUrl(paymentUrl);
 	}
 
 	public void markWebsitePaymentPaid(String paymentReference) {
@@ -237,6 +245,18 @@ public class InventoryTransaction {
 
 	public void setPaymentUrl(String paymentUrl) {
 		this.paymentUrl = paymentUrl;
+		this.paymentQrCodeUrl = qrCodeUrl(paymentUrl);
+	}
+
+	public String getPaymentQrCodeUrl() {
+		if (paymentQrCodeUrl != null && !paymentQrCodeUrl.isBlank()) {
+			return paymentQrCodeUrl;
+		}
+		return qrCodeUrl(paymentUrl);
+	}
+
+	public void setPaymentQrCodeUrl(String paymentQrCodeUrl) {
+		this.paymentQrCodeUrl = paymentQrCodeUrl;
 	}
 
 	public Long getTransactionWithdrawalId() {
@@ -269,5 +289,13 @@ public class InventoryTransaction {
 
 	public List<TransactionItem> getItems() {
 		return items;
+	}
+
+	private String qrCodeUrl(String targetUrl) {
+		if (targetUrl == null || targetUrl.isBlank()) {
+			return null;
+		}
+		String encodedUrl = URLEncoder.encode(targetUrl, StandardCharsets.UTF_8);
+		return "https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=%s".formatted(encodedUrl);
 	}
 }
