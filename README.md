@@ -366,7 +366,7 @@ CI builds the backend Docker image and runs Maven verification. Current focused 
 - `OnboardingProfileServiceTest`
 - `UserDashboardServiceTest`
 
-Latest CI check: after the cleanup commits, no GitHub Actions status was attached to the newest `main` commit when checked via the GitHub connector.
+Latest CI check: after the cleanup commits, the GitHub connector reported no workflow run and no status attached to the newest `main` commit yet.
 
 ## Deployment Notes
 
