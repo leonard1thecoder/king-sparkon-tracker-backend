@@ -1,7 +1,7 @@
 package com.king_sparkon_tracker.backend.dto;
 
-import com.king_sparkon_tracker.backend.model.LocalizationCountry;
 import com.fasterxml.jackson.annotation.JsonAlias;
+import com.king_sparkon_tracker.backend.model.LocalizationCountry;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Email;
@@ -57,6 +57,30 @@ public record RegisterUserRequest(
 		if (serviceRegisteringFor == null) {
 			serviceRegisteringFor = ServiceRegistrationFor.BUSINESS_OWNER;
 		}
+	}
+
+	public RegisterUserRequest(
+			String username,
+			String emailAddress,
+			String password,
+			String businessName,
+			String businessDescription,
+			LocalizationCountry localizationCountry,
+			String physicalAddress,
+			String cellphoneNumber,
+			String affiliateCode) {
+		this(
+				username,
+				emailAddress,
+				password,
+				businessName,
+				businessDescription,
+				localizationCountry,
+				physicalAddress,
+				cellphoneNumber,
+				affiliateCode,
+				ServiceRegistrationFor.BUSINESS_OWNER,
+				null);
 	}
 
 	public RegisterUserRequest(
