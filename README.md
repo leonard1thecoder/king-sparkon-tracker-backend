@@ -2,6 +2,7 @@
 # King Sparkon Tracker Backend
 
 
+
 Spring Boot backend for King Sparkon Tracker: barcode inventory, business tenants, workers, affiliates, tickets, tips, Stripe payments, business account top-ups, promotions, payouts, reports, audit logs, and user dashboards.
 
 This backend is designed for Google Cloud Run with PostgreSQL, Flyway, JWT sessions, Redis-compatible caching/rate limiting, Stripe payment links, PayPal billing/payout support, email, WhatsApp notifications, Actuator metrics, Prometheus, Grafana, and Docker CI.
