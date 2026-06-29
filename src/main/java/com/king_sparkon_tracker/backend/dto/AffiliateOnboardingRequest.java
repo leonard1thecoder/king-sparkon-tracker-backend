@@ -15,13 +15,16 @@ public record AffiliateOnboardingRequest(
 		@Size(max = 32)
 		String cellphoneNumber,
 
-		@Schema(description = "Affiliate PayPal payout link or PayPal.me URL.", example = "https://paypal.me/affiliate")
+		@Schema(description = "Affiliate payout link.")
 		@NotBlank
 		@Size(max = 2048)
 		String paypalLink,
 
-		@Schema(description = "Optional affiliate profile-picture URL.", example = "https://cdn.example.com/profiles/affiliate.png")
+		@Schema(description = "Optional affiliate profile-picture URL.")
 		@Size(max = 2048)
 		String profilePictureUrl
 ) {
+	public AffiliateOnboardingRequest(String physicalAddress, String cellphoneNumber, String paypalLink) {
+		this(physicalAddress, cellphoneNumber, paypalLink, null);
+	}
 }
