@@ -34,7 +34,14 @@ public class TicketSecureController {
     @ResponseStatus(HttpStatus.CREATED)
     public TicketPurchaseResponse purchase(@Valid @RequestBody PurchaseTicketsRequest request, Authentication authentication) {
         String userId = ticketSecurityContext.currentUserId(authentication);
-        PurchaseTicketsRequest securedRequest = new PurchaseTicketsRequest(request.eventId(), userId, request.buyerName(), request.buyerEmail(), request.ticketType(), request.quantity());
+        PurchaseTicketsRequest securedRequest = new PurchaseTicketsRequest(
+                request.eventId(),
+                userId,
+                request.buyerName(),
+                request.buyerEmail(),
+                request.ticketType(),
+                request.quantity(),
+                request.callbackUrl());
         return ticketManagementService.purchaseTickets(securedRequest);
     }
 
