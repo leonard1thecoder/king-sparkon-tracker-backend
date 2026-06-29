@@ -10,7 +10,6 @@ import com.king_sparkon_tracker.backend.service.EmailVerificationService;
 import com.king_sparkon_tracker.backend.service.PublicUserRegistrationService;
 import com.king_sparkon_tracker.backend.service.RefreshTokenService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
@@ -41,8 +40,7 @@ public class AuthenticationController {
 	private BusinessRepository businessRepository;
 	@Autowired(required = false)
 	private PublicUserRegistrationService publicUserRegistrationService;
-	@Value("${app.businesses.business-url-template:" + DEFAULT_BUSINESS_URL_TEMPLATE + "}")
-	private String businessUrlTemplate;
+	private String businessUrlTemplate = DEFAULT_BUSINESS_URL_TEMPLATE;
 
 	public AuthenticationController(
 			TrackerUserService userService,
