@@ -45,6 +45,9 @@ public record UserResponse(
 		@Schema(description = "User cellphone number captured during onboarding.")
 		String cellphoneNumber,
 
+		@Schema(description = "Profile picture URL captured during onboarding or worker creation.")
+		String profilePictureUrl,
+
 		@Schema(description = "Worker job title.", example = "Cashier")
 		String jobTitle,
 
@@ -87,6 +90,7 @@ public record UserResponse(
 				user.getLocalizationCountry(),
 				user.getPhysicalAddress(),
 				user.getCellphoneNumber(),
+				user.getProfilePictureUrl(),
 				user.getJobTitle(),
 				user.isOnboardingRequired(),
 				user.isOnboardingCompleted(),
