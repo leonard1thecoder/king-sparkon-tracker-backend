@@ -27,6 +27,8 @@ jobs:
           else
             cat > .env.ci <<'EOF'
           SPRING_PROFILES_ACTIVE=test
+          SPRING_CACHE_TYPE=simple
+          JWT_SECRET=ci-local-jwt-secret-must-be-at-least-32-characters
           APP_JWT_SECRET=ci-local-jwt-secret-must-be-at-least-32-characters
           APP_FRONTEND_BASE_URL=http://localhost:3000
           STRIPE_SECRET_KEY=sk_test_ci_placeholder

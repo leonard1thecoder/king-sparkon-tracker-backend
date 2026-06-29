@@ -23,6 +23,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.king_sparkon_tracker.backend.config.CacheConfig;
 import com.king_sparkon_tracker.backend.config.CorsConfig;
 import com.king_sparkon_tracker.backend.config.JacksonConfig;
 import com.king_sparkon_tracker.backend.controller.AffiliateLinkController;
@@ -48,6 +49,7 @@ import com.king_sparkon_tracker.backend.model.TrackerUser;
 import com.king_sparkon_tracker.backend.service.AffiliateLinkService;
 import com.king_sparkon_tracker.backend.service.BusinessAccessService;
 import com.king_sparkon_tracker.backend.service.EmailVerificationService;
+import com.king_sparkon_tracker.backend.service.OnboardingProfileService;
 import com.king_sparkon_tracker.backend.service.PasswordResetService;
 import com.king_sparkon_tracker.backend.service.PriceLocalizationService;
 import com.king_sparkon_tracker.backend.service.ProductPricingService;
@@ -64,7 +66,7 @@ import com.king_sparkon_tracker.backend.service.TrackerUserService;
 		TipController.class,
 		AffiliateLinkController.class
 })
-@Import({ SecurityConfig.class, CorsConfig.class, JacksonConfig.class, ApiExceptionHandler.class })
+@Import({ SecurityConfig.class, CorsConfig.class, JacksonConfig.class, CacheConfig.class, ApiExceptionHandler.class })
 class SecurityConfigTest {
 
 	@Autowired
@@ -72,6 +74,9 @@ class SecurityConfigTest {
 
 	@MockitoBean
 	private TrackerUserService userService;
+
+	@MockitoBean
+	private OnboardingProfileService onboardingProfileService;
 
 	@MockitoBean
 	private RefreshTokenService refreshTokenService;

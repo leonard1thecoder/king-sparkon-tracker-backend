@@ -42,6 +42,8 @@ import com.nimbusds.jose.jwk.source.ImmutableSecret;
 @EnableMethodSecurity
 public class SecurityConfig {
 
+	private static final String REGISTER_ADMIN_PATH = "/api/auth/register-admin";
+
 	private static final String[] OPENAPI_PATHS = {
 			"/v3/api-docs/**",
 			"/v3/api-docs.yaml",
@@ -56,74 +58,97 @@ public class SecurityConfig {
 			BusinessAccessService businessAccessService,
 			RateLimitService rateLimitService,
 			ObjectMapper objectMapper,
-			@Value("${app.security.h2-console-enabled:false}") boolean h2ConsoleEnabled) throws Exception {
+			@Value("${app.security.h2-console-enabled:false}") boolean h2ConsoleEnabled,
+			@Value("${app.security.public-admin-registration-enabled:false}") boolean publicAdminRegistrationEnabled) throws Exception {
 		String adminAuthority = PrivilegeRole.Admin.name();
 		String ownerAuthority = PrivilegeRole.Owner.name();
 		String affiliateAuthority = PrivilegeRole.Affiliate.name();
+		String workerAuthority = PrivilegeRole.Worker.name();
 
 		return http
 				.cors(Customizer.withDefaults())
 				.csrf(AbstractHttpConfigurer::disable)
 				.headers(headers -> headers.frameOptions(HeadersConfigurer.FrameOptionsConfig::sameOrigin))
 				.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-				.authorizeHttpRequests(authorize -> authorize
-						.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-						.requestMatchers(HttpMethod.GET, "/health", "/api/health", "/ready", "/api/ready").permitAll()
-						.requestMatchers(OPENAPI_PATHS).permitAll()
-						.requestMatchers(
-								HttpMethod.POST,
-								"/api/auth/register",
-								"/api/auth/register-admin",
-								"/api/auth/register-affiliate",
-								"/api/auth/login",
-								"/api/auth/forgot-password",
-								"/api/auth/reset-password"
-						).permitAll()
-						.requestMatchers(HttpMethod.POST, "/api/auth/resend-verification").permitAll()
-						.requestMatchers(HttpMethod.GET, "/api/auth/verify-email").permitAll()
-						.requestMatchers(HttpMethod.POST, "/api/contact-inquiries").permitAll()
-						.requestMatchers(HttpMethod.POST, "/api/paypal/webhooks").permitAll()
-						.requestMatchers(HttpMethod.POST, "/api/stripe/webhooks").permitAll()
-						.requestMatchers(HttpMethod.POST, "/api/subscribers").permitAll()
-						.requestMatchers(HttpMethod.DELETE, "/api/subscribers").permitAll()
-						.requestMatchers(HttpMethod.GET, "/api/affiliate-links/public/random").permitAll()
-						.requestMatchers(HttpMethod.POST, "/api/affiliate-links/*/click").permitAll()
-						.requestMatchers(HttpMethod.GET, "/api/affiliate-links/random").authenticated()
-						.requestMatchers(HttpMethod.POST, "/api/affiliate-links").hasAuthority(ownerAuthority)
-						.requestMatchers(HttpMethod.PATCH, "/api/affiliate-links/**").hasAuthority(ownerAuthority)
-						.requestMatchers(HttpMethod.GET, "/api/affiliate-links", "/api/affiliate-links/**").hasAuthority(ownerAuthority)
-						.requestMatchers(HttpMethod.POST, "/api/tips").hasAuthority(PrivilegeRole.Worker.name())
-						.requestMatchers("/h2-console/**").access((authentication, context) -> h2ConsoleEnabled
-								? new org.springframework.security.authorization.AuthorizationDecision(true)
-								: new org.springframework.security.authorization.AuthorizationDecision(false))
-						.requestMatchers(HttpMethod.GET, "/api/users/me").authenticated()
-						.requestMatchers(HttpMethod.PATCH, "/api/users/me/onboarding").authenticated()
-						.requestMatchers(HttpMethod.POST, "/api/users/workers").hasAuthority(ownerAuthority)
-						.requestMatchers("/api/users/**").hasAuthority(ownerAuthority)
-						.requestMatchers("/api/affiliates/**").hasAuthority(affiliateAuthority)
-						.requestMatchers(HttpMethod.GET, "/api/privileges/**").authenticated()
-						.requestMatchers("/api/privileges/**").hasAuthority(ownerAuthority)
-						.requestMatchers(HttpMethod.GET, "/api/billing/plans").permitAll()
-						.requestMatchers("/api/billing/**").hasAuthority(ownerAuthority)
-						.requestMatchers("/api/admin/**").hasAuthority(adminAuthority)
-						.requestMatchers("/api/promotions/**").hasAuthority(ownerAuthority)
-						.requestMatchers(HttpMethod.POST, "/api/products/*/barcodes")
-						.hasAuthority(PrivilegeRole.Worker.name())
-						.requestMatchers(HttpMethod.POST, "/api/products/*/submit-approval")
-						.hasAuthority(PrivilegeRole.Worker.name())
-						.requestMatchers(HttpMethod.PATCH, "/api/products/*/quantity").hasAuthority(ownerAuthority)
-						.requestMatchers(HttpMethod.POST, "/api/products").hasAuthority(ownerAuthority)
-						.requestMatchers(HttpMethod.GET, "/api/products", "/api/products/**").authenticated()
-						.requestMatchers(HttpMethod.GET, "/api/barcodes", "/api/barcodes/**").authenticated()
-						.requestMatchers(HttpMethod.POST, "/api/barcodes", "/api/barcodes/**").authenticated()
-						.requestMatchers(HttpMethod.POST, "/api/transactions/withdrawals", "/api/transactions/withdrawals/**")
-						.hasAuthority(ownerAuthority)
-						.requestMatchers(HttpMethod.POST, "/api/transactions", "/api/transactions/**").authenticated()
-						.requestMatchers(HttpMethod.GET, "/api/transactions", "/api/transactions/**").hasAuthority(ownerAuthority)
-						.requestMatchers("/api/reports", "/api/reports/**").hasAuthority(ownerAuthority)
-						.requestMatchers("/api/audit-logs", "/api/audit-logs/**").hasAuthority(ownerAuthority)
-						.requestMatchers("/api/tips", "/api/tips/**").hasAuthority(ownerAuthority)
-						.anyRequest().authenticated())
+				.authorizeHttpRequests(authorize -> {
+					authorize
+							.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+							.requestMatchers(HttpMethod.GET, "/health", "/api/health", "/ready", "/api/ready").permitAll()
+							.requestMatchers(OPENAPI_PATHS).permitAll()
+							.requestMatchers(
+									HttpMethod.POST,
+									"/api/auth/register",
+									"/api/auth/register-affiliate",
+									"/api/auth/login",
+									"/api/auth/forgot-password",
+									"/api/auth/reset-password"
+							).permitAll();
+
+					if (publicAdminRegistrationEnabled) {
+						authorize.requestMatchers(HttpMethod.POST, REGISTER_ADMIN_PATH).permitAll();
+					} else {
+						authorize.requestMatchers(HttpMethod.POST, REGISTER_ADMIN_PATH).hasAuthority(adminAuthority);
+					}
+
+					authorize
+							.requestMatchers(HttpMethod.POST, "/api/auth/resend-verification").permitAll()
+							.requestMatchers(HttpMethod.GET, "/api/auth/verify-email").permitAll()
+							.requestMatchers(HttpMethod.POST, "/api/contact-inquiries").permitAll()
+							.requestMatchers(HttpMethod.POST, "/api/paypal/webhooks").permitAll()
+							.requestMatchers(HttpMethod.POST, "/api/stripe/webhooks").permitAll()
+							.requestMatchers(HttpMethod.POST, "/api/subscribers").permitAll()
+							.requestMatchers(HttpMethod.DELETE, "/api/subscribers").permitAll()
+							.requestMatchers(HttpMethod.GET, "/api/affiliate-links/public/random").permitAll()
+							.requestMatchers(HttpMethod.POST, "/api/affiliate-links/*/click").permitAll()
+							.requestMatchers(HttpMethod.GET, "/api/v1/tickets/events", "/api/v1/tickets/events/**").permitAll()
+							.requestMatchers(HttpMethod.GET, "/api/affiliate-links/random").authenticated()
+							.requestMatchers(HttpMethod.POST, "/api/affiliate-links").hasAuthority(ownerAuthority)
+							.requestMatchers(HttpMethod.PATCH, "/api/affiliate-links/**").hasAuthority(ownerAuthority)
+							.requestMatchers(HttpMethod.GET, "/api/affiliate-links", "/api/affiliate-links/**").hasAuthority(ownerAuthority)
+							.requestMatchers(HttpMethod.POST, "/api/tips").hasAuthority(workerAuthority)
+							.requestMatchers("/h2-console/**").access((authentication, context) -> h2ConsoleEnabled
+									? new org.springframework.security.authorization.AuthorizationDecision(true)
+									: new org.springframework.security.authorization.AuthorizationDecision(false))
+							.requestMatchers(HttpMethod.GET, "/api/users/me").authenticated()
+							.requestMatchers(HttpMethod.PATCH, "/api/users/me/onboarding").authenticated()
+							.requestMatchers(HttpMethod.POST, "/api/users/workers").hasAuthority(ownerAuthority)
+							.requestMatchers("/api/users/**").hasAuthority(ownerAuthority)
+							.requestMatchers("/api/affiliates/**").hasAuthority(affiliateAuthority)
+							.requestMatchers(HttpMethod.GET, "/api/privileges/**").authenticated()
+							.requestMatchers("/api/privileges/**").hasAuthority(ownerAuthority)
+							.requestMatchers(HttpMethod.GET, "/api/billing/plans").permitAll()
+							.requestMatchers("/api/billing/**").hasAuthority(ownerAuthority)
+							.requestMatchers("/api/admin/**").hasAuthority(adminAuthority)
+							.requestMatchers("/api/promotions/**").hasAuthority(ownerAuthority)
+							.requestMatchers(HttpMethod.POST, "/api/products/*/barcodes")
+							.hasAuthority(workerAuthority)
+							.requestMatchers(HttpMethod.POST, "/api/products/*/submit-approval")
+							.hasAuthority(workerAuthority)
+							.requestMatchers(HttpMethod.PATCH, "/api/products/*/quantity").hasAuthority(ownerAuthority)
+							.requestMatchers(HttpMethod.POST, "/api/products").hasAuthority(ownerAuthority)
+							.requestMatchers(HttpMethod.GET, "/api/products", "/api/products/**").authenticated()
+							.requestMatchers(HttpMethod.GET, "/api/barcodes", "/api/barcodes/**").authenticated()
+							.requestMatchers(HttpMethod.POST, "/api/barcodes", "/api/barcodes/**").authenticated()
+							.requestMatchers(HttpMethod.POST, "/api/transactions/withdrawals", "/api/transactions/withdrawals/**")
+							.hasAuthority(ownerAuthority)
+							.requestMatchers(HttpMethod.POST, "/api/transactions", "/api/transactions/**").authenticated()
+							.requestMatchers(HttpMethod.GET, "/api/transactions", "/api/transactions/**").hasAuthority(ownerAuthority)
+							.requestMatchers("/api/reports", "/api/reports/**").hasAuthority(ownerAuthority)
+							.requestMatchers("/api/audit-logs", "/api/audit-logs/**").hasAuthority(ownerAuthority)
+							.requestMatchers(HttpMethod.POST, "/api/v1/tickets/events").hasAuthority(ownerAuthority)
+							.requestMatchers(HttpMethod.PATCH, "/api/v1/tickets/events/*").hasAuthority(ownerAuthority)
+							.requestMatchers(HttpMethod.POST, "/api/v1/tickets/purchase").authenticated()
+							.requestMatchers(HttpMethod.GET, "/api/v1/tickets/my-tickets").authenticated()
+							.requestMatchers(HttpMethod.POST, "/api/v1/tickets/verify/qr", "/api/v1/tickets/verify/reference").hasAuthority(workerAuthority)
+							.requestMatchers("/api/v1/tickets/owner/**").hasAuthority(ownerAuthority)
+							.requestMatchers(HttpMethod.POST, "/api/v1/tickets/me/purchase").authenticated()
+							.requestMatchers(HttpMethod.GET, "/api/v1/tickets/me/tickets").authenticated()
+							.requestMatchers(HttpMethod.POST, "/api/v1/tickets/me/events/*/boosts").hasAuthority(ownerAuthority)
+							.requestMatchers(HttpMethod.GET, "/api/v1/tickets/me/event-boosts").hasAuthority(ownerAuthority)
+							.requestMatchers("/api/user-dashboard", "/api/user-dashboard/**").authenticated()
+							.requestMatchers("/api/tips", "/api/tips/**").hasAuthority(ownerAuthority)
+							.anyRequest().authenticated();
+				})
 				.oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt
 						.jwtAuthenticationConverter(jwtAuthenticationConverter)))
 				.addFilterAfter(

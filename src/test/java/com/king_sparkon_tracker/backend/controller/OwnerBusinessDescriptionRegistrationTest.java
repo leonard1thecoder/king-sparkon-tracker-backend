@@ -2,7 +2,6 @@ package com.king_sparkon_tracker.backend.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -54,15 +53,16 @@ class OwnerBusinessDescriptionRegistrationTest {
 	}
 
 	@Test
-	void negativeDoesNotPersistBlankBusinessDescription() {
+	void negativeKeepsBlankBusinessDescriptionNullButStillPersistsBusinessQrState() {
 		RegisterUserRequest request = request("   ");
 		TrackerUser owner = ownerWithBusiness();
 		when(userService.registerOwner(request)).thenReturn(owner);
+		when(businessRepository.save(owner.getBusiness())).thenReturn(owner.getBusiness());
 
 		controller.register(request);
 
 		assertThat(owner.getBusiness().getDescription()).isNull();
-		verify(businessRepository, never()).save(owner.getBusiness());
+		verify(businessRepository).save(owner.getBusiness());
 	}
 
 	private RegisterUserRequest request(String businessDescription) {

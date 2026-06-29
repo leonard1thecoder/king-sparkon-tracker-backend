@@ -28,6 +28,7 @@ public class RateLimitingFilter extends OncePerRequestFilter {
 
 	private static final Set<String> PUBLIC_AUTH_PATHS = Set.of(
 			"/api/auth/register",
+			"/api/auth/register-admin",
 			"/api/auth/register-affiliate",
 			"/api/auth/login",
 			"/api/auth/forgot-password",
@@ -42,7 +43,8 @@ public class RateLimitingFilter extends OncePerRequestFilter {
 			"/api/health",
 			"/ready",
 			"/api/ready",
-			"/api/paypal/webhooks"
+			"/api/paypal/webhooks",
+			"/api/stripe/webhooks"
 	);
 
 	private final RateLimitService rateLimitService;
@@ -81,7 +83,7 @@ public class RateLimitingFilter extends OncePerRequestFilter {
 	}
 
 	private RateLimitDecision decisionFor(HttpServletRequest request) {
-		String path = request.getRequestURI();
+		String path = normalizedPath(request);
 		if (HttpMethod.OPTIONS.matches(request.getMethod()) || EXCLUDED_PATHS.contains(path) || isDocsPath(path)) {
 			return null;
 		}
@@ -108,6 +110,14 @@ public class RateLimitingFilter extends OncePerRequestFilter {
 		return path.startsWith("/v3/api-docs")
 				|| path.startsWith("/swagger-ui")
 				|| path.startsWith("/h2-console");
+	}
+
+	private String normalizedPath(HttpServletRequest request) {
+		String path = request.getRequestURI();
+		if (path.length() > 1 && path.endsWith("/")) {
+			return path.substring(0, path.length() - 1);
+		}
+		return path;
 	}
 
 	private String clientAddress(HttpServletRequest request) {
