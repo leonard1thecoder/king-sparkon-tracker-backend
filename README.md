@@ -366,6 +366,8 @@ CI builds the backend Docker image and runs Maven verification. Current focused 
 - `OnboardingProfileServiceTest`
 - `UserDashboardServiceTest`
 
+Latest CI check: after the cleanup commits, no GitHub Actions status was attached to the newest `main` commit when checked via the GitHub connector.
+
 ## Deployment Notes
 
 - Use Google Cloud Run for the Spring Boot container.
