@@ -136,6 +136,15 @@ jobs:
           location: ${{ env.GKE_LOCATION }}
           project_id: ${{ env.PROJECT_ID }}
 
+      - name: Verify Kubernetes context
+        id: kube_context
+        shell: bash
+        run: |
+          set -euo pipefail
+          kubectl config current-context
+          kubectl cluster-info
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
       - name: Render Kubernetes manifests
         shell: bash
         run: |
@@ -180,10 +189,17 @@ jobs:
           kubectl -n "$K8S_NAMESPACE" rollout status deployment/king-sparkon-tracker-backend --timeout=10m
 
       - name: Show deployment status
-        if: always()
+        if: always() && steps.kube_context.outputs.ready == 'true'
         shell: bash
         run: |
           set +e
           kubectl -n "$K8S_NAMESPACE" get deployment king-sparkon-tracker-backend -o wide
           kubectl -n "$K8S_NAMESPACE" get pods -l app.kubernetes.io/name=king-sparkon-tracker-backend -o wide
           kubectl -n "$K8S_NAMESPACE" get service king-sparkon-tracker-backend -o wide
+
+      - name: Explain missing Kubernetes context
+        if: always() && steps.kube_context.outputs.ready != 'true'
+        shell: bash
+        run: |
+          echo "Kubernetes context was not available, so deployment status was skipped."
+          echo "Check earlier steps, especially Google authentication and Get GKE credentials."
