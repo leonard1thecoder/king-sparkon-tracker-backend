@@ -1,9 +1,16 @@
 package com.king_sparkon_tracker.backend.controller;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+
 import com.king_sparkon_tracker.backend.dto.*;
+import com.king_sparkon_tracker.backend.model.Business;
 import com.king_sparkon_tracker.backend.repository.BusinessRepository;
 import com.king_sparkon_tracker.backend.service.EmailVerificationService;
+import com.king_sparkon_tracker.backend.service.PublicUserRegistrationService;
 import com.king_sparkon_tracker.backend.service.RefreshTokenService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
@@ -21,15 +28,21 @@ import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/api/auth")
-@Tag(name = "Authentication", description = "Owner business registration, administrator registration, JWT login, refresh-token rotation, and account recovery.")
+@Tag(name = "Authentication", description = "Privilege-aware registration, owner business registration, administrator registration, JWT login, refresh-token rotation, and account recovery.")
 public class AuthenticationController {
+
+	private static final String DEFAULT_BUSINESS_URL_TEMPLATE = "http://localhost:3000/businesses/{businessId}";
 
 	private final TrackerUserService userService;
 	private final RefreshTokenService refreshTokenService;
 	private final PasswordResetService passwordResetService;
 	private final EmailVerificationService emailVerificationService;
-	@org.springframework.beans.factory.annotation.Autowired(required = false)
+	@Autowired(required = false)
 	private BusinessRepository businessRepository;
+	@Autowired(required = false)
+	private PublicUserRegistrationService publicUserRegistrationService;
+	@Value("${app.businesses.business-url-template:" + DEFAULT_BUSINESS_URL_TEMPLATE + "}")
+	private String businessUrlTemplate;
 
 	public AuthenticationController(
 			TrackerUserService userService,
@@ -44,19 +57,27 @@ public class AuthenticationController {
 
 	@PostMapping("/register")
 	@ResponseStatus(HttpStatus.CREATED)
-	@Operation(summary = "Register owner", description = "Creates an owner account and links it to a new business.")
+	@Operation(summary = "Register by selected privilege", description = "Creates a User, Owner business workspace, or Affiliate account from the registration-page serviceRegisteringFor selector.")
 	@ApiResponses({
-			@ApiResponse(responseCode = "201", description = "Owner registered"),
+			@ApiResponse(responseCode = "201", description = "Account registered"),
 			@ApiResponse(responseCode = "400", description = "Invalid registration details"),
 			@ApiResponse(responseCode = "409", description = "Username or email already exists")
 	})
 	public UserResponse register(@Valid @RequestBody RegisterUserRequest request) {
-		TrackerUser owner = userService.registerOwner(request);
-		if (businessRepository != null && owner.getBusiness() != null && StringUtils.hasText(request.businessDescription())) {
-			owner.getBusiness().setDescription(request.businessDescription().trim());
-			businessRepository.save(owner.getBusiness());
-		}
-		return UserResponse.from(owner);
+		TrackerUser registeredUser = switch (request.serviceRegisteringFor()) {
+			case USER -> registerPublicUser(request);
+			case BUSINESS_OWNER -> registerOwnerAndAssignBusinessQr(request);
+			case AFFILIATE -> userService.registerAffiliate(new RegisterAffiliateRequest(
+					request.username(),
+					request.emailAddress(),
+					request.password(),
+					request.localizationCountry(),
+					request.physicalAddress(),
+					request.cellphoneNumber(),
+					request.paypalLink()));
+		};
+
+		return UserResponse.from(registeredUser);
 	}
 
 	@PostMapping("/register-admin")
@@ -84,7 +105,7 @@ public class AuthenticationController {
 	}
 
 	@PostMapping("/login")
-	@Operation(summary = "Login", description = "Authenticates a registered administrator, owner, affiliate, or worker and returns access plus refresh tokens.")
+	@Operation(summary = "Login", description = "Authenticates a registered administrator, owner, affiliate, user, or worker and returns access plus refresh tokens.")
 	@ApiResponses({
 			@ApiResponse(responseCode = "200", description = "Login successful"),
 			@ApiResponse(responseCode = "400", description = "Invalid login payload"),
@@ -142,6 +163,40 @@ public class AuthenticationController {
 	public MessageResponse resendVerification(@Valid @RequestBody ResendEmailVerificationRequest request, HttpServletRequest servletRequest, @RequestHeader(value = "User-Agent", required = false) String userAgent) {
 		emailVerificationService.resendVerificationEmail(request, clientIp(servletRequest), userAgent);
 		return MessageResponse.of("If the email address exists and is not verified, a verification link has been sent.");
+	}
+
+	private TrackerUser registerPublicUser(RegisterUserRequest request) {
+		if (publicUserRegistrationService == null) {
+			throw new IllegalStateException("Public user registration service is not available");
+		}
+		return publicUserRegistrationService.registerUser(request);
+	}
+
+	private TrackerUser registerOwnerAndAssignBusinessQr(RegisterUserRequest request) {
+		TrackerUser owner = userService.registerOwner(request);
+		if (businessRepository != null && owner.getBusiness() != null) {
+			Business business = owner.getBusiness();
+			if (StringUtils.hasText(request.businessDescription())) {
+				business.setDescription(request.businessDescription().trim());
+			}
+			if (business.getId() != null) {
+				business.assignQrCodeUrl(qrCodeUrl(businessPageUrl(business)));
+			}
+			businessRepository.save(business);
+		}
+		return owner;
+	}
+
+	private String businessPageUrl(Business business) {
+		String template = StringUtils.hasText(businessUrlTemplate) ? businessUrlTemplate : DEFAULT_BUSINESS_URL_TEMPLATE;
+		return template
+				.replace("{businessId}", String.valueOf(business.getId()))
+				.replace("{businessName}", URLEncoder.encode(business.getName(), StandardCharsets.UTF_8));
+	}
+
+	private String qrCodeUrl(String targetUrl) {
+		String encodedUrl = URLEncoder.encode(targetUrl, StandardCharsets.UTF_8);
+		return "https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=%s".formatted(encodedUrl);
 	}
 
 	private AuthResponse authResponse(RefreshTokenService.TokenPair pair) {
