@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: king-sparkon
+  labels:
+    app.kubernetes.io/name: king-sparkon-tracker
+    app.kubernetes.io/part-of: king-sparkon-tracker
