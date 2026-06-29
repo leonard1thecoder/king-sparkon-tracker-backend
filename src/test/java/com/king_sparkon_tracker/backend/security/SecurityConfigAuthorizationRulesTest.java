@@ -44,7 +44,8 @@ class SecurityConfigAuthorizationRulesTest {
 
 		assertThat(source).contains(".requestMatchers(HttpMethod.GET, \"/api/v1/tickets/events\", \"/api/v1/tickets/events/**\").permitAll()");
 		assertThat(source).contains(".requestMatchers(\"/api/user-dashboard\", \"/api/user-dashboard/**\").authenticated()");
-		assertThat(source).contains(".requestMatchers(HttpMethod.POST, \"/api/v1/tickets/verify\").hasAuthority(workerAuthority)");
+		assertThat(source).contains(".requestMatchers(HttpMethod.POST, \"/api/v1/tickets/verify/qr\", \"/api/v1/tickets/verify/reference\").hasAuthority(workerAuthority)");
+		assertThat(source).contains(".requestMatchers(\"/api/v1/tickets/owner/**\").hasAuthority(ownerAuthority)");
 	}
 
 	@Test
