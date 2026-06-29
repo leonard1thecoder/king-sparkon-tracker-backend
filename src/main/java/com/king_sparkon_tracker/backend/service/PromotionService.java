@@ -286,10 +286,11 @@ public class PromotionService {
 
 	private boolean sendPromotion(PromotionChannel channel, Subscriber subscriber, Promotion promotion) {
 		String landingUrl = promotion.getLandingUrl();
+		String contactValue = subscriber.getContactValue();
 		if (channel == PromotionChannel.EMAIL) {
-			return appEmailService.sendPromotionEmail(subscriber.getContact(), promotion.getTitle(), promotion.getMessage(), landingUrl);
+			return appEmailService.sendPromotionEmail(contactValue, promotion.getTitle(), promotion.getMessage(), landingUrl);
 		}
-		return whatsAppService.sendPromotion(subscriber.getContact(), promotion.getTitle(), promotion.getMessage(), landingUrl);
+		return whatsAppService.sendPromotion(contactValue, promotion.getTitle(), promotion.getMessage(), landingUrl);
 	}
 
 	private String normalizeRequired(String value, String message) {
