@@ -43,6 +43,7 @@ public class RateLimitingFilter extends OncePerRequestFilter {
 			"/api/health",
 			"/ready",
 			"/api/ready",
+			"/actuator/info",
 			"/api/paypal/webhooks",
 			"/api/stripe/webhooks"
 	);
@@ -84,7 +85,10 @@ public class RateLimitingFilter extends OncePerRequestFilter {
 
 	private RateLimitDecision decisionFor(HttpServletRequest request) {
 		String path = normalizedPath(request);
-		if (HttpMethod.OPTIONS.matches(request.getMethod()) || EXCLUDED_PATHS.contains(path) || isDocsPath(path)) {
+		if (HttpMethod.OPTIONS.matches(request.getMethod())
+				|| EXCLUDED_PATHS.contains(path)
+				|| isActuatorHealthPath(path)
+				|| isDocsPath(path)) {
 			return null;
 		}
 
@@ -104,6 +108,10 @@ public class RateLimitingFilter extends OncePerRequestFilter {
 		} catch (RuntimeException ignored) {
 			return null;
 		}
+	}
+
+	private boolean isActuatorHealthPath(String path) {
+		return path.equals("/actuator/health") || path.startsWith("/actuator/health/");
 	}
 
 	private boolean isDocsPath(String path) {
