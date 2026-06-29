@@ -1,3 +1,4 @@
+
 # King Sparkon Tracker Backend
 
 Spring Boot backend for King Sparkon Tracker: barcode inventory, business tenants, workers, affiliates, tickets, tips, Stripe payments, business account top-ups, promotions, payouts, reports, audit logs, and user dashboards.
