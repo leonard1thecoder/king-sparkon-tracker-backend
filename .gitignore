@@ -5,6 +5,8 @@ target/
 hs_err_pid*.log
 replay_pid*.log
 .mvn/wrapper/maven-wrapper.jar
+gha-creds-*.json
+gha-kubeconfig-*
 !**/src/main/**/target/
 !**/src/test/**/target/
 
