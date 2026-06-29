@@ -16,4 +16,8 @@ public record CreateWorkerRequest(
 	public CreateWorkerRequest(String username, String emailAddress, String password) {
 		this(username, emailAddress, password, "Worker", false, null);
 	}
+
+	public CreateWorkerRequest(String username, String emailAddress, String password, String jobTitle, Boolean tipQrCodeEnabled) {
+		this(username, emailAddress, password, jobTitle, tipQrCodeEnabled, null);
+	}
 }
