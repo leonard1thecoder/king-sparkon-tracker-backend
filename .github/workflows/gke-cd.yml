@@ -1,0 +1,185 @@
+name: GKE CD
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: Optional Docker image tag override. Defaults to the short commit SHA.
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: gke-cd-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  REGION: ${{ vars.GCP_REGION || 'africa-south1' }}
+  GKE_LOCATION: ${{ vars.GKE_LOCATION || 'africa-south1' }}
+  GKE_CLUSTER_NAME: ${{ vars.GKE_CLUSTER_NAME || 'king-sparkon-gke' }}
+  ARTIFACT_REGISTRY_REPO: ${{ vars.ARTIFACT_REGISTRY_REPO || 'king-sparkon-tracker' }}
+  IMAGE_NAME: ${{ vars.IMAGE_NAME || 'king-sparkon-tracker-backend' }}
+  K8S_NAMESPACE: ${{ vars.K8S_NAMESPACE || 'king-sparkon' }}
+  FRONTEND_DOMAIN: ${{ vars.FRONTEND_DOMAIN }}
+
+jobs:
+  deploy:
+    name: Build, push, and deploy to GKE
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate required GitHub variables
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=0
+
+          for name in PROJECT_ID; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::$name is required. Add it as a GitHub Actions repository variable."
+              missing=1
+            fi
+          done
+
+          if [ -z "${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}" ]; then
+            echo "::error::GCP_WORKLOAD_IDENTITY_PROVIDER is required. Add it as a GitHub Actions repository variable."
+            missing=1
+          fi
+
+          if [ -z "${{ vars.GCP_SERVICE_ACCOUNT_EMAIL }}" ]; then
+            echo "::error::GCP_SERVICE_ACCOUNT_EMAIL is required. Add it as a GitHub Actions repository variable."
+            missing=1
+          fi
+
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT_EMAIL }}
+
+      - name: Set up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v3
+        with:
+          version: ">= 416.0.0"
+
+      - name: Configure Docker for Artifact Registry
+        shell: bash
+        run: |
+          set -euo pipefail
+          gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+
+      - name: Compute image tags
+        id: image
+        shell: bash
+        run: |
+          set -euo pipefail
+          INPUT_TAG="${{ github.event.inputs.image_tag || '' }}"
+          if [ -n "$INPUT_TAG" ]; then
+            IMAGE_TAG="$INPUT_TAG"
+          else
+            IMAGE_TAG="${GITHUB_SHA::7}"
+          fi
+
+          IMAGE_URI="${REGION}-docker.pkg.dev/${PROJECT_ID}/${ARTIFACT_REGISTRY_REPO}/${IMAGE_NAME}:${IMAGE_TAG}"
+          LATEST_IMAGE_URI="${REGION}-docker.pkg.dev/${PROJECT_ID}/${ARTIFACT_REGISTRY_REPO}/${IMAGE_NAME}:latest"
+
+          echo "image_tag=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
+          echo "image_uri=$IMAGE_URI" >> "$GITHUB_OUTPUT"
+          echo "latest_image_uri=$LATEST_IMAGE_URI" >> "$GITHUB_OUTPUT"
+
+          echo "Deploy image: $IMAGE_URI"
+
+      - name: Build Docker image
+        shell: bash
+        env:
+          DOCKER_BUILDKIT: "1"
+        run: |
+          set -euo pipefail
+          docker build \
+            --pull \
+            --tag "${{ steps.image.outputs.image_uri }}" \
+            --tag "${{ steps.image.outputs.latest_image_uri }}" \
+            .
+
+      - name: Push Docker image
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker push "${{ steps.image.outputs.image_uri }}"
+          docker push "${{ steps.image.outputs.latest_image_uri }}"
+
+      - name: Get GKE credentials
+        uses: google-github-actions/get-gke-credentials@v3
+        with:
+          cluster_name: ${{ env.GKE_CLUSTER_NAME }}
+          location: ${{ env.GKE_LOCATION }}
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Render Kubernetes manifests
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf rendered-k8s
+          cp -R k8s rendered-k8s
+
+          find rendered-k8s -type f -name '*.yaml' -print0 | xargs -0 sed -i "s/PROJECT_ID/${PROJECT_ID}/g"
+
+          if [ -n "${FRONTEND_DOMAIN:-}" ]; then
+            sed -i "s#https://YOUR_FRONTEND_DOMAIN#${FRONTEND_DOMAIN}#g" rendered-k8s/configmap.yaml
+          fi
+
+      - name: Ensure runtime secret exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          kubectl apply -f rendered-k8s/namespace.yaml
+
+          if ! kubectl -n "$K8S_NAMESPACE" get secret king-sparkon-backend-secrets >/dev/null 2>&1; then
+            echo "::error::Missing Kubernetes secret king-sparkon-backend-secrets in namespace $K8S_NAMESPACE. Create it once before running CD. See docs/github-actions-gke-cd.md."
+            exit 1
+          fi
+
+      - name: Deploy Kubernetes manifests
+        shell: bash
+        run: |
+          set -euo pipefail
+          kubectl apply -f rendered-k8s/service-account.yaml
+          kubectl apply -f rendered-k8s/configmap.yaml
+          kubectl apply -f rendered-k8s/deployment.yaml
+          kubectl apply -f rendered-k8s/service.yaml
+          kubectl apply -f rendered-k8s/hpa.yaml
+
+      - name: Roll out new image
+        shell: bash
+        run: |
+          set -euo pipefail
+          kubectl -n "$K8S_NAMESPACE" set image deployment/king-sparkon-tracker-backend \
+            backend="${{ steps.image.outputs.image_uri }}"
+
+          kubectl -n "$K8S_NAMESPACE" rollout status deployment/king-sparkon-tracker-backend --timeout=10m
+
+      - name: Show deployment status
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          kubectl -n "$K8S_NAMESPACE" get deployment king-sparkon-tracker-backend -o wide
+          kubectl -n "$K8S_NAMESPACE" get pods -l app.kubernetes.io/name=king-sparkon-tracker-backend -o wide
+          kubectl -n "$K8S_NAMESPACE" get service king-sparkon-tracker-backend -o wide
