@@ -1,12 +1,17 @@
 package com.king_sparkon_tracker.backend.controller;
 
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.security.Principal;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -19,30 +24,24 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import com.king_sparkon_tracker.backend.dto.CreateWorkerRequest;
 import com.king_sparkon_tracker.backend.exception.ApiExceptionHandler;
 import com.king_sparkon_tracker.backend.exception.ResourceNotFoundException;
-import com.king_sparkon_tracker.backend.model.TrackerUser;
 import com.king_sparkon_tracker.backend.model.Privilege;
 import com.king_sparkon_tracker.backend.model.PrivilegeRole;
+import com.king_sparkon_tracker.backend.model.TrackerUser;
+import com.king_sparkon_tracker.backend.service.OnboardingProfileService;
 import com.king_sparkon_tracker.backend.service.TrackerUserService;
-
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.verify;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
-
-
-import java.security.Principal;
-
-
 
 class UserControllerTest {
 
 	private TrackerUserService userService;
+	private OnboardingProfileService onboardingProfileService;
 	private MockMvc mockMvc;
 
 	@BeforeEach
 	void setUp() {
 		userService = mock(TrackerUserService.class);
+		onboardingProfileService = mock(OnboardingProfileService.class);
 		mockMvc = MockMvcBuilders
-				.standaloneSetup(new UserController(userService))
+				.standaloneSetup(new UserController(userService, onboardingProfileService))
 				.setControllerAdvice(new ApiExceptionHandler())
 				.build();
 	}
@@ -99,7 +98,7 @@ class UserControllerTest {
 	void completeOnboardingReturnsUpdatedCurrentUser() throws Exception {
 		TrackerUser worker = user("worker", PrivilegeRole.Worker);
 		worker.completeOnboarding("45 Worker Street", "+27821234567");
-		when(userService.completeOnboarding(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.eq("worker")))
+		when(onboardingProfileService.completeUserOnboarding(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.eq("worker")))
 				.thenReturn(worker);
 
 		mockMvc.perform(patch("/api/users/me/onboarding")
