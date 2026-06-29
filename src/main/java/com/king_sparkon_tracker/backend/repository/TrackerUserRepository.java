@@ -1,5 +1,6 @@
 package com.king_sparkon_tracker.backend.repository;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.domain.Page;
@@ -24,6 +25,8 @@ public interface TrackerUserRepository extends JpaRepository<TrackerUser, Long> 
 	long countByBusiness_IdAndPrivilege_Name(Long businessId, PrivilegeRole privilegeName);
 
 	Page<TrackerUser> findByBusiness_Id(Long businessId, Pageable pageable);
+
+	List<TrackerUser> findByBusiness_IdAndPrivilege_NameOrderByUsernameAsc(Long businessId, PrivilegeRole privilegeName);
 
 	Optional<TrackerUser> findByIdAndBusiness_Id(Long id, Long businessId);
 
