@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - namespace.yaml
+  - service-account.yaml
+  - configmap.yaml
+  - secret.example.yaml
+  - deployment.yaml
+  - service.yaml
+  - hpa.yaml
+
+images:
+  - name: africa-south1-docker.pkg.dev/PROJECT_ID/king-sparkon-tracker/king-sparkon-tracker-backend
+    newName: africa-south1-docker.pkg.dev/PROJECT_ID/king-sparkon-tracker/king-sparkon-tracker-backend
+    newTag: latest
