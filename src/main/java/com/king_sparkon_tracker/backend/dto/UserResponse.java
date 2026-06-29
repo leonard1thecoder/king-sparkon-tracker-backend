@@ -33,6 +33,9 @@ public record UserResponse(
 		@Schema(description = "Business name this user belongs to.", example = "Owner Retail Store")
 		String businessName,
 
+		@Schema(description = "QR code URL linked to the business public page or verification page.")
+		String businessQrCodeUrl,
+
 		@Schema(description = "User localization country.", example = "SOUTH_AFRICA")
 		LocalizationCountry localizationCountry,
 
@@ -80,6 +83,7 @@ public record UserResponse(
 				user.getPrivilege().getName(),
 				user.getBusiness() == null ? null : user.getBusiness().getId(),
 				user.getBusiness() == null ? null : user.getBusiness().getName(),
+				user.getBusiness() == null ? null : user.getBusiness().getQrCodeUrl(),
 				user.getLocalizationCountry(),
 				user.getPhysicalAddress(),
 				user.getCellphoneNumber(),
