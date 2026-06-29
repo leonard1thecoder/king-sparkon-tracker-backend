@@ -24,7 +24,7 @@ data:
   FRONTEND_LOGIN_URL: "https://YOUR_FRONTEND_DOMAIN/login"
 
   APP_GOOGLE_STORAGE_ENABLED: "true"
-  APP_GOOGLE_STORAGE_PROJECT_ID: "PROJECT_ID"
+  APP_GOOGLE_STORAGE_PROJECT_ID: "project-a3605d87-a822-4c2a-b51"
   APP_GOOGLE_STORAGE_BUCKET_NAME: "king-sparkon-tracker-images"
   APP_GOOGLE_STORAGE_PUBLIC_BASE_URL: "https://storage.googleapis.com/king-sparkon-tracker-images"
   APP_GOOGLE_STORAGE_ROOT_FOLDER: "king-sparkon-tracker"
