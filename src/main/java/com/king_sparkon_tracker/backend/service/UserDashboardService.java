@@ -76,7 +76,10 @@ public class UserDashboardService {
 						ownerId,
 						List.of(TicketEventStatus.PUBLISHED),
 						LocalDate.now()).stream())
-				.collect(LinkedHashMap::new, (map, event) -> map.putIfAbsent(event.getId(), event), Map::putAll)
+				.collect(
+						LinkedHashMap<String, TicketEvent>::new,
+						(map, event) -> map.putIfAbsent(event.getId(), event),
+						Map::putAll)
 				.values()
 				.stream()
 				.map(event -> ticketManagementService.getEventById(event.getId()))
