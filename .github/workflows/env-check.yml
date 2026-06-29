@@ -1,0 +1,25 @@
+name: Environment Check
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  env-check:
+    name: Validate Kubernetes and CD environment
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate Kubernetes and GitHub Actions env wiring
+        shell: bash
+        run: bash scripts/validate-k8s-env.sh
