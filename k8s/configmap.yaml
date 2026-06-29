@@ -23,6 +23,10 @@ data:
   FRONTEND_EMAIL_VERIFICATION_URL: "https://YOUR_FRONTEND_DOMAIN/verify-email"
   FRONTEND_LOGIN_URL: "https://YOUR_FRONTEND_DOMAIN/login"
 
+  TIPS_PAYPAL_ONBOARDING_URL: "https://YOUR_FRONTEND_DOMAIN/dashboard/owner/tips/paypal/onboarding"
+  TIPS_WORKER_TIP_URL_TEMPLATE: "https://YOUR_FRONTEND_DOMAIN/tips/workers/{workerId}"
+  TRANSACTIONS_PAYPAL_ONBOARDING_URL: "https://YOUR_FRONTEND_DOMAIN/dashboard/owner/transactions/paypal/onboarding"
+
   APP_GOOGLE_STORAGE_ENABLED: "true"
   APP_GOOGLE_STORAGE_PROJECT_ID: "project-a3605d87-a822-4c2a-b51"
   APP_GOOGLE_STORAGE_BUCKET_NAME: "king-sparkon-tracker-images"
