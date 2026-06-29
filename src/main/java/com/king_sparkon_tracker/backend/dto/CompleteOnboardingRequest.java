@@ -13,6 +13,10 @@ public record CompleteOnboardingRequest(
 		@Schema(description = "User cellphone number.", example = "+27821234567")
 		@NotBlank
 		@Size(max = 32)
-		String cellphoneNumber
+		String cellphoneNumber,
+
+		@Schema(description = "Optional profile-picture URL captured on first-login onboarding.", example = "https://cdn.example.com/profiles/worker.png")
+		@Size(max = 2048)
+		String profilePictureUrl
 ) {
 }
