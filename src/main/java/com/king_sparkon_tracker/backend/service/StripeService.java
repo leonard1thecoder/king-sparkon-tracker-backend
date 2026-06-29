@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -120,12 +121,11 @@ public class StripeService {
 			BigDecimal systemFee,
 			BigDecimal netAmount,
 			String callbackUrl) {
-		Map<String, String> metadata = Map.of(
-				"tipId", String.valueOf(tip.getId()),
-				"workerId", String.valueOf(tip.getWorkerId()),
-				"systemFee", systemFee.toPlainString(),
-				"netAmount", netAmount.toPlainString()
-		);
+		Map<String, String> metadata = new HashMap<>();
+		metadata.put("tipId", stringValue(tip.getId()));
+		metadata.put("workerId", stringValue(tip.getWorkerId()));
+		metadata.put("systemFee", systemFee.toPlainString());
+		metadata.put("netAmount", netAmount.toPlainString());
 
 		PaymentLinkCreateParams.Builder builder = PaymentLinkCreateParams.builder()
 				.putAllMetadata(metadata)
@@ -161,11 +161,10 @@ public class StripeService {
 			throw new IllegalArgumentException("Transaction total must be greater than zero for website payment");
 		}
 
-		Map<String, String> metadata = Map.of(
-				"transactionId", String.valueOf(transaction.getId()),
-				"businessId", String.valueOf(transaction.getBusiness() == null ? "" : transaction.getBusiness().getId()),
-				"paymentEmail", transaction.getPaymentEmail() == null ? "" : transaction.getPaymentEmail()
-		);
+		Map<String, String> metadata = new HashMap<>();
+		metadata.put("transactionId", stringValue(transaction.getId()));
+		metadata.put("businessId", stringValue(transaction.getBusiness() == null ? null : transaction.getBusiness().getId()));
+		metadata.put("paymentEmail", stringValue(transaction.getPaymentEmail()));
 
 		return PaymentLinkCreateParams.builder()
 				.putAllMetadata(metadata)
@@ -190,11 +189,10 @@ public class StripeService {
 			throw new IllegalArgumentException("Business account top-up amount must be greater than zero");
 		}
 
-		Map<String, String> metadata = Map.of(
-				"businessId", String.valueOf(business.getId()),
-				"businessName", business.getName(),
-				"paymentMethod", paymentMethod == null || paymentMethod.isBlank() ? "CARD_OR_WALLET" : paymentMethod.trim().toUpperCase()
-		);
+		Map<String, String> metadata = new HashMap<>();
+		metadata.put("businessId", stringValue(business.getId()));
+		metadata.put("businessName", stringValue(business.getName()));
+		metadata.put("paymentMethod", paymentMethod == null || paymentMethod.isBlank() ? "CARD_OR_WALLET" : paymentMethod.trim().toUpperCase());
 
 		PaymentLinkCreateParams.Builder builder = PaymentLinkCreateParams.builder()
 				.putAllMetadata(metadata)
@@ -229,13 +227,12 @@ public class StripeService {
 			throw new IllegalArgumentException("Ticket payment total must be greater than zero");
 		}
 
-		Map<String, String> metadata = Map.of(
-				"ticketPaymentId", payment.getId(),
-				"eventId", payment.getEventId(),
-				"userId", payment.getUserId(),
-				"ticketType", payment.getTicketType().name(),
-				"quantity", String.valueOf(payment.getQuantity())
-		);
+		Map<String, String> metadata = new HashMap<>();
+		metadata.put("ticketPaymentId", stringValue(payment.getId()));
+		metadata.put("eventId", stringValue(payment.getEventId()));
+		metadata.put("userId", stringValue(payment.getUserId()));
+		metadata.put("ticketType", payment.getTicketType().name());
+		metadata.put("quantity", stringValue(payment.getQuantity()));
 
 		PaymentLinkCreateParams.Builder builder = PaymentLinkCreateParams.builder()
 				.putAllMetadata(metadata)
@@ -283,6 +280,10 @@ public class StripeService {
 		String encodedPaymentUrl = URLEncoder.encode(paymentUrl, StandardCharsets.UTF_8);
 		return "https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=%s"
 				.formatted(encodedPaymentUrl);
+	}
+
+	private String stringValue(Object value) {
+		return value == null ? "" : String.valueOf(value);
 	}
 
 	public record CreatedTipPaymentLink(
