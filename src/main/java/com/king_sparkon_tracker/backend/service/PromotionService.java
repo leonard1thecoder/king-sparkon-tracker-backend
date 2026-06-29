@@ -238,24 +238,24 @@ public class PromotionService {
 	private List<Subscriber> dueSubscribers(Promotion promotion, OffsetDateTime cutoff) {
 		if (promotion.getAudience() == PromotionAudience.UNREGISTERED_AFFILIATES) {
 			return subscriberRepository.findTop200ByActiveTrueAndSubscriberTypeAndAffiliateRegisteredAndLastNotifiedAtIsNullOrActiveTrueAndSubscriberTypeAndAffiliateRegisteredAndLastNotifiedAtBeforeOrderByCreatedDateAsc(
-					SubscriberType.AFFILIATE, false, cutoff, SubscriberType.AFFILIATE, false, cutoff);
+					SubscriberType.AFFILIATE, false, SubscriberType.AFFILIATE, false, cutoff);
 		}
 		if (promotion.getAudience() == PromotionAudience.REGISTERED_AFFILIATES) {
 			return subscriberRepository.findTop200ByActiveTrueAndSubscriberTypeAndAffiliateRegisteredAndLastNotifiedAtIsNullOrActiveTrueAndSubscriberTypeAndAffiliateRegisteredAndLastNotifiedAtBeforeOrderByCreatedDateAsc(
-					SubscriberType.AFFILIATE, true, cutoff, SubscriberType.AFFILIATE, true, cutoff);
+					SubscriberType.AFFILIATE, true, SubscriberType.AFFILIATE, true, cutoff);
 		}
 		if (promotion.getAudience() == PromotionAudience.REGISTERED_SUBSCRIBERS) {
 			return subscriberRepository.findTop200ByActiveTrueAndAffiliateRegisteredAndLastNotifiedAtIsNullOrActiveTrueAndAffiliateRegisteredAndLastNotifiedAtBeforeOrderByCreatedDateAsc(
-					true, cutoff, true, cutoff);
+					true, true, cutoff);
 		}
 		PromotionChannel channel = promotion.getChannel();
 		if (channel == PromotionChannel.EMAIL) {
 			return subscriberRepository.findTop200ByActiveTrueAndContactTypeAndLastNotifiedAtIsNullOrActiveTrueAndContactTypeAndLastNotifiedAtBeforeOrderByCreatedDateAsc(
-					SubscriberContactType.EMAIL, cutoff, SubscriberContactType.EMAIL, cutoff);
+					SubscriberContactType.EMAIL, SubscriberContactType.EMAIL, cutoff);
 		}
 		if (channel == PromotionChannel.WHATSAPP) {
 			return subscriberRepository.findTop200ByActiveTrueAndContactTypeAndLastNotifiedAtIsNullOrActiveTrueAndContactTypeAndLastNotifiedAtBeforeOrderByCreatedDateAsc(
-					SubscriberContactType.CELLPHONE, cutoff, SubscriberContactType.CELLPHONE, cutoff);
+					SubscriberContactType.CELLPHONE, SubscriberContactType.CELLPHONE, cutoff);
 		}
 		return subscriberRepository.findTop200ByActiveTrueAndLastNotifiedAtIsNullOrActiveTrueAndLastNotifiedAtBeforeOrderByCreatedDateAsc(cutoff);
 	}
