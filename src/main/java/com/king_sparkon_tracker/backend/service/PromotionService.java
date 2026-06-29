@@ -285,12 +285,17 @@ public class PromotionService {
 	}
 
 	private boolean sendPromotion(PromotionChannel channel, Subscriber subscriber, Promotion promotion) {
-		String landingUrl = promotion.getLandingUrl();
 		String contactValue = subscriber.getContactValue();
 		if (channel == PromotionChannel.EMAIL) {
-			return appEmailService.sendPromotionEmail(contactValue, promotion.getTitle(), promotion.getMessage(), landingUrl);
+			return appEmailService.sendPromotionEmail(contactValue, promotion);
 		}
-		return whatsAppService.sendPromotion(contactValue, promotion.getTitle(), promotion.getMessage(), landingUrl);
+		return whatsAppService.sendPromotion(contactValue, whatsappPromotionMessage(promotion));
+	}
+
+	private String whatsappPromotionMessage(Promotion promotion) {
+		String landingUrl = normalizeOptional(promotion.getLandingUrl());
+		String body = promotion.getTitle() + "\n\n" + promotion.getMessage();
+		return landingUrl == null ? body : body + "\n\n" + landingUrl;
 	}
 
 	private String normalizeRequired(String value, String message) {
