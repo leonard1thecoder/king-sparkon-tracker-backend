@@ -73,7 +73,16 @@ public class SecurityConfig {
 				.authorizeHttpRequests(authorize -> {
 					authorize
 							.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-							.requestMatchers(HttpMethod.GET, "/health", "/api/health", "/ready", "/api/ready").permitAll()
+							.requestMatchers(
+									HttpMethod.GET,
+									"/health",
+									"/api/health",
+									"/ready",
+									"/api/ready",
+									"/actuator/health",
+									"/actuator/health/**",
+									"/actuator/info"
+							).permitAll()
 							.requestMatchers(OPENAPI_PATHS).permitAll()
 							.requestMatchers(
 									HttpMethod.POST,
