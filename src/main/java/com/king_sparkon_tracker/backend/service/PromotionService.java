@@ -6,8 +6,10 @@ import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
@@ -36,6 +38,8 @@ import com.king_sparkon_tracker.backend.repository.SubscriberRepository;
 public class PromotionService {
 
 	private static final Logger log = LoggerFactory.getLogger(PromotionService.class);
+	private static final int PROMOTION_BATCH_SIZE = 20;
+	private static final int SUBSCRIBER_BATCH_SIZE = 200;
 
 	private final PromotionRepository promotionRepository;
 	private final PromotionNotificationRepository notificationRepository;
@@ -185,11 +189,24 @@ public class PromotionService {
 		return promotionRepository.findByBusiness_IdOrderByCreatedDateDesc(business.getId(), pageable);
 	}
 
+	@Transactional(propagation = Propagation.NOT_SUPPORTED)
 	public void processDuePromotions() {
 		OffsetDateTime now = OffsetDateTime.now();
 		List<Promotion> promotions = promotionRepository.findTop20ByStatusAndScheduledForLessThanEqualOrderByScheduledForAsc(PromotionStatus.ACTIVE, now);
-		for (Promotion promotion : promotions) {
-			processPromotion(promotion, now);
+		int processedCount = 0;
+		for (Promotion promotion : promotions.stream().limit(PROMOTION_BATCH_SIZE).toList()) {
+			try {
+				processPromotion(promotion, now);
+				processedCount++;
+			} catch (RuntimeException exception) {
+				if (Thread.currentThread().isInterrupted()) {
+					Thread.currentThread().interrupt();
+				}
+				log.warn("promotion_processing_failed promotionId={} reason={}", promotion.getId(), exception.getMessage(), exception);
+			}
+		}
+		if (!promotions.isEmpty()) {
+			log.info("promotion_processing_batch_complete selected={} processed={}", promotions.size(), processedCount);
 		}
 	}
 
@@ -236,28 +253,26 @@ public class PromotionService {
 	}
 
 	private List<Subscriber> dueSubscribers(Promotion promotion, OffsetDateTime cutoff) {
+		Pageable batch = PageRequest.of(0, SUBSCRIBER_BATCH_SIZE);
 		if (promotion.getAudience() == PromotionAudience.UNREGISTERED_AFFILIATES) {
-			return subscriberRepository.findTop200ByActiveTrueAndSubscriberTypeAndAffiliateRegisteredAndLastNotifiedAtIsNullOrActiveTrueAndSubscriberTypeAndAffiliateRegisteredAndLastNotifiedAtBeforeOrderByCreatedDateAsc(
-					SubscriberType.AFFILIATE, false, SubscriberType.AFFILIATE, false, cutoff);
+			return subscriberRepository.findDueActiveSubscribersBySubscriberTypeAndAffiliateRegistered(
+					SubscriberType.AFFILIATE, false, cutoff, batch);
 		}
 		if (promotion.getAudience() == PromotionAudience.REGISTERED_AFFILIATES) {
-			return subscriberRepository.findTop200ByActiveTrueAndSubscriberTypeAndAffiliateRegisteredAndLastNotifiedAtIsNullOrActiveTrueAndSubscriberTypeAndAffiliateRegisteredAndLastNotifiedAtBeforeOrderByCreatedDateAsc(
-					SubscriberType.AFFILIATE, true, SubscriberType.AFFILIATE, true, cutoff);
+			return subscriberRepository.findDueActiveSubscribersBySubscriberTypeAndAffiliateRegistered(
+					SubscriberType.AFFILIATE, true, cutoff, batch);
 		}
 		if (promotion.getAudience() == PromotionAudience.REGISTERED_SUBSCRIBERS) {
-			return subscriberRepository.findTop200ByActiveTrueAndAffiliateRegisteredAndLastNotifiedAtIsNullOrActiveTrueAndAffiliateRegisteredAndLastNotifiedAtBeforeOrderByCreatedDateAsc(
-					true, true, cutoff);
+			return subscriberRepository.findDueActiveSubscribersByAffiliateRegistered(true, cutoff, batch);
 		}
 		PromotionChannel channel = promotion.getChannel();
 		if (channel == PromotionChannel.EMAIL) {
-			return subscriberRepository.findTop200ByActiveTrueAndContactTypeAndLastNotifiedAtIsNullOrActiveTrueAndContactTypeAndLastNotifiedAtBeforeOrderByCreatedDateAsc(
-					SubscriberContactType.EMAIL, SubscriberContactType.EMAIL, cutoff);
+			return subscriberRepository.findDueActiveSubscribersByContactType(SubscriberContactType.EMAIL, cutoff, batch);
 		}
 		if (channel == PromotionChannel.WHATSAPP) {
-			return subscriberRepository.findTop200ByActiveTrueAndContactTypeAndLastNotifiedAtIsNullOrActiveTrueAndContactTypeAndLastNotifiedAtBeforeOrderByCreatedDateAsc(
-					SubscriberContactType.CELLPHONE, SubscriberContactType.CELLPHONE, cutoff);
+			return subscriberRepository.findDueActiveSubscribersByContactType(SubscriberContactType.CELLPHONE, cutoff, batch);
 		}
-		return subscriberRepository.findTop200ByActiveTrueAndLastNotifiedAtIsNullOrActiveTrueAndLastNotifiedAtBeforeOrderByCreatedDateAsc(cutoff);
+		return subscriberRepository.findDueActiveSubscribers(cutoff, batch);
 	}
 
 	private int targetCountFor(PromotionAudience audience) {
