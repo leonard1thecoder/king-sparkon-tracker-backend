@@ -121,6 +121,14 @@ public class TicketManagementService {
         return toEventResponse(findEvent(eventId));
     }
 
+    @Transactional(readOnly = true)
+    public List<UserTicketResponse> getMyTickets(String userId) {
+        return userTicketRepository.findByUserIdOrderByPurchasedAtDesc(userId)
+                .stream()
+                .map(this::toUserTicketResponse)
+                .toList();
+    }
+
     public TicketEventResponse createEvent(CreateEventRequest request) {
         requireTicketTypes(request.ticketTypes());
         TicketEvent event = new TicketEvent();
@@ -273,6 +281,11 @@ public class TicketManagementService {
         return ticketEventBoostRepository.findByEventIdOrderByCreatedAtDesc(eventId).stream().map(this::toPromotionResponse).toList();
     }
 
+    @Transactional(readOnly = true)
+    public List<TicketEventPromotionResponse> getOwnerEventPromotions(String ownerId) {
+        return ticketEventBoostRepository.findByOwnerIdOrderByCreatedAtDesc(ownerId).stream().map(this::toPromotionResponse).toList();
+    }
+
     public TicketEventPromotionResponse cancelPromotion(String promotionId, String actorUsername) {
         TicketEventPromotion promotion = ticketEventBoostRepository.findById(promotionId).orElseThrow(() -> new IllegalArgumentException("Ticket promotion not found."));
         TicketEvent event = findEvent(promotion.getEventId());
@@ -290,7 +303,7 @@ public class TicketManagementService {
     }
 
     public TicketVerificationResponse verifyByReference(String ticketReference, String workerId) {
-        UserTicket ticket = userTicketRepository.findByTicketReference(ticketReference).orElseThrow(() -> new IllegalArgumentException("Ticket reference not found."));
+        UserTicket ticket = userTicketRepository.findByTicketReferenceIgnoreCase(ticketReference).orElseThrow(() -> new IllegalArgumentException("Ticket reference not found."));
         return verifyTicket(ticket, workerId, "Ticket reference accepted.");
     }
 
