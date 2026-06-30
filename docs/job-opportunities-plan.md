@@ -11,6 +11,8 @@ Owners can publish job posts, users and workers can maintain opportunity profile
 - First interested job is required; the next four are optional.
 - Qualifications are constrained to: Grade 8, Grade 9, Grade 10, Grade 11, Grade 12, Higher Certificate, Diploma, Bachelor, Hons, Masters, and Dr.
 - Experience is constrained to: less than one year, 1, 2, 3, 4, 5, and greater than five years.
+- The profile has `profileVisibleToBusinesses`, controlled during onboarding/profile update, so the applicant decides whether businesses can see the public profile summary.
+- Highest qualification and certificate URLs are private fields. Owners must request access and the applicant must approve before those fields are shown.
 
 ### Job post
 - Owned by a business owner and joined to the existing `businesses` table.
@@ -25,6 +27,14 @@ Owners can publish job posts, users and workers can maintain opportunity profile
 - Owner view action changes status to `VIEWED`.
 - Owner reject action changes status to `REJECTED`.
 - Owner interview booking changes status to `INTERVIEW_BOOKED`.
+- Owner application responses are privacy-aware: certificate URLs and qualification are hidden unless the related profile access request is approved.
+
+### Profile access request
+- Joined to application, business, owner, and applicant.
+- One access request is allowed per application.
+- Owner requests access to private qualification/certificate fields.
+- Applicant can approve or reject from Opportunities.
+- Approved access unlocks highest qualification and certificate URLs for the owner application view.
 
 ### Interview
 - Joined to application, post, business, and applicant.
@@ -34,13 +44,16 @@ Owners can publish job posts, users and workers can maintain opportunity profile
 ## API Design
 
 ### Opportunities navigation
-- `GET /api/opportunities` returns open jobs, my applications, and my interviews.
+- `GET /api/opportunities` returns open jobs, my applications, my interviews, and my profile access requests.
 - `GET /api/opportunities/profile` returns my opportunity profile.
-- `PUT /api/opportunities/profile` creates or updates my profile.
+- `PUT /api/opportunities/profile` creates or updates my profile and business visibility setting.
 - `GET /api/opportunities/jobs` lists open jobs.
 - `GET /api/opportunities/jobs/{jobPostId}` views one job post.
 - `POST /api/opportunities/jobs/{jobPostId}/apply` applies for a job.
 - `GET /api/opportunities/applications` lists my applications.
+- `GET /api/opportunities/profile-access-requests` lists profile access requests sent to me.
+- `POST /api/opportunities/profile-access-requests/{requestId}/approve` approves access to qualification and certificate URLs.
+- `POST /api/opportunities/profile-access-requests/{requestId}/reject` rejects access to qualification and certificate URLs.
 - `GET /api/opportunities/interviews` lists my interviews.
 - `POST /api/opportunities/interviews/{interviewId}/accept` accepts an interview.
 - `POST /api/opportunities/interviews/{interviewId}/reject` rejects an interview.
@@ -51,12 +64,16 @@ Owners can publish job posts, users and workers can maintain opportunity profile
 - `GET /api/owner/job-posts/applications` lists applications for the owner business.
 - `GET /api/owner/job-posts/{jobPostId}/applications` lists applications for one owner job post.
 - `POST /api/owner/job-posts/applications/{applicationId}/view` marks an application viewed.
+- `POST /api/owner/job-posts/applications/{applicationId}/profile-access-request` requests access to qualification and certificate URLs.
+- `GET /api/owner/job-posts/profile-access-requests` lists owner business access requests.
 - `POST /api/owner/job-posts/applications/{applicationId}/reject` rejects an application.
 - `POST /api/owner/job-posts/applications/{applicationId}/interview` books an interview.
 - `GET /api/owner/job-posts/interviews` lists owner interviews.
 
 ## Email Design
 - Application submitted: notify owner and applicant.
+- Profile access requested: notify applicant.
+- Profile access approved/rejected: notify owner.
 - Application rejected: notify applicant.
 - Interview booked: notify applicant.
 - Interview accepted/rejected: notify owner.
@@ -64,10 +81,14 @@ Owners can publish job posts, users and workers can maintain opportunity profile
 
 ## Test Plan
 - Profile creation validates one to five job interests.
+- Profile visibility controls whether owners can see profile summary.
+- Qualification and certificate URLs are hidden from owners until a profile access request is approved.
 - Job creation validates owner role and closing date.
 - Applying requires an existing profile and resume URL.
 - Duplicate applications are rejected.
 - Owner view changes application status to `VIEWED`.
+- Owner can request private profile access.
+- Applicant can approve or reject private profile access.
 - Booking an interview moves application status to `INTERVIEW_BOOKED` and creates a booked interview.
 - Expired interviews cannot be accepted.
-- Email hooks are verified for application submission and interview booking.
+- Email hooks are verified for application submission, access requests, and interview booking.
