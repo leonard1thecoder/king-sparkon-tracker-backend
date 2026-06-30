@@ -14,6 +14,7 @@ import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
 import org.springframework.stereotype.Service;
 
+import com.king_sparkon_tracker.backend.model.Business;
 import com.king_sparkon_tracker.backend.model.TrackerUser;
 
 @Service
@@ -36,17 +37,23 @@ public class JwtService {
 		Instant now = Instant.now();
 		Instant expiresAt = now.plus(expirationMinutes, ChronoUnit.MINUTES);
 		String role = user.getPrivilege().getName().name();
-		JwtClaimsSet claims = JwtClaimsSet.builder()
+		Business business = user.getBusiness();
+		JwtClaimsSet.Builder claimsBuilder = JwtClaimsSet.builder()
 				.issuer("king-sparkon-backend")
 				.issuedAt(now)
 				.expiresAt(expiresAt)
 				.subject(user.getUsername())
 				.claim("userId", user.getId())
 				.claim("emailAddress", user.getEmailAddress())
-				.claim("businessId", user.getBusiness() == null ? null : user.getBusiness().getId())
-				.claim("businessName", user.getBusiness() == null ? null : user.getBusiness().getName())
-				.claim("roles", List.of(role))
-				.build();
+				.claim("roles", List.of(role));
+
+		if (business != null) {
+			claimsBuilder
+					.claim("businessId", business.getId())
+					.claim("businessName", business.getName());
+		}
+
+		JwtClaimsSet claims = claimsBuilder.build();
 		String token = jwtEncoder.encode(JwtEncoderParameters.from(JwsHeader.with(MacAlgorithm.HS256).build(), claims))
 				.getTokenValue();
 		log.info("jwt_issued userId={} username={} role={} expiresAt={}", user.getId(), user.getUsername(), role, expiresAt);
