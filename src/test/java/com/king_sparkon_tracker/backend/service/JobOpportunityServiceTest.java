@@ -170,6 +170,7 @@ class JobOpportunityServiceTest {
 		TrackerUser owner = owner();
 		Business business = business(owner);
 		JobApplication application = application(business, owner);
+		when(trackerUserService.getUserByUsername("owner")).thenReturn(owner);
 		when(trackerUserService.businessForActor("owner")).thenReturn(business);
 		when(applicationRepository.findByIdAndJobPost_Business_Id(200L, 1L)).thenReturn(Optional.of(application));
 		when(applicationRepository.save(any(JobApplication.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -185,9 +186,10 @@ class JobOpportunityServiceTest {
 		TrackerUser owner = owner();
 		Business business = business(owner);
 		JobApplication application = application(business, owner);
+		when(trackerUserService.getUserByUsername("owner")).thenReturn(owner);
 		when(trackerUserService.businessForActor("owner")).thenReturn(business);
 		when(applicationRepository.findByIdAndJobPost_Business_Id(200L, 1L)).thenReturn(Optional.of(application));
-		when(interviewRepository.findAll()).thenReturn(List.of());
+		when(interviewRepository.findByApplication_Id(200L)).thenReturn(Optional.empty());
 		when(applicationRepository.save(any(JobApplication.class))).thenAnswer(invocation -> invocation.getArgument(0));
 		when(interviewRepository.save(any(JobInterview.class))).thenAnswer(invocation -> {
 			JobInterview interview = invocation.getArgument(0);
@@ -198,7 +200,7 @@ class JobOpportunityServiceTest {
 		OffsetDateTime interviewDate = OffsetDateTime.now().plusDays(3);
 		JobInterviewResponse response = service.bookInterview(200L, new BookInterviewRequest(
 				interviewDate,
-				"Bring your original certificate and ID.",
+				"Bring your original certificate.",
 				interviewDate.minusDays(1)), "owner");
 
 		assertThat(application.getStatus()).isEqualTo(JobApplicationStatus.INTERVIEW_BOOKED);
@@ -209,7 +211,7 @@ class JobOpportunityServiceTest {
 	}
 
 	@Test
-	void applicantCannotAcceptExpiredInterview() {
+	void interviewExpiryBlocksResponse() {
 		TrackerUser owner = owner();
 		Business business = business(owner);
 		JobApplication application = application(business, owner);
@@ -221,7 +223,7 @@ class JobOpportunityServiceTest {
 				"123 King Street");
 		ReflectionTestUtils.setField(interview, "id", 300L);
 		when(trackerUserService.getUserByUsername("applicant")).thenReturn(application.getApplicant());
-		when(interviewRepository.findById(300L)).thenReturn(Optional.of(interview));
+		when(interviewRepository.findByIdAndApplicant_Id(300L, 11L)).thenReturn(Optional.of(interview));
 		when(interviewRepository.save(any(JobInterview.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
 		assertThatThrownBy(() -> service.acceptInterview(300L, "applicant"))
