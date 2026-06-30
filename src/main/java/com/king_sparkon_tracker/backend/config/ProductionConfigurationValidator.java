@@ -1,6 +1,9 @@
 package com.king_sparkon_tracker.backend.config;
 
+import java.net.URI;
 import java.util.List;
+import java.util.Locale;
+import java.util.function.Function;
 
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
@@ -19,7 +22,6 @@ public class ProductionConfigurationValidator implements ApplicationRunner {
 			"spring.datasource.url",
 			"spring.datasource.username",
 			"spring.datasource.password",
-			"app.cors.allowed-origins",
 			"app.frontend.reset-password-url",
 			"app.frontend.email-verification-url",
 			"app.frontend.login-url",
@@ -45,7 +47,6 @@ public class ProductionConfigurationValidator implements ApplicationRunner {
 			"SUPABASE_DB_USER",
 			"SUPABASE_DB_PASSWORD",
 			"JWT_" + SECRET_ENV_SUFFIX,
-			"CORS_ALLOWED_ORIGINS",
 			"FRONTEND_RESET_PASSWORD_URL",
 			"FRONTEND_EMAIL_VERIFICATION_URL",
 			"FRONTEND_LOGIN_URL",
@@ -68,10 +69,22 @@ public class ProductionConfigurationValidator implements ApplicationRunner {
 			"TRANSACTIONS_PAYPAL_ONBOARDING_URL"
 	);
 
+	private static final List<String> FRONTEND_URL_PROPERTIES = List.of(
+			"app.frontend.reset-password-url",
+			"app.frontend.email-verification-url",
+			"app.frontend.login-url"
+	);
+
 	private final Environment environment;
+	private final Function<String, String> envProvider;
 
 	public ProductionConfigurationValidator(Environment environment) {
+		this(environment, System::getenv);
+	}
+
+	ProductionConfigurationValidator(Environment environment, Function<String, String> envProvider) {
 		this.environment = environment;
+		this.envProvider = envProvider;
 	}
 
 	@Override
@@ -89,7 +102,7 @@ public class ProductionConfigurationValidator implements ApplicationRunner {
 		}
 
 		List<String> missingEnvVars = REQUIRED_CLOUD_RUN_ENV_VARS.stream()
-				.filter(envVar -> !StringUtils.hasText(System.getenv(envVar)))
+				.filter(envVar -> !StringUtils.hasText(envProvider.apply(envVar)))
 				.toList();
 
 		if (!missingEnvVars.isEmpty()) {
@@ -100,6 +113,7 @@ public class ProductionConfigurationValidator implements ApplicationRunner {
 		validateRateLimitBackend();
 		validateJwtSecret();
 		validateExternalUrls();
+		validateCorsConfiguration();
 	}
 
 	private void validatePaypalIfEnabled() {
@@ -115,7 +129,7 @@ public class ProductionConfigurationValidator implements ApplicationRunner {
 		}
 
 		List<String> missingPaypalEnvVars = REQUIRED_PAYPAL_CLOUD_RUN_ENV_VARS.stream()
-				.filter(envVar -> !StringUtils.hasText(System.getenv(envVar)))
+				.filter(envVar -> !StringUtils.hasText(envProvider.apply(envVar)))
 				.toList();
 		if (!missingPaypalEnvVars.isEmpty()) {
 			throw new IllegalStateException("Production PayPal Cloud Run environment variables are missing: " + String.join(", ", missingPaypalEnvVars));
@@ -128,7 +142,7 @@ public class ProductionConfigurationValidator implements ApplicationRunner {
 	}
 
 	private void validateRateLimitBackend() {
-		String rateLimitBackend = System.getenv("RATE_LIMIT_BACKEND");
+		String rateLimitBackend = envProvider.apply("RATE_LIMIT_BACKEND");
 		if (!"redis".equalsIgnoreCase(rateLimitBackend)) {
 			throw new IllegalStateException("Production rate limiting must use RATE_LIMIT_BACKEND=redis");
 		}
@@ -150,6 +164,42 @@ public class ProductionConfigurationValidator implements ApplicationRunner {
 		requireNoLocalhost("app.tips.worker-tip-url-template");
 	}
 
+	private void validateCorsConfiguration() {
+		String allowedOrigins = environment.getProperty("app.cors.allowed-origins", "");
+		String allowedOriginPatterns = environment.getProperty("app.cors.allowed-origin-patterns", "");
+		boolean hasExplicitCorsConfiguration = StringUtils.hasText(allowedOrigins) || StringUtils.hasText(allowedOriginPatterns);
+		boolean hasFrontendOriginFallback = FRONTEND_URL_PROPERTIES.stream()
+				.map(property -> originFromUrl(environment.getProperty(property, "")))
+				.anyMatch(StringUtils::hasText);
+
+		if (!hasExplicitCorsConfiguration && !hasFrontendOriginFallback) {
+			throw new IllegalStateException("Production CORS requires app.cors.allowed-origins, app.cors.allowed-origin-patterns, or valid frontend URL properties");
+		}
+		if (StringUtils.hasText(allowedOrigins)) {
+			requireNoLocalhostValue("app.cors.allowed-origins", allowedOrigins);
+		}
+		if (StringUtils.hasText(allowedOriginPatterns)) {
+			requireNoLocalhostValue("app.cors.allowed-origin-patterns", allowedOriginPatterns);
+		}
+	}
+
+	private String originFromUrl(String url) {
+		if (!StringUtils.hasText(url)) {
+			return "";
+		}
+
+		try {
+			URI uri = URI.create(url.trim());
+			if (!StringUtils.hasText(uri.getScheme()) || !StringUtils.hasText(uri.getHost())) {
+				return "";
+			}
+			String port = uri.getPort() == -1 ? "" : ":" + uri.getPort();
+			return uri.getScheme() + "://" + uri.getHost() + port;
+		} catch (IllegalArgumentException ignored) {
+			return "";
+		}
+	}
+
 	private boolean isProductionProfileActive() {
 		for (String profile : environment.getActiveProfiles()) {
 			if ("prod".equalsIgnoreCase(profile) || "production".equalsIgnoreCase(profile)) {
@@ -160,8 +210,12 @@ public class ProductionConfigurationValidator implements ApplicationRunner {
 	}
 
 	private void requireNoLocalhost(String property) {
-		String value = environment.getProperty(property, "");
-		if (value.contains("localhost") || value.contains("127.0.0.1")) {
+		requireNoLocalhostValue(property, environment.getProperty(property, ""));
+	}
+
+	private void requireNoLocalhostValue(String property, String value) {
+		String normalizedValue = value.toLowerCase(Locale.ROOT);
+		if (normalizedValue.contains("localhost") || normalizedValue.contains("127.0.0.1")) {
 			throw new IllegalStateException("Production property must not point to localhost: " + property);
 		}
 	}
