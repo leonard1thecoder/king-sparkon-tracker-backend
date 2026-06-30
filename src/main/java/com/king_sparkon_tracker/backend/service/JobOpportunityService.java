@@ -18,8 +18,10 @@ import com.king_sparkon_tracker.backend.dto.JobOpportunityDtos.CreateJobPostRequ
 import com.king_sparkon_tracker.backend.dto.JobOpportunityDtos.JobApplicationResponse;
 import com.king_sparkon_tracker.backend.dto.JobOpportunityDtos.JobInterviewResponse;
 import com.king_sparkon_tracker.backend.dto.JobOpportunityDtos.JobPostResponse;
+import com.king_sparkon_tracker.backend.dto.JobOpportunityDtos.JobProfileAccessRequestResponse;
 import com.king_sparkon_tracker.backend.dto.JobOpportunityDtos.JobSeekerProfileResponse;
 import com.king_sparkon_tracker.backend.dto.JobOpportunityDtos.OpportunitiesResponse;
+import com.king_sparkon_tracker.backend.dto.JobOpportunityDtos.RequestProfileAccessRequest;
 import com.king_sparkon_tracker.backend.dto.JobOpportunityDtos.UpsertJobSeekerProfileRequest;
 import com.king_sparkon_tracker.backend.exception.ResourceNotFoundException;
 import com.king_sparkon_tracker.backend.model.Business;
@@ -28,12 +30,15 @@ import com.king_sparkon_tracker.backend.model.JobInterview;
 import com.king_sparkon_tracker.backend.model.JobInterviewStatus;
 import com.king_sparkon_tracker.backend.model.JobPost;
 import com.king_sparkon_tracker.backend.model.JobPostStatus;
+import com.king_sparkon_tracker.backend.model.JobProfileAccessRequest;
+import com.king_sparkon_tracker.backend.model.JobProfileAccessRequestStatus;
 import com.king_sparkon_tracker.backend.model.JobSeekerProfile;
 import com.king_sparkon_tracker.backend.model.LocalizationCountry;
 import com.king_sparkon_tracker.backend.model.PrivilegeRole;
 import com.king_sparkon_tracker.backend.model.TrackerUser;
 import com.king_sparkon_tracker.backend.repository.JobApplicationRepository;
 import com.king_sparkon_tracker.backend.repository.JobPostRepository;
+import com.king_sparkon_tracker.backend.repository.JobProfileAccessRequestRepository;
 import com.king_sparkon_tracker.backend.repository.JobSeekerProfileRepository;
 import com.king_sparkon_tracker.backend.repository.OpportunityInterviewRepository;
 
@@ -49,6 +54,7 @@ public class JobOpportunityService {
 	private final JobPostRepository jobPostRepository;
 	private final JobApplicationRepository applicationRepository;
 	private final OpportunityInterviewRepository interviewRepository;
+	private final JobProfileAccessRequestRepository accessRequestRepository;
 	private final TrackerUserService trackerUserService;
 	private final AuditLogService auditLogService;
 	private final JobOpportunityEmailService emailService;
@@ -58,6 +64,7 @@ public class JobOpportunityService {
 			JobPostRepository jobPostRepository,
 			JobApplicationRepository applicationRepository,
 			OpportunityInterviewRepository interviewRepository,
+			JobProfileAccessRequestRepository accessRequestRepository,
 			TrackerUserService trackerUserService,
 			AuditLogService auditLogService,
 			JobOpportunityEmailService emailService) {
@@ -65,6 +72,7 @@ public class JobOpportunityService {
 		this.jobPostRepository = jobPostRepository;
 		this.applicationRepository = applicationRepository;
 		this.interviewRepository = interviewRepository;
+		this.accessRequestRepository = accessRequestRepository;
 		this.trackerUserService = trackerUserService;
 		this.auditLogService = auditLogService;
 		this.emailService = emailService;
@@ -82,14 +90,22 @@ public class JobOpportunityService {
 		TrackerUser user = trackerUserService.getUserByUsername(actorUsername);
 		List<String> interests = normalizeInterests(request.interestedJobs());
 		JobSeekerProfile profile = profileRepository.findByUser_Id(user.getId())
-				.orElseGet(() -> new JobSeekerProfile(user, request.highestQualification(), interests, request.experience(), normalizeRequired(request.about(), "About is required")));
+				.orElseGet(() -> new JobSeekerProfile(
+						user,
+						request.highestQualification(),
+						interests,
+						request.experience(),
+						normalizeRequired(request.about(), "About is required"),
+						request.profileVisibleToBusinesses()));
 		profile.updateProfile(
 				request.highestQualification(),
 				interests,
 				request.experience(),
-				normalizeRequired(request.about(), "About is required"));
+				normalizeRequired(request.about(), "About is required"),
+				request.profileVisibleToBusinesses());
 		JobSeekerProfile saved = profileRepository.save(profile);
-		auditLogService.record("JOB_PROFILE_UPSERTED", "JobSeekerProfile", String.valueOf(saved.getId()), actorUsername, "Job opportunity profile saved");
+		auditLogService.record("JOB_PROFILE_UPSERTED", "JobSeekerProfile", String.valueOf(saved.getId()), actorUsername,
+				"Job opportunity profile saved, profileVisibleToBusinesses=" + saved.isProfileVisibleToBusinesses());
 		return JobSeekerProfileResponse.from(saved);
 	}
 
@@ -111,8 +127,15 @@ public class JobOpportunityService {
 		TrackerUser user = trackerUserService.getUserByUsername(actorUsername);
 		return new OpportunitiesResponse(
 				openJobPosts(),
-				applicationRepository.findByApplicant_IdOrderByCreatedDateDesc(user.getId()).stream().map(JobApplicationResponse::from).toList(),
-				interviewRepository.findByApplicant_IdOrderByInterviewDateDesc(user.getId()).stream().map(JobInterviewResponse::from).toList());
+				applicationRepository.findByApplicant_IdOrderByCreatedDateDesc(user.getId()).stream()
+						.map(JobApplicationResponse::from)
+						.toList(),
+				interviewRepository.findByApplicant_IdOrderByInterviewDateDesc(user.getId()).stream()
+						.map(JobInterviewResponse::from)
+						.toList(),
+				accessRequestRepository.findByApplicant_IdOrderByCreatedDateDesc(user.getId()).stream()
+						.map(JobProfileAccessRequestResponse::from)
+						.toList());
 	}
 
 	public JobPostResponse createJobPost(CreateJobPostRequest request, String actorUsername) {
@@ -162,7 +185,8 @@ public class JobOpportunityService {
 				normalizeRequired(request.resumeUrl(), "Resume URL is required"),
 				normalizeOptionalList(request.certificateUrls()));
 		JobApplication saved = applicationRepository.save(application);
-		auditLogService.record("JOB_APPLICATION_SUBMITTED", "JobApplication", String.valueOf(saved.getId()), actorUsername, "Applied for job post: " + post.getTitle(), post.getBusiness());
+		auditLogService.record("JOB_APPLICATION_SUBMITTED", "JobApplication", String.valueOf(saved.getId()), actorUsername,
+				"Applied for job post: " + post.getTitle(), post.getBusiness());
 		sendApplicationSubmittedEmails(saved);
 		return JobApplicationResponse.from(saved);
 	}
@@ -176,7 +200,9 @@ public class JobOpportunityService {
 	@Transactional(readOnly = true)
 	public List<JobApplicationResponse> ownerApplications(String actorUsername) {
 		Business business = ownerBusiness(actorUsername);
-		return applicationRepository.findByJobPost_Business_IdOrderByCreatedDateDesc(business.getId()).stream().map(JobApplicationResponse::from).toList();
+		return applicationRepository.findByJobPost_Business_IdOrderByCreatedDateDesc(business.getId()).stream()
+				.map(this::ownerApplicationResponse)
+				.toList();
 	}
 
 	@Transactional(readOnly = true)
@@ -184,7 +210,9 @@ public class JobOpportunityService {
 		Business business = ownerBusiness(actorUsername);
 		JobPost post = jobPostRepository.findByIdAndBusiness_Id(jobPostId, business.getId())
 				.orElseThrow(() -> new ResourceNotFoundException("Job post not found: " + jobPostId));
-		return applicationRepository.findByJobPost_IdOrderByCreatedDateDesc(post.getId()).stream().map(JobApplicationResponse::from).toList();
+		return applicationRepository.findByJobPost_IdOrderByCreatedDateDesc(post.getId()).stream()
+				.map(this::ownerApplicationResponse)
+				.toList();
 	}
 
 	public JobApplicationResponse viewApplication(Long applicationId, String actorUsername) {
@@ -193,7 +221,7 @@ public class JobOpportunityService {
 		application.markViewed();
 		JobApplication saved = applicationRepository.save(application);
 		auditLogService.record("JOB_APPLICATION_VIEWED", "JobApplication", String.valueOf(saved.getId()), actorUsername, "Application viewed", business);
-		return JobApplicationResponse.from(saved);
+		return ownerApplicationResponse(saved);
 	}
 
 	public JobApplicationResponse declineApplication(Long applicationId, String actorUsername) {
@@ -203,7 +231,65 @@ public class JobOpportunityService {
 		JobApplication saved = applicationRepository.save(application);
 		auditLogService.record("JOB_APPLICATION_DECLINED", "JobApplication", String.valueOf(saved.getId()), actorUsername, "Application declined", business);
 		sendDeclinedEmail(saved);
-		return JobApplicationResponse.from(saved);
+		return ownerApplicationResponse(saved);
+	}
+
+	public JobProfileAccessRequestResponse requestProfileAccess(Long applicationId, RequestProfileAccessRequest request, String actorUsername) {
+		TrackerUser owner = trackerUserService.getUserByUsername(actorUsername);
+		requireOwner(owner);
+		Business business = trackerUserService.businessForActor(actorUsername);
+		JobApplication application = ownerApplication(applicationId, business.getId());
+		JobProfileAccessRequest accessRequest = accessRequestRepository.findByApplication_Id(applicationId)
+				.orElseGet(() -> new JobProfileAccessRequest(application, owner, normalizeOptional(request.requestMessage())));
+		JobProfileAccessRequest saved = accessRequestRepository.save(accessRequest);
+		auditLogService.record("JOB_PROFILE_ACCESS_REQUESTED", "JobProfileAccessRequest", String.valueOf(saved.getId()), actorUsername,
+				"Owner requested applicant qualification/certificate access", business);
+		sendProfileAccessRequestedEmail(saved);
+		return JobProfileAccessRequestResponse.from(saved);
+	}
+
+	@Transactional(readOnly = true)
+	public List<JobProfileAccessRequestResponse> myProfileAccessRequests(String actorUsername) {
+		TrackerUser user = trackerUserService.getUserByUsername(actorUsername);
+		return accessRequestRepository.findByApplicant_IdOrderByCreatedDateDesc(user.getId()).stream()
+				.map(JobProfileAccessRequestResponse::from)
+				.toList();
+	}
+
+	@Transactional(readOnly = true)
+	public List<JobProfileAccessRequestResponse> ownerProfileAccessRequests(String actorUsername) {
+		Business business = ownerBusiness(actorUsername);
+		return accessRequestRepository.findByBusiness_IdOrderByCreatedDateDesc(business.getId()).stream()
+				.map(JobProfileAccessRequestResponse::from)
+				.toList();
+	}
+
+	public JobProfileAccessRequestResponse approveProfileAccess(Long requestId, String actorUsername) {
+		TrackerUser applicant = trackerUserService.getUserByUsername(actorUsername);
+		JobProfileAccessRequest request = accessRequestRepository.findByIdAndApplicant_Id(requestId, applicant.getId())
+				.orElseThrow(() -> new ResourceNotFoundException("Profile access request not found: " + requestId));
+		if (request.getStatus() == JobProfileAccessRequestStatus.REQUESTED) {
+			request.approve();
+		}
+		JobProfileAccessRequest saved = accessRequestRepository.save(request);
+		auditLogService.record("JOB_PROFILE_ACCESS_APPROVED", "JobProfileAccessRequest", String.valueOf(saved.getId()), actorUsername,
+				"Applicant approved qualification/certificate access", saved.getBusiness());
+		sendProfileAccessApprovedEmail(saved);
+		return JobProfileAccessRequestResponse.from(saved);
+	}
+
+	public JobProfileAccessRequestResponse declineProfileAccess(Long requestId, String actorUsername) {
+		TrackerUser applicant = trackerUserService.getUserByUsername(actorUsername);
+		JobProfileAccessRequest request = accessRequestRepository.findByIdAndApplicant_Id(requestId, applicant.getId())
+				.orElseThrow(() -> new ResourceNotFoundException("Profile access request not found: " + requestId));
+		if (request.getStatus() == JobProfileAccessRequestStatus.REQUESTED) {
+			request.decline();
+		}
+		JobProfileAccessRequest saved = accessRequestRepository.save(request);
+		auditLogService.record("JOB_PROFILE_ACCESS_DECLINED", "JobProfileAccessRequest", String.valueOf(saved.getId()), actorUsername,
+				"Applicant declined qualification/certificate access", saved.getBusiness());
+		sendProfileAccessDeclinedEmail(saved);
+		return JobProfileAccessRequestResponse.from(saved);
 	}
 
 	public JobInterviewResponse bookInterview(Long applicationId, BookInterviewRequest request, String actorUsername) {
@@ -227,7 +313,8 @@ public class JobOpportunityService {
 				request.interviewExpiresAt(),
 				businessAddress(business));
 		JobInterview saved = interviewRepository.save(interview);
-		auditLogService.record("JOB_INTERVIEW_BOOKED", "JobInterview", String.valueOf(saved.getId()), actorUsername, "Interview booked for application: " + application.getId(), business);
+		auditLogService.record("JOB_INTERVIEW_BOOKED", "JobInterview", String.valueOf(saved.getId()), actorUsername,
+				"Interview booked for application: " + application.getId(), business);
 		sendInterviewBookedEmail(saved);
 		return JobInterviewResponse.from(saved);
 	}
@@ -264,6 +351,13 @@ public class JobOpportunityService {
 		auditLogService.record("JOB_INTERVIEW_DECLINED", "JobInterview", String.valueOf(saved.getId()), actorUsername, "Interview declined", saved.getBusiness());
 		sendInterviewDeclinedOwnerEmail(saved);
 		return JobInterviewResponse.from(saved);
+	}
+
+	private JobApplicationResponse ownerApplicationResponse(JobApplication application) {
+		JobProfileAccessRequest accessRequest = accessRequestRepository.findByApplication_Id(application.getId()).orElse(null);
+		boolean privateVisible = accessRequest != null && accessRequest.getStatus() == JobProfileAccessRequestStatus.APPROVED;
+		boolean profileVisible = application.getProfile().isProfileVisibleToBusinesses();
+		return JobApplicationResponse.visible(application, profileVisible, privateVisible, accessRequest);
 	}
 
 	private JobPost requireJobPost(Long jobPostId) {
@@ -374,6 +468,30 @@ public class JobOpportunityService {
 			emailService.sendApplicationDeclinedEmail(application);
 		} catch (RuntimeException exception) {
 			log.warn("job_application_declined_email_failed_non_blocking applicationId={} reason={}", application.getId(), exception.getMessage());
+		}
+	}
+
+	private void sendProfileAccessRequestedEmail(JobProfileAccessRequest request) {
+		try {
+			emailService.sendProfileAccessRequestedEmail(request);
+		} catch (RuntimeException exception) {
+			log.warn("job_profile_access_requested_email_failed_non_blocking requestId={} reason={}", request.getId(), exception.getMessage());
+		}
+	}
+
+	private void sendProfileAccessApprovedEmail(JobProfileAccessRequest request) {
+		try {
+			emailService.sendProfileAccessApprovedEmail(request);
+		} catch (RuntimeException exception) {
+			log.warn("job_profile_access_approved_email_failed_non_blocking requestId={} reason={}", request.getId(), exception.getMessage());
+		}
+	}
+
+	private void sendProfileAccessDeclinedEmail(JobProfileAccessRequest request) {
+		try {
+			emailService.sendProfileAccessDeclinedEmail(request);
+		} catch (RuntimeException exception) {
+			log.warn("job_profile_access_declined_email_failed_non_blocking requestId={} reason={}", request.getId(), exception.getMessage());
 		}
 	}
 
