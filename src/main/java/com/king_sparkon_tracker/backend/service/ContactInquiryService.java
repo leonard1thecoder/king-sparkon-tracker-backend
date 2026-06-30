@@ -16,10 +16,9 @@ import com.king_sparkon_tracker.backend.repository.ContactInquiryRepository;
 @Service
 public class ContactInquiryService {
 
-	private static final String SUCCESS_MESSAGE =
-			"Thanks. We received your message, sent your confirmation email, and notified King Sparkon Tracker support.";
+	private static final String SUCCESS_MESSAGE = "Thanks. We received your message and sent a confirmation email.";
 	private static final String EMAIL_FAILURE_MESSAGE =
-			"Your message was saved, but one or more emails could not be delivered. Please try again or contact support.";
+			"Your message was saved, but email delivery failed. Please try again or contact support.";
 
 	private final ContactInquiryRepository contactInquiryRepository;
 	private final AppEmailService appEmailService;
@@ -63,11 +62,11 @@ public class ContactInquiryService {
 					inquiry.getContactName(),
 					inquiry.getBusinessName());
 			if (!sent) {
-				deliveryFailures.add("confirmation email was not sent to the customer");
+				deliveryFailures.add("confirmation email was not sent");
 			}
 			return sent;
 		} catch (RuntimeException exception) {
-			deliveryFailures.add("confirmation email to customer failed: " + exception.getMessage());
+			deliveryFailures.add("confirmation email failed: " + exception.getMessage());
 			return false;
 		}
 	}
@@ -82,11 +81,11 @@ public class ContactInquiryService {
 					inquiry.getPhoneNumber(),
 					inquiry.getMessage());
 			if (!sent) {
-				deliveryFailures.add("King Sparkon Tracker support notification email was not sent");
+				deliveryFailures.add("tracker company notification email was not sent");
 			}
 			return sent;
 		} catch (RuntimeException exception) {
-			deliveryFailures.add("King Sparkon Tracker support notification email failed: " + exception.getMessage());
+			deliveryFailures.add("tracker company notification email failed: " + exception.getMessage());
 			return false;
 		}
 	}
