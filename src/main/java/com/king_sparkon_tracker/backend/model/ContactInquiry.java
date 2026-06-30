@@ -85,6 +85,13 @@ public class ContactInquiry {
 		updatedAt = LocalDateTime.now();
 	}
 
+	public void markEmailQueued() {
+		this.confirmationEmailSent = false;
+		this.notificationEmailSent = false;
+		this.failureReason = null;
+		this.status = ContactInquiryStatus.EMAIL_QUEUED;
+	}
+
 	public void markEmailSent(boolean confirmationEmailSent, boolean notificationEmailSent) {
 		this.confirmationEmailSent = confirmationEmailSent;
 		this.notificationEmailSent = notificationEmailSent;
