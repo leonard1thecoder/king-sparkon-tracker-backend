@@ -18,6 +18,7 @@ import com.king_sparkon_tracker.backend.dto.JobOpportunityDtos.ApplyJobRequest;
 import com.king_sparkon_tracker.backend.dto.JobOpportunityDtos.JobApplicationResponse;
 import com.king_sparkon_tracker.backend.dto.JobOpportunityDtos.JobInterviewResponse;
 import com.king_sparkon_tracker.backend.dto.JobOpportunityDtos.JobPostResponse;
+import com.king_sparkon_tracker.backend.dto.JobOpportunityDtos.JobProfileAccessRequestResponse;
 import com.king_sparkon_tracker.backend.dto.JobOpportunityDtos.JobSeekerProfileResponse;
 import com.king_sparkon_tracker.backend.dto.JobOpportunityDtos.OpportunitiesResponse;
 import com.king_sparkon_tracker.backend.dto.JobOpportunityDtos.UpsertJobSeekerProfileRequest;
@@ -31,7 +32,7 @@ import jakarta.validation.Valid;
 @RestController
 @RequestMapping("/api/opportunities")
 @SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
-@Tag(name = "Opportunities", description = "Worker and user job opportunities, applications, and interview decisions.")
+@Tag(name = "Opportunities", description = "Worker and user job opportunities, applications, interview decisions, and profile privacy.")
 public class JobOpportunityController {
 
 	private final JobOpportunityService jobOpportunityService;
@@ -41,19 +42,19 @@ public class JobOpportunityController {
 	}
 
 	@GetMapping
-	@Operation(summary = "Opportunities navigation", description = "Returns open job posts, my applications, and my interviews for the Opportunities nav.")
+	@Operation(summary = "Opportunities navigation", description = "Returns open job posts, my applications, my interviews, and profile access requests.")
 	public OpportunitiesResponse opportunities(Principal principal) {
 		return jobOpportunityService.opportunities(principal.getName());
 	}
 
 	@GetMapping("/profile")
-	@Operation(summary = "My opportunity profile", description = "Returns the current user's job seeker profile.")
+	@Operation(summary = "My opportunity profile", description = "Returns the current user's job seeker profile and business visibility setting.")
 	public JobSeekerProfileResponse profile(Principal principal) {
 		return jobOpportunityService.profile(principal.getName());
 	}
 
 	@PutMapping("/profile")
-	@Operation(summary = "Create or update opportunity profile", description = "Creates or updates qualification, interests, experience, and about profile data.")
+	@Operation(summary = "Create or update opportunity profile", description = "Creates or updates qualification, interests, experience, about, and whether businesses can see the profile.")
 	public JobSeekerProfileResponse upsertProfile(
 			@Valid @RequestBody UpsertJobSeekerProfileRequest request,
 			Principal principal) {
@@ -86,6 +87,24 @@ public class JobOpportunityController {
 	@Operation(summary = "My applications", description = "Lists job applications for the current user.")
 	public List<JobApplicationResponse> myApplications(Principal principal) {
 		return jobOpportunityService.myApplications(principal.getName());
+	}
+
+	@GetMapping("/profile-access-requests")
+	@Operation(summary = "My profile access requests", description = "Lists businesses requesting access to my qualification and certificate documents.")
+	public List<JobProfileAccessRequestResponse> myProfileAccessRequests(Principal principal) {
+		return jobOpportunityService.myProfileAccessRequests(principal.getName());
+	}
+
+	@PostMapping("/profile-access-requests/{requestId}/approve")
+	@Operation(summary = "Approve profile access", description = "Allows the owner to view job qualification and certificate URLs for one application.")
+	public JobProfileAccessRequestResponse approveProfileAccess(@PathVariable Long requestId, Principal principal) {
+		return jobOpportunityService.approveProfileAccess(requestId, principal.getName());
+	}
+
+	@PostMapping("/profile-access-requests/{requestId}/reject")
+	@Operation(summary = "Reject profile access", description = "Declines owner access to qualification and certificate URLs for one application.")
+	public JobProfileAccessRequestResponse rejectProfileAccess(@PathVariable Long requestId, Principal principal) {
+		return jobOpportunityService.declineProfileAccess(requestId, principal.getName());
 	}
 
 	@GetMapping("/interviews")
