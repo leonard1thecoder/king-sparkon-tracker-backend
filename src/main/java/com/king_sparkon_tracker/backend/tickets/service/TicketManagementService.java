@@ -121,14 +121,6 @@ public class TicketManagementService {
         return toEventResponse(findEvent(eventId));
     }
 
-    @Transactional(readOnly = true)
-    public List<UserTicketResponse> getMyTickets(String userId) {
-        return userTicketRepository.findByUserIdOrderByPurchasedAtDesc(userId)
-                .stream()
-                .map(this::toUserTicketResponse)
-                .toList();
-    }
-
     public TicketEventResponse createEvent(CreateEventRequest request) {
         requireTicketTypes(request.ticketTypes());
         TicketEvent event = new TicketEvent();
@@ -146,7 +138,7 @@ public class TicketManagementService {
         event.setStatus(request.status());
 
         request.ticketTypes().stream()
-                .sorted(Comparator.comparing(ticketTypeRequest -> canonicalTicketType(ticketTypeRequest.type())))
+                .sorted(Comparator.comparing(EventTicketTypeRequest::type))
                 .forEach(ticketTypeRequest -> event.addTicketType(toTicketTypeEntity(event.getId(), ticketTypeRequest)));
 
         TicketEvent saved = ticketEventRepository.save(event);
@@ -170,11 +162,10 @@ public class TicketManagementService {
         if (request.ticketTypes() != null && !request.ticketTypes().isEmpty()) {
             Map<TicketType, EventTicketType> currentByType = event.getTicketTypes().stream().collect(Collectors.toMap(EventTicketType::getType, Function.identity()));
             for (EventTicketTypeRequest ticketTypeRequest : request.ticketTypes()) {
-                TicketType requestedType = canonicalTicketType(ticketTypeRequest.type());
-                EventTicketType current = currentByType.get(requestedType);
+                EventTicketType current = currentByType.get(ticketTypeRequest.type());
                 if (current == null) continue;
                 if (ticketTypeRequest.capacity() < current.getSold()) {
-                    throw new IllegalArgumentException("Capacity cannot be lower than tickets already sold for " + requestedType);
+                    throw new IllegalArgumentException("Capacity cannot be lower than tickets already sold for " + ticketTypeRequest.type());
                 }
                 current.setPrice(TicketBusinessRules.money(ticketTypeRequest.price()));
                 current.setCapacity(ticketTypeRequest.capacity());
@@ -193,8 +184,7 @@ public class TicketManagementService {
             throw new IllegalStateException("Event is not published for ticket sales.");
         }
 
-        TicketType requestedTicketType = canonicalTicketType(request.ticketType());
-        EventTicketType ticketType = eventTicketTypeRepository.findLockedByEventIdAndType(event.getId(), requestedTicketType)
+        EventTicketType ticketType = eventTicketTypeRepository.findLockedByEventIdAndType(event.getId(), request.ticketType())
                 .orElseThrow(() -> new IllegalArgumentException("Ticket type not found for event."));
         TicketBusinessRules.requirePurchaseCapacity(ticketType.getCapacity(), ticketType.getSold(), request.quantity());
 
@@ -208,7 +198,7 @@ public class TicketManagementService {
         payment.setUserId(request.userId());
         payment.setBuyerName(request.buyerName().trim());
         payment.setBuyerEmail(request.buyerEmail().trim().toLowerCase());
-        payment.setTicketType(requestedTicketType);
+        payment.setTicketType(request.ticketType());
         payment.setQuantity(request.quantity());
         payment.setSubtotalAmount(subtotal);
         payment.setCheckoutServiceFeeAmount(checkoutFee);
@@ -229,7 +219,7 @@ public class TicketManagementService {
             ticket.setUserId(request.userId());
             ticket.setBuyerName(request.buyerName().trim());
             ticket.setBuyerEmail(request.buyerEmail().trim().toLowerCase());
-            ticket.setTicketType(requestedTicketType);
+            ticket.setTicketType(request.ticketType());
             ticket.setPricePaid(TicketBusinessRules.money(total.divide(BigDecimal.valueOf(request.quantity()), 2, java.math.RoundingMode.HALF_UP)));
             ticket.setTicketReference(nextReference(event.getId()));
             ticket.setStatus(UserTicketStatus.ACTIVE);
@@ -242,8 +232,8 @@ public class TicketManagementService {
         eventTicketTypeRepository.save(ticketType);
 
         audit(event.getOwnerId(), event.getId(), null, request.userId(), "TICKETS_CHECKOUT_CREATED", TicketAuditLevel.INFO,
-                request.quantity() + " " + requestedTicketType + " ticket checkout created for " + event.getName());
-        log.info("ticket_checkout_created eventId={} userId={} ticketType={} quantity={} total={} stripePaymentLink={}", event.getId(), request.userId(), requestedTicketType, request.quantity(), total, paymentLink.stripeId());
+                request.quantity() + " " + request.ticketType() + " ticket checkout created for " + event.getName());
+        log.info("ticket_checkout_created eventId={} userId={} ticketType={} quantity={} total={} stripePaymentLink={}", event.getId(), request.userId(), request.ticketType(), request.quantity(), total, paymentLink.stripeId());
 
         return new TicketPurchaseResponse(toPaymentResponse(savedPayment, paymentLink.paymentUrl(), paymentLink.qrCodeUrl()), createdTickets.stream().map(this::toUserTicketResponse).toList());
     }
@@ -277,48 +267,36 @@ public class TicketManagementService {
     }
 
     @Transactional(readOnly = true)
-    public List<TicketEventPromotionResponse> getPromotionsForEvent(String eventId) {
-        return ticketEventBoostRepository.findByEventIdOrderByCreatedAtDesc(eventId).stream().map(this::toPromotionResponse).toList();
-    }
-
-    @Transactional(readOnly = true)
     public List<TicketEventPromotionResponse> getOwnerEventPromotions(String ownerId) {
         return ticketEventBoostRepository.findByOwnerIdOrderByCreatedAtDesc(ownerId).stream().map(this::toPromotionResponse).toList();
     }
 
-    public TicketEventPromotionResponse cancelPromotion(String promotionId, String actorUsername) {
-        TicketEventPromotion promotion = ticketEventBoostRepository.findById(promotionId).orElseThrow(() -> new IllegalArgumentException("Ticket promotion not found."));
-        TicketEvent event = findEvent(promotion.getEventId());
-        Business business = trackerUserService.businessForActor(actorUsername);
-        requireOwnerControlsEvent(event, business);
-        promotion.setStatus(TicketPromotionStatus.CANCELLED);
-        TicketEventPromotion saved = ticketEventBoostRepository.save(promotion);
-        audit(event.getOwnerId(), event.getId(), null, actorUsername, "TICKET_EVENT_BOOST_CANCELLED", TicketAuditLevel.WARN, "Ticket event boost cancelled: " + promotionId);
-        return toPromotionResponse(saved);
+    @Transactional(readOnly = true)
+    public List<UserTicketResponse> getMyTickets(String userId) {
+        return userTicketRepository.findByUserIdOrderByPurchasedAtDesc(userId).stream().map(this::toUserTicketResponse).toList();
     }
 
-    public TicketVerificationResponse verifyByQr(String qrCodeValue, String workerId) {
-        UserTicket ticket = userTicketRepository.findByQrCodeValue(qrCodeValue).orElseThrow(() -> new IllegalArgumentException("Ticket QR code not found."));
-        return verifyTicket(ticket, workerId, "QR ticket accepted.");
+    public TicketVerificationResponse verifyByQr(String qrValue, String workerId) {
+        UserTicket ticket = userTicketRepository.findByQrCodeValue(qrValue.trim()).orElse(null);
+        return verifyTicket(ticket, workerId);
     }
 
-    public TicketVerificationResponse verifyByReference(String ticketReference, String workerId) {
-        UserTicket ticket = userTicketRepository.findByTicketReferenceIgnoreCase(ticketReference).orElseThrow(() -> new IllegalArgumentException("Ticket reference not found."));
-        return verifyTicket(ticket, workerId, "Ticket reference accepted.");
+    public TicketVerificationResponse verifyByReference(String reference, String workerId) {
+        UserTicket ticket = userTicketRepository.findByTicketReferenceIgnoreCase(reference.trim()).orElse(null);
+        return verifyTicket(ticket, workerId);
     }
 
-    private TicketVerificationResponse verifyTicket(UserTicket ticket, String workerId, String message) {
-        if (ticket.getStatus() == UserTicketStatus.USED) {
-            return new TicketVerificationResponse(false, "Ticket has already been used.", toUserTicketResponse(ticket), toEventResponse(findEvent(ticket.getEventId())));
-        }
-
-        if (ticket.getStatus() != UserTicketStatus.ACTIVE) {
-            return new TicketVerificationResponse(false, "Ticket is not active.", toUserTicketResponse(ticket), toEventResponse(findEvent(ticket.getEventId())));
+    private TicketVerificationResponse verifyTicket(UserTicket ticket, String workerId) {
+        if (ticket == null) {
+            audit(null, null, null, workerId, "TICKET_INVALID", TicketAuditLevel.WARN, "Invalid ticket scan attempt.");
+            return new TicketVerificationResponse(false, "Invalid ticket.", null, null);
         }
 
         TicketEvent event = findEvent(ticket.getEventId());
-        if (event.getStatus() != TicketEventStatus.PUBLISHED) {
-            return new TicketVerificationResponse(false, "Event is not open for ticket verification.", toUserTicketResponse(ticket), toEventResponse(event));
+        String message = TicketBusinessRules.verificationMessage(ticket.getStatus());
+        if (!TicketBusinessRules.canMarkUsed(ticket.getStatus())) {
+            audit(event.getOwnerId(), event.getId(), ticket.getId(), workerId, "TICKET_REJECTED", TicketAuditLevel.WARN, message);
+            return new TicketVerificationResponse(false, message, toUserTicketResponse(ticket), toEventResponse(event));
         }
 
         ticket.setStatus(UserTicketStatus.USED);
@@ -402,8 +380,8 @@ public class TicketManagementService {
     }
 
     private void requireTicketTypes(List<EventTicketTypeRequest> requestedTicketTypes) {
-        EnumSet<TicketType> requiredTypes = EnumSet.of(TicketType.REGULAR, TicketType.VIP, TicketType.VVIP);
-        requestedTicketTypes.forEach(ticketType -> requiredTypes.remove(canonicalTicketType(ticketType.type())));
+        EnumSet<TicketType> requiredTypes = EnumSet.allOf(TicketType.class);
+        requestedTicketTypes.forEach(ticketType -> requiredTypes.remove(ticketType.type()));
         if (!requiredTypes.isEmpty()) {
             throw new IllegalArgumentException("Regular, VIP, and VVIP ticket types are required.");
         }
@@ -418,19 +396,14 @@ public class TicketManagementService {
     }
 
     private EventTicketType toTicketTypeEntity(String eventId, EventTicketTypeRequest request) {
-        TicketType ticketType = canonicalTicketType(request.type());
         EventTicketType entity = new EventTicketType();
-        entity.setId(eventId + "-" + ticketType.name().toLowerCase());
-        entity.setType(ticketType);
+        entity.setId(eventId + "-" + request.type().name().toLowerCase());
+        entity.setType(request.type());
         entity.setPrice(TicketBusinessRules.money(request.price()));
         entity.setCapacity(request.capacity());
         entity.setSold(0);
         entity.setAvailable(TicketBusinessRules.calculateAvailable(request.capacity(), 0));
         return entity;
-    }
-
-    private TicketType canonicalTicketType(TicketType ticketType) {
-        return ticketType == null ? null : ticketType.canonical();
     }
 
     private TicketEvent findEvent(String eventId) {
