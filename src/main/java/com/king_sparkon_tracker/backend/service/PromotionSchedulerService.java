@@ -2,10 +2,12 @@ package com.king_sparkon_tracker.backend.service;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 @Service
+@ConditionalOnProperty(name = "app.promotions.scheduler.enabled", havingValue = "true")
 public class PromotionSchedulerService {
 
 	private static final Logger log = LoggerFactory.getLogger(PromotionSchedulerService.class);
@@ -21,7 +23,7 @@ public class PromotionSchedulerService {
 		try {
 			promotionService.createAutomatedPromotionIfDue();
 		} catch (RuntimeException exception) {
-			log.warn("automated_promotion_create_failed reason={}", exception.getMessage());
+			log.warn("automated_promotion_create_failed reason={}", exception.getMessage(), exception);
 		}
 	}
 
@@ -30,7 +32,7 @@ public class PromotionSchedulerService {
 		try {
 			promotionService.processDuePromotions();
 		} catch (RuntimeException exception) {
-			log.warn("promotion_processing_failed reason={}", exception.getMessage());
+			log.warn("promotion_processing_failed reason={}", exception.getMessage(), exception);
 		}
 	}
 }
