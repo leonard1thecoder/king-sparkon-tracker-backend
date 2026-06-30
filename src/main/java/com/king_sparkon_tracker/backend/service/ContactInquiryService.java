@@ -1,12 +1,11 @@
 package com.king_sparkon_tracker.backend.service;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Locale;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import com.king_sparkon_tracker.backend.dto.ContactInquiryRequest;
 import com.king_sparkon_tracker.backend.dto.ContactInquiryResponse;
@@ -16,78 +15,45 @@ import com.king_sparkon_tracker.backend.repository.ContactInquiryRepository;
 @Service
 public class ContactInquiryService {
 
-	private static final String SUCCESS_MESSAGE = "Thanks. We received your message and sent a confirmation email.";
-	private static final String EMAIL_FAILURE_MESSAGE =
-			"Your message was saved, but email delivery failed. Please try again or contact support.";
+	private static final String QUEUED_MESSAGE =
+			"Thanks. We received your message and queued your confirmation email. Our team has also been notified.";
 
 	private final ContactInquiryRepository contactInquiryRepository;
-	private final AppEmailService appEmailService;
-	private final String notificationEmail;
+	private final ContactInquiryEmailDispatcher emailDispatcher;
 
 	public ContactInquiryService(
 			ContactInquiryRepository contactInquiryRepository,
-			AppEmailService appEmailService,
-			@Value("${app.contact.notification-email}") String notificationEmail) {
+			ContactInquiryEmailDispatcher emailDispatcher) {
 		this.contactInquiryRepository = contactInquiryRepository;
-		this.appEmailService = appEmailService;
-		this.notificationEmail = notificationEmail;
+		this.emailDispatcher = emailDispatcher;
 	}
 
 	@Transactional
 	public ContactInquiryResponse submit(ContactInquiryRequest request) {
-		ContactInquiry inquiry = contactInquiryRepository.save(new ContactInquiry(
+		ContactInquiry inquiry = new ContactInquiry(
 				normalizeOptional(request.contactName()),
 				normalizeRequired(request.businessName()),
 				normalizeEmail(request.emailAddress()),
 				normalizeOptional(request.phoneNumber()),
-				normalizeRequired(request.message())));
-
-		List<String> deliveryFailures = new ArrayList<>();
-		boolean confirmationEmailSent = sendConfirmationEmail(inquiry, deliveryFailures);
-		boolean notificationEmailSent = sendNotificationEmail(inquiry, deliveryFailures);
-
-		if (confirmationEmailSent && notificationEmailSent) {
-			inquiry.markEmailSent(true, true);
-			return ContactInquiryResponse.from(contactInquiryRepository.save(inquiry), SUCCESS_MESSAGE);
-		}
-
-		inquiry.markEmailFailed(confirmationEmailSent, notificationEmailSent, String.join("; ", deliveryFailures));
-		return ContactInquiryResponse.from(contactInquiryRepository.save(inquiry), EMAIL_FAILURE_MESSAGE);
+				normalizeRequired(request.message()));
+		inquiry.markEmailQueued();
+		ContactInquiry savedInquiry = contactInquiryRepository.save(inquiry);
+		queueEmailDispatchAfterCommit(savedInquiry.getId());
+		return ContactInquiryResponse.from(savedInquiry, QUEUED_MESSAGE);
 	}
 
-	private boolean sendConfirmationEmail(ContactInquiry inquiry, List<String> deliveryFailures) {
-		try {
-			boolean sent = appEmailService.sendContactInquiryConfirmationEmail(
-					inquiry.getEmailAddress(),
-					inquiry.getContactName(),
-					inquiry.getBusinessName());
-			if (!sent) {
-				deliveryFailures.add("confirmation email was not sent");
-			}
-			return sent;
-		} catch (RuntimeException exception) {
-			deliveryFailures.add("confirmation email failed: " + exception.getMessage());
-			return false;
+	private void queueEmailDispatchAfterCommit(Long inquiryId) {
+		if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+			emailDispatcher.dispatchContactInquiryEmails(inquiryId);
+			return;
 		}
-	}
 
-	private boolean sendNotificationEmail(ContactInquiry inquiry, List<String> deliveryFailures) {
-		try {
-			boolean sent = appEmailService.sendContactInquiryNotificationEmail(
-					notificationEmail,
-					inquiry.getBusinessName(),
-					inquiry.getContactName(),
-					inquiry.getEmailAddress(),
-					inquiry.getPhoneNumber(),
-					inquiry.getMessage());
-			if (!sent) {
-				deliveryFailures.add("tracker company notification email was not sent");
+		TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+			@Override
+			public void afterCommit() {
+				emailDispatcher.dispatchContactInquiryEmails(inquiryId);
 			}
-			return sent;
-		} catch (RuntimeException exception) {
-			deliveryFailures.add("tracker company notification email failed: " + exception.getMessage());
-			return false;
-		}
+		});
 	}
 
 	private String normalizeRequired(String value) {
