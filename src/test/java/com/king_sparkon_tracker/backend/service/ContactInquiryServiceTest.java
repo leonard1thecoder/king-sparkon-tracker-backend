@@ -2,8 +2,6 @@ package com.king_sparkon_tracker.backend.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -30,7 +28,7 @@ class ContactInquiryServiceTest {
 	private ContactInquiryRepository contactInquiryRepository;
 
 	@Mock
-	private AppEmailService appEmailService;
+	private ContactInquiryEmailDispatcher emailDispatcher;
 
 	private ContactInquiryService contactInquiryService;
 
@@ -38,8 +36,7 @@ class ContactInquiryServiceTest {
 	void setUp() {
 		contactInquiryService = new ContactInquiryService(
 				contactInquiryRepository,
-				appEmailService,
-				"sales@king-sparkon-tracker.com");
+				emailDispatcher);
 
 		when(contactInquiryRepository.save(any(ContactInquiry.class))).thenAnswer(invocation -> {
 			ContactInquiry inquiry = invocation.getArgument(0);
@@ -55,21 +52,7 @@ class ContactInquiryServiceTest {
 	}
 
 	@Test
-	void submitStoresInquiryAndMarksEmailSentWhenBothEmailsSend() {
-		when(appEmailService.sendContactInquiryConfirmationEmail(
-				eq("owner@example.com"),
-				eq("Alice"),
-				eq("Alice Retail")))
-				.thenReturn(true);
-		when(appEmailService.sendContactInquiryNotificationEmail(
-				eq("sales@king-sparkon-tracker.com"),
-				eq("Alice Retail"),
-				eq("Alice"),
-				eq("owner@example.com"),
-				eq("+27 11 000 0000"),
-				eq("Need barcode tracking for alcohol and non alcohol products.")))
-				.thenReturn(true);
-
+	void submitStoresInquiryAndQueuesEmailDispatch() {
 		ContactInquiryResponse response = contactInquiryService.submit(new ContactInquiryRequest(
 				" Alice ",
 				" Alice Retail ",
@@ -78,37 +61,27 @@ class ContactInquiryServiceTest {
 				" Need barcode tracking for alcohol and non alcohol products. "));
 
 		assertThat(response.id()).isEqualTo(42L);
-		assertThat(response.status()).isEqualTo(ContactInquiryStatus.EMAIL_SENT);
-		assertThat(response.confirmationEmailSent()).isTrue();
-		assertThat(response.notificationEmailSent()).isTrue();
-		assertThat(response.message()).isEqualTo("Thanks. We received your message and sent a confirmation email.");
+		assertThat(response.status()).isEqualTo(ContactInquiryStatus.EMAIL_QUEUED);
+		assertThat(response.confirmationEmailSent()).isFalse();
+		assertThat(response.notificationEmailSent()).isFalse();
+		assertThat(response.message()).isEqualTo(
+				"Thanks. We received your message and queued your confirmation email. Our team has also been notified.");
 
 		ArgumentCaptor<ContactInquiry> inquiryCaptor = ArgumentCaptor.forClass(ContactInquiry.class);
-		verify(contactInquiryRepository, org.mockito.Mockito.times(2)).save(inquiryCaptor.capture());
+		verify(contactInquiryRepository).save(inquiryCaptor.capture());
+		verify(emailDispatcher).dispatchContactInquiryEmails(42L);
 
-		ContactInquiry storedInquiry = inquiryCaptor.getAllValues().get(1);
+		ContactInquiry storedInquiry = inquiryCaptor.getValue();
+		assertThat(storedInquiry.getStatus()).isEqualTo(ContactInquiryStatus.EMAIL_QUEUED);
 		assertThat(storedInquiry.getBusinessName()).isEqualTo("Alice Retail");
 		assertThat(storedInquiry.getEmailAddress()).isEqualTo("owner@example.com");
+		assertThat(storedInquiry.getPhoneNumber()).isEqualTo("+27 11 000 0000");
 		assertThat(storedInquiry.getMessage()).isEqualTo("Need barcode tracking for alcohol and non alcohol products.");
 		assertThat(storedInquiry.getFailureReason()).isNull();
 	}
 
 	@Test
-	void submitStoresInquiryAndMarksEmailFailedWhenNotificationFails() {
-		when(appEmailService.sendContactInquiryConfirmationEmail(
-				eq("owner@example.com"),
-				isNull(),
-				eq("Alice Retail")))
-				.thenReturn(true);
-		when(appEmailService.sendContactInquiryNotificationEmail(
-				eq("sales@king-sparkon-tracker.com"),
-				eq("Alice Retail"),
-				isNull(),
-				eq("owner@example.com"),
-				isNull(),
-				eq("Please call me.")))
-				.thenReturn(false);
-
+	void submitStoresNullOptionalFieldsAndQueuesEmailDispatch() {
 		ContactInquiryResponse response = contactInquiryService.submit(new ContactInquiryRequest(
 				null,
 				"Alice Retail",
@@ -116,16 +89,19 @@ class ContactInquiryServiceTest {
 				null,
 				"Please call me."));
 
-		assertThat(response.status()).isEqualTo(ContactInquiryStatus.EMAIL_FAILED);
-		assertThat(response.confirmationEmailSent()).isTrue();
+		assertThat(response.status()).isEqualTo(ContactInquiryStatus.EMAIL_QUEUED);
+		assertThat(response.confirmationEmailSent()).isFalse();
 		assertThat(response.notificationEmailSent()).isFalse();
-		assertThat(response.message()).isEqualTo("Your message was saved, but email delivery failed. Please try again or contact support.");
 
 		ArgumentCaptor<ContactInquiry> inquiryCaptor = ArgumentCaptor.forClass(ContactInquiry.class);
-		verify(contactInquiryRepository, org.mockito.Mockito.times(2)).save(inquiryCaptor.capture());
+		verify(contactInquiryRepository).save(inquiryCaptor.capture());
+		verify(emailDispatcher).dispatchContactInquiryEmails(42L);
 
-		ContactInquiry storedInquiry = inquiryCaptor.getAllValues().get(1);
-		assertThat(storedInquiry.getStatus()).isEqualTo(ContactInquiryStatus.EMAIL_FAILED);
-		assertThat(storedInquiry.getFailureReason()).contains("tracker company notification email was not sent");
+		ContactInquiry storedInquiry = inquiryCaptor.getValue();
+		assertThat(storedInquiry.getContactName()).isNull();
+		assertThat(storedInquiry.getPhoneNumber()).isNull();
+		assertThat(storedInquiry.getBusinessName()).isEqualTo("Alice Retail");
+		assertThat(storedInquiry.getEmailAddress()).isEqualTo("owner@example.com");
+		assertThat(storedInquiry.getMessage()).isEqualTo("Please call me.");
 	}
 }
