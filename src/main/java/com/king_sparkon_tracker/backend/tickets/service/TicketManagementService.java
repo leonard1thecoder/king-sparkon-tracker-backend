@@ -429,8 +429,8 @@ public class TicketManagementService {
         return entity;
     }
 
-    private TicketType canonicalTicketType(TicketType ticketType) {
-        return ticketType == null ? null : ticketType.canonical();
+    private TicketType canonicalTicketType(String ticketType) {
+        return TicketType.fromInput(ticketType);
     }
 
     private TicketEvent findEvent(String eventId) {
