@@ -25,11 +25,7 @@ import java.util.List;
 public final class TicketDtos {
     private TicketDtos() {}
 
-    public record EventTicketTypeRequest(@NotBlank String type, @NotNull @DecimalMin("0.00") BigDecimal price, @Min(1) int capacity) {
-        public EventTicketTypeRequest(TicketType type, BigDecimal price, int capacity) {
-            this(type == null ? null : type.name(), price, capacity);
-        }
-    }
+    public record EventTicketTypeRequest(@NotNull TicketType type, @NotNull @DecimalMin("0.00") BigDecimal price, @Min(1) int capacity) {}
 
     public record CreateEventRequest(@NotBlank String ownerId, @NotBlank String name, @NotBlank String description, @NotBlank String location, @NotNull @FutureOrPresent LocalDate eventDate, @NotNull LocalTime eventTime, String bannerUrl, String posterPhotoUrl, @NotNull TicketEventStatus status, @Valid @NotEmpty List<EventTicketTypeRequest> ticketTypes, @Size(max = 100) List<String> workerIds, @Size(max = 100) List<String> affiliateIds) {
         public CreateEventRequest(String ownerId, String name, String description, String location, LocalDate eventDate, LocalTime eventTime, String bannerUrl, TicketEventStatus status, List<EventTicketTypeRequest> ticketTypes) {
@@ -43,17 +39,9 @@ public final class TicketDtos {
         }
     }
 
-    public record PurchaseTicketsRequest(@NotBlank String eventId, @NotBlank String userId, @NotBlank String buyerName, @NotBlank @Email String buyerEmail, @NotBlank String ticketType, @Min(1) int quantity, String callbackUrl) {
-        public PurchaseTicketsRequest(String eventId, String userId, String buyerName, String buyerEmail, String ticketType, int quantity) {
-            this(eventId, userId, buyerName, buyerEmail, ticketType, quantity, null);
-        }
-
+    public record PurchaseTicketsRequest(@NotBlank String eventId, @NotBlank String userId, @NotBlank String buyerName, @NotBlank @Email String buyerEmail, @NotNull TicketType ticketType, @Min(1) int quantity, String callbackUrl) {
         public PurchaseTicketsRequest(String eventId, String userId, String buyerName, String buyerEmail, TicketType ticketType, int quantity) {
-            this(eventId, userId, buyerName, buyerEmail, ticketType == null ? null : ticketType.name(), quantity, null);
-        }
-
-        public PurchaseTicketsRequest(String eventId, String userId, String buyerName, String buyerEmail, TicketType ticketType, int quantity, String callbackUrl) {
-            this(eventId, userId, buyerName, buyerEmail, ticketType == null ? null : ticketType.name(), quantity, callbackUrl);
+            this(eventId, userId, buyerName, buyerEmail, ticketType, quantity, null);
         }
     }
     public record VerifyTicketRequest(@NotBlank String value, @NotBlank String workerId) {}
