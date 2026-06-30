@@ -1,6 +1,8 @@
 package com.king_sparkon_tracker.backend.config;
 
+import java.net.URI;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -18,13 +20,19 @@ public class CorsConfig {
 	CorsConfigurationSource corsConfigurationSource(
 			@Value("${app.cors.allowed-origins:}") String allowedOrigins,
 			@Value("${app.cors.allowed-origin-patterns:}") String allowedOriginPatterns,
+			@Value("${app.frontend.reset-password-url:}") String frontendResetPasswordUrl,
+			@Value("${app.frontend.email-verification-url:}") String frontendEmailVerificationUrl,
+			@Value("${app.frontend.login-url:}") String frontendLoginUrl,
 			@Value("${app.cors.allowed-methods:GET,POST,PUT,PATCH,DELETE,OPTIONS}") String allowedMethods,
 			@Value("${app.cors.allowed-headers:Authorization,Content-Type,Accept,Origin,X-Requested-With}") String allowedHeaders,
 			@Value("${app.cors.exposed-headers:Authorization}") String exposedHeaders,
 			@Value("${app.cors.allow-credentials:true}") boolean allowCredentials,
 			@Value("${app.cors.max-age:3600}") long maxAge) {
 		CorsConfiguration configuration = new CorsConfiguration();
-		List<String> origins = csvValues(allowedOrigins);
+		List<String> origins = allowedOrigins(allowedOrigins,
+				frontendResetPasswordUrl,
+				frontendEmailVerificationUrl,
+				frontendLoginUrl);
 		List<String> originPatterns = csvValues(allowedOriginPatterns);
 
 		if (!origins.isEmpty()) {
@@ -43,6 +51,32 @@ public class CorsConfig {
 		UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
 		source.registerCorsConfiguration("/**", configuration);
 		return source;
+	}
+
+	private List<String> allowedOrigins(String allowedOrigins, String... frontendUrls) {
+		LinkedHashSet<String> values = new LinkedHashSet<>(csvValues(allowedOrigins));
+		Arrays.stream(frontendUrls)
+				.map(this::originFromUrl)
+				.filter(StringUtils::hasText)
+				.forEach(values::add);
+		return List.copyOf(values);
+	}
+
+	private String originFromUrl(String url) {
+		if (!StringUtils.hasText(url)) {
+			return "";
+		}
+
+		try {
+			URI uri = URI.create(url.trim());
+			if (!StringUtils.hasText(uri.getScheme()) || !StringUtils.hasText(uri.getHost())) {
+				return "";
+			}
+			String port = uri.getPort() == -1 ? "" : ":" + uri.getPort();
+			return uri.getScheme() + "://" + uri.getHost() + port;
+		} catch (IllegalArgumentException ignored) {
+			return "";
+		}
 	}
 
 	private List<String> csvValues(String value) {
