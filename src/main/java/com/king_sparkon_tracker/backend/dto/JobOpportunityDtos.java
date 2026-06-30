@@ -12,6 +12,8 @@ import com.king_sparkon_tracker.backend.model.JobInterview;
 import com.king_sparkon_tracker.backend.model.JobInterviewStatus;
 import com.king_sparkon_tracker.backend.model.JobPost;
 import com.king_sparkon_tracker.backend.model.JobPostStatus;
+import com.king_sparkon_tracker.backend.model.JobProfileAccessRequest;
+import com.king_sparkon_tracker.backend.model.JobProfileAccessRequestStatus;
 import com.king_sparkon_tracker.backend.model.JobSeekerProfile;
 import com.king_sparkon_tracker.backend.model.QualificationLevel;
 
@@ -31,7 +33,8 @@ public final class JobOpportunityDtos {
 			@NotNull QualificationLevel highestQualification,
 			@NotEmpty @Size(min = 1, max = 5) List<@NotBlank @Size(max = 120) String> interestedJobs,
 			@NotNull JobExperienceLevel experience,
-			@NotBlank @Size(max = 2000) String about
+			@NotBlank @Size(max = 2000) String about,
+			boolean profileVisibleToBusinesses
 	) {
 	}
 
@@ -43,18 +46,26 @@ public final class JobOpportunityDtos {
 			List<String> interestedJobs,
 			JobExperienceLevel experience,
 			String about,
+			boolean profileVisibleToBusinesses,
+			boolean privateFieldsVisible,
 			OffsetDateTime createdDate,
 			OffsetDateTime modifiedDate
 	) {
 		public static JobSeekerProfileResponse from(JobSeekerProfile profile) {
+			return visible(profile, true, true);
+		}
+
+		public static JobSeekerProfileResponse visible(JobSeekerProfile profile, boolean profileVisible, boolean privateFieldsVisible) {
 			return new JobSeekerProfileResponse(
 					profile.getId(),
 					profile.getUser().getId(),
 					profile.getUser().getUsername(),
-					profile.getHighestQualification(),
-					profile.getInterestedJobs(),
-					profile.getExperience(),
-					profile.getAbout(),
+					privateFieldsVisible ? profile.getHighestQualification() : null,
+					profileVisible ? profile.getInterestedJobs() : List.of(),
+					profileVisible ? profile.getExperience() : null,
+					profileVisible ? profile.getAbout() : null,
+					profile.isProfileVisibleToBusinesses(),
+					privateFieldsVisible,
 					profile.getCreatedDate(),
 					profile.getModifiedDate());
 		}
@@ -112,6 +123,11 @@ public final class JobOpportunityDtos {
 	) {
 	}
 
+	public record RequestProfileAccessRequest(
+			@Size(max = 1000) String requestMessage
+	) {
+	}
+
 	public record JobApplicationResponse(
 			Long id,
 			JobPostResponse jobPost,
@@ -122,26 +138,75 @@ public final class JobOpportunityDtos {
 			JobApplicationStatus status,
 			String resumeUrl,
 			List<String> certificateUrls,
+			boolean privateProfileVisible,
+			Long profileAccessRequestId,
+			JobProfileAccessRequestStatus profileAccessRequestStatus,
 			OffsetDateTime createdDate,
 			OffsetDateTime modifiedDate,
 			OffsetDateTime viewedDate,
 			OffsetDateTime decisionDate
 	) {
 		public static JobApplicationResponse from(JobApplication application) {
+			return visible(application, true, true, null);
+		}
+
+		public static JobApplicationResponse visible(
+				JobApplication application,
+				boolean profileVisible,
+				boolean privateProfileVisible,
+				JobProfileAccessRequest accessRequest) {
 			return new JobApplicationResponse(
 					application.getId(),
 					JobPostResponse.from(application.getJobPost()),
 					application.getApplicant().getId(),
 					application.getApplicant().getUsername(),
 					application.getApplicant().getEmailAddress(),
-					JobSeekerProfileResponse.from(application.getProfile()),
+					JobSeekerProfileResponse.visible(application.getProfile(), profileVisible || privateProfileVisible, privateProfileVisible),
 					application.getStatus(),
 					application.getResumeUrl(),
-					application.getCertificateUrls(),
+					privateProfileVisible ? application.getCertificateUrls() : List.of(),
+					privateProfileVisible,
+					accessRequest == null ? null : accessRequest.getId(),
+					accessRequest == null ? null : accessRequest.getStatus(),
 					application.getCreatedDate(),
 					application.getModifiedDate(),
 					application.getViewedDate(),
 					application.getDecisionDate());
+		}
+	}
+
+	public record JobProfileAccessRequestResponse(
+			Long id,
+			Long applicationId,
+			Long jobPostId,
+			String jobTitle,
+			Long businessId,
+			String businessName,
+			Long applicantId,
+			String applicantUsername,
+			String applicantEmail,
+			JobProfileAccessRequestStatus status,
+			String requestMessage,
+			OffsetDateTime createdDate,
+			OffsetDateTime modifiedDate,
+			OffsetDateTime respondedDate
+	) {
+		public static JobProfileAccessRequestResponse from(JobProfileAccessRequest request) {
+			return new JobProfileAccessRequestResponse(
+					request.getId(),
+					request.getApplication().getId(),
+					request.getApplication().getJobPost().getId(),
+					request.getApplication().getJobPost().getTitle(),
+					request.getBusiness().getId(),
+					request.getBusiness().getName(),
+					request.getApplicant().getId(),
+					request.getApplicant().getUsername(),
+					request.getApplicant().getEmailAddress(),
+					request.getStatus(),
+					request.getRequestMessage(),
+					request.getCreatedDate(),
+					request.getModifiedDate(),
+					request.getRespondedDate());
 		}
 	}
 
@@ -190,7 +255,8 @@ public final class JobOpportunityDtos {
 	public record OpportunitiesResponse(
 			List<JobPostResponse> jobPosts,
 			List<JobApplicationResponse> applications,
-			List<JobInterviewResponse> interviews
+			List<JobInterviewResponse> interviews,
+			List<JobProfileAccessRequestResponse> profileAccessRequests
 	) {
 	}
 }
