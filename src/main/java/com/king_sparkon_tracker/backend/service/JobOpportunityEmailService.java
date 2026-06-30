@@ -16,6 +16,7 @@ import com.king_sparkon_tracker.backend.model.Business;
 import com.king_sparkon_tracker.backend.model.JobApplication;
 import com.king_sparkon_tracker.backend.model.JobInterview;
 import com.king_sparkon_tracker.backend.model.JobPost;
+import com.king_sparkon_tracker.backend.model.JobProfileAccessRequest;
 import com.king_sparkon_tracker.backend.model.TrackerUser;
 
 import jakarta.mail.internet.MimeMessage;
@@ -47,7 +48,8 @@ public class JobOpportunityEmailService {
 				"New job application",
 				"<p><strong>" + esc(applicant.getUsername()) + "</strong> applied for <strong>" + esc(post.getTitle()) + "</strong>.</p>"
 						+ "<p>Business: " + esc(business.getName()) + "</p>"
-						+ "<p>Resume: " + link(application.getResumeUrl()) + "</p>");
+						+ "<p>Resume: " + link(application.getResumeUrl()) + "</p>"
+						+ "<p>Private qualifications and certificates stay locked until the applicant approves your access request.</p>");
 		return sendHtmlEmail(ownerEmail(business), "New application for " + post.getTitle(), html, "job_application_owner_email");
 	}
 
@@ -68,6 +70,36 @@ public class JobOpportunityEmailService {
 				"<p>Your application for <strong>" + esc(post.getTitle()) + "</strong> at "
 						+ esc(post.getBusiness().getName()) + " was not successful.</p>");
 		return sendHtmlEmail(application.getApplicant().getEmailAddress(), "Update on your King Sparkon Tracker job application", html, "job_application_declined_email");
+	}
+
+	public boolean sendProfileAccessRequestedEmail(JobProfileAccessRequest request) {
+		JobApplication application = request.getApplication();
+		String message = request.getRequestMessage() == null || request.getRequestMessage().isBlank()
+				? "No extra message was provided."
+				: request.getRequestMessage();
+		String html = page(
+				"Profile access requested",
+				"<p>" + esc(request.getBusiness().getName()) + " requested access to your qualification and certificate documents for <strong>"
+						+ esc(application.getJobPost().getTitle()) + "</strong>.</p>"
+						+ "<p>Message: " + esc(message) + "</p>"
+						+ "<p>You can approve or decline this request from Opportunities.</p>");
+		return sendHtmlEmail(request.getApplicant().getEmailAddress(), "Approve profile access for your job application", html, "job_profile_access_requested_email");
+	}
+
+	public boolean sendProfileAccessApprovedEmail(JobProfileAccessRequest request) {
+		String html = page(
+				"Profile access approved",
+				"<p>" + esc(request.getApplicant().getUsername()) + " approved access to qualification and certificate documents for <strong>"
+						+ esc(request.getApplication().getJobPost().getTitle()) + "</strong>.</p>");
+		return sendHtmlEmail(ownerEmail(request.getBusiness()), "Applicant approved profile access", html, "job_profile_access_approved_email");
+	}
+
+	public boolean sendProfileAccessDeclinedEmail(JobProfileAccessRequest request) {
+		String html = page(
+				"Profile access declined",
+				"<p>" + esc(request.getApplicant().getUsername()) + " declined access to qualification and certificate documents for <strong>"
+						+ esc(request.getApplication().getJobPost().getTitle()) + "</strong>.</p>");
+		return sendHtmlEmail(ownerEmail(request.getBusiness()), "Applicant declined profile access", html, "job_profile_access_declined_email");
 	}
 
 	public boolean sendInterviewBookedEmail(JobInterview interview) {
