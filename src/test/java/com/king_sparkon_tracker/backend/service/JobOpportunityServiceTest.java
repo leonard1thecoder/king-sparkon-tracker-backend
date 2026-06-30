@@ -25,6 +25,8 @@ import com.king_sparkon_tracker.backend.dto.JobOpportunityDtos.CreateJobPostRequ
 import com.king_sparkon_tracker.backend.dto.JobOpportunityDtos.JobApplicationResponse;
 import com.king_sparkon_tracker.backend.dto.JobOpportunityDtos.JobInterviewResponse;
 import com.king_sparkon_tracker.backend.dto.JobOpportunityDtos.JobPostResponse;
+import com.king_sparkon_tracker.backend.dto.JobOpportunityDtos.JobProfileAccessRequestResponse;
+import com.king_sparkon_tracker.backend.dto.JobOpportunityDtos.RequestProfileAccessRequest;
 import com.king_sparkon_tracker.backend.dto.JobOpportunityDtos.UpsertJobSeekerProfileRequest;
 import com.king_sparkon_tracker.backend.model.Business;
 import com.king_sparkon_tracker.backend.model.JobApplication;
@@ -33,6 +35,8 @@ import com.king_sparkon_tracker.backend.model.JobExperienceLevel;
 import com.king_sparkon_tracker.backend.model.JobInterview;
 import com.king_sparkon_tracker.backend.model.JobInterviewStatus;
 import com.king_sparkon_tracker.backend.model.JobPost;
+import com.king_sparkon_tracker.backend.model.JobProfileAccessRequest;
+import com.king_sparkon_tracker.backend.model.JobProfileAccessRequestStatus;
 import com.king_sparkon_tracker.backend.model.JobSeekerProfile;
 import com.king_sparkon_tracker.backend.model.LocalizationCountry;
 import com.king_sparkon_tracker.backend.model.Privilege;
@@ -41,6 +45,7 @@ import com.king_sparkon_tracker.backend.model.QualificationLevel;
 import com.king_sparkon_tracker.backend.model.TrackerUser;
 import com.king_sparkon_tracker.backend.repository.JobApplicationRepository;
 import com.king_sparkon_tracker.backend.repository.JobPostRepository;
+import com.king_sparkon_tracker.backend.repository.JobProfileAccessRequestRepository;
 import com.king_sparkon_tracker.backend.repository.JobSeekerProfileRepository;
 import com.king_sparkon_tracker.backend.repository.OpportunityInterviewRepository;
 
@@ -60,6 +65,9 @@ class JobOpportunityServiceTest {
 	private OpportunityInterviewRepository interviewRepository;
 
 	@Mock
+	private JobProfileAccessRequestRepository accessRequestRepository;
+
+	@Mock
 	private TrackerUserService trackerUserService;
 
 	@Mock
@@ -77,6 +85,7 @@ class JobOpportunityServiceTest {
 				jobPostRepository,
 				applicationRepository,
 				interviewRepository,
+				accessRequestRepository,
 				trackerUserService,
 				auditLogService,
 				emailService);
@@ -91,7 +100,8 @@ class JobOpportunityServiceTest {
 				QualificationLevel.GRADE_12,
 				List.of("Cashier", "Stock Controller", "Waiter", "Driver", "Cleaner", "Admin"),
 				JobExperienceLevel.ONE_YEAR,
-				"Hard worker");
+				"Hard worker",
+				false);
 
 		assertThatThrownBy(() -> service.upsertProfile(request, "applicant"))
 				.isInstanceOf(IllegalArgumentException.class)
@@ -142,7 +152,7 @@ class JobOpportunityServiceTest {
 		Business business = business(owner);
 		TrackerUser applicant = user(11L, "applicant", PrivilegeRole.User);
 		JobPost post = jobPost(business, owner);
-		JobSeekerProfile profile = profile(applicant);
+		JobSeekerProfile profile = profile(applicant, false);
 
 		when(trackerUserService.getUserByUsername("applicant")).thenReturn(applicant);
 		when(profileRepository.findByUser_Id(11L)).thenReturn(Optional.of(profile));
@@ -166,14 +176,66 @@ class JobOpportunityServiceTest {
 	}
 
 	@Test
+	void ownerApplicationResponseHidesProfileQualificationAndCertsUntilApproved() {
+		TrackerUser owner = owner();
+		Business business = business(owner);
+		JobApplication application = application(business, owner, false);
+		when(trackerUserService.getUserByUsername("owner")).thenReturn(owner);
+		when(trackerUserService.businessForActor("owner")).thenReturn(business);
+		when(applicationRepository.findByJobPost_Business_IdOrderByCreatedDateDesc(1L)).thenReturn(List.of(application));
+		when(accessRequestRepository.findByApplication_Id(200L)).thenReturn(Optional.empty());
+
+		JobApplicationResponse response = service.ownerApplications("owner").getFirst();
+
+		assertThat(response.profile().highestQualification()).isNull();
+		assertThat(response.profile().interestedJobs()).isEmpty();
+		assertThat(response.certificateUrls()).isEmpty();
+		assertThat(response.privateProfileVisible()).isFalse();
+	}
+
+	@Test
+	void ownerCanRequestAndApplicantCanApprovePrivateProfileAccess() {
+		TrackerUser owner = owner();
+		Business business = business(owner);
+		JobApplication application = application(business, owner, false);
+		JobProfileAccessRequest request = new JobProfileAccessRequest(application, owner, "Please review qualification documents.");
+		ReflectionTestUtils.setField(request, "id", 301L);
+		when(trackerUserService.getUserByUsername("owner")).thenReturn(owner);
+		when(trackerUserService.businessForActor("owner")).thenReturn(business);
+		when(applicationRepository.findByIdAndJobPost_Business_Id(200L, 1L)).thenReturn(Optional.of(application));
+		when(accessRequestRepository.findByApplication_Id(200L)).thenReturn(Optional.empty());
+		when(accessRequestRepository.save(any(JobProfileAccessRequest.class))).thenReturn(request);
+
+		JobProfileAccessRequestResponse requested = service.requestProfileAccess(
+				200L,
+				new RequestProfileAccessRequest("Please review qualification documents."),
+				"owner");
+
+		assertThat(requested.id()).isEqualTo(301L);
+		assertThat(requested.status()).isEqualTo(JobProfileAccessRequestStatus.REQUESTED);
+		verify(emailService).sendProfileAccessRequestedEmail(any(JobProfileAccessRequest.class));
+
+		TrackerUser applicant = application.getApplicant();
+		when(trackerUserService.getUserByUsername("applicant")).thenReturn(applicant);
+		when(accessRequestRepository.findByIdAndApplicant_Id(301L, applicant.getId())).thenReturn(Optional.of(request));
+		when(accessRequestRepository.save(request)).thenReturn(request);
+
+		JobProfileAccessRequestResponse approved = service.approveProfileAccess(301L, "applicant");
+
+		assertThat(approved.status()).isEqualTo(JobProfileAccessRequestStatus.APPROVED);
+		verify(emailService).sendProfileAccessApprovedEmail(request);
+	}
+
+	@Test
 	void ownerViewMarksApplicationViewed() {
 		TrackerUser owner = owner();
 		Business business = business(owner);
-		JobApplication application = application(business, owner);
+		JobApplication application = application(business, owner, false);
 		when(trackerUserService.getUserByUsername("owner")).thenReturn(owner);
 		when(trackerUserService.businessForActor("owner")).thenReturn(business);
 		when(applicationRepository.findByIdAndJobPost_Business_Id(200L, 1L)).thenReturn(Optional.of(application));
 		when(applicationRepository.save(any(JobApplication.class))).thenAnswer(invocation -> invocation.getArgument(0));
+		when(accessRequestRepository.findByApplication_Id(200L)).thenReturn(Optional.empty());
 
 		JobApplicationResponse response = service.viewApplication(200L, "owner");
 
@@ -185,7 +247,7 @@ class JobOpportunityServiceTest {
 	void bookInterviewCreatesBookedInterviewAndMovesApplicationStatus() {
 		TrackerUser owner = owner();
 		Business business = business(owner);
-		JobApplication application = application(business, owner);
+		JobApplication application = application(business, owner, false);
 		when(trackerUserService.getUserByUsername("owner")).thenReturn(owner);
 		when(trackerUserService.businessForActor("owner")).thenReturn(business);
 		when(applicationRepository.findByIdAndJobPost_Business_Id(200L, 1L)).thenReturn(Optional.of(application));
@@ -200,7 +262,7 @@ class JobOpportunityServiceTest {
 		OffsetDateTime interviewDate = OffsetDateTime.now().plusDays(3);
 		JobInterviewResponse response = service.bookInterview(200L, new BookInterviewRequest(
 				interviewDate,
-				"Bring your original certificate.",
+				"Bring your documents.",
 				interviewDate.minusDays(1)), "owner");
 
 		assertThat(application.getStatus()).isEqualTo(JobApplicationStatus.INTERVIEW_BOOKED);
@@ -214,7 +276,7 @@ class JobOpportunityServiceTest {
 	void interviewExpiryBlocksResponse() {
 		TrackerUser owner = owner();
 		Business business = business(owner);
-		JobApplication application = application(business, owner);
+		JobApplication application = application(business, owner, false);
 		JobInterview interview = new JobInterview(
 				application,
 				OffsetDateTime.now().plusDays(1),
@@ -267,25 +329,26 @@ class JobOpportunityServiceTest {
 		return post;
 	}
 
-	private JobSeekerProfile profile(TrackerUser applicant) {
+	private JobSeekerProfile profile(TrackerUser applicant, boolean profileVisibleToBusinesses) {
 		JobSeekerProfile profile = new JobSeekerProfile(
 				applicant,
 				QualificationLevel.GRADE_12,
 				List.of("Cashier", "Stock Controller"),
 				JobExperienceLevel.ONE_YEAR,
-				"Reliable and fast learner.");
+				"Reliable and fast learner.",
+				profileVisibleToBusinesses);
 		ReflectionTestUtils.setField(profile, "id", 50L);
 		return profile;
 	}
 
-	private JobApplication application(Business business, TrackerUser owner) {
+	private JobApplication application(Business business, TrackerUser owner, boolean profileVisibleToBusinesses) {
 		TrackerUser applicant = user(11L, "applicant", PrivilegeRole.User);
 		JobApplication application = new JobApplication(
 				jobPost(business, owner),
 				applicant,
-				profile(applicant),
+				profile(applicant, profileVisibleToBusinesses),
 				"https://cdn.example.com/cv.pdf",
-				List.of());
+				List.of("https://cdn.example.com/cert.pdf"));
 		ReflectionTestUtils.setField(application, "id", 200L);
 		return application;
 	}
