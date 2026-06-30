@@ -1,6 +1,7 @@
 package com.king_sparkon_tracker.backend.model;
 
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 import jakarta.persistence.Column;
@@ -119,10 +120,19 @@ public class JobSeekerProfile {
 	}
 
 	public List<String> getInterestedJobs() {
-		return List.of(interestedJobOne, interestedJobTwo, interestedJobThree, interestedJobFour, interestedJobFive)
-				.stream()
-				.filter(value -> value != null && !value.isBlank())
-				.toList();
+		List<String> interests = new ArrayList<>(MAX_INTERESTS);
+		addInterest(interests, interestedJobOne);
+		addInterest(interests, interestedJobTwo);
+		addInterest(interests, interestedJobThree);
+		addInterest(interests, interestedJobFour);
+		addInterest(interests, interestedJobFive);
+		return List.copyOf(interests);
+	}
+
+	private void addInterest(List<String> interests, String interest) {
+		if (interest != null && !interest.isBlank()) {
+			interests.add(interest);
+		}
 	}
 
 	public JobExperienceLevel getExperience() {
@@ -140,4 +150,6 @@ public class JobSeekerProfile {
 	public OffsetDateTime getModifiedDate() {
 		return modifiedDate;
 	}
+
+	private static final int MAX_INTERESTS = 5;
 }
