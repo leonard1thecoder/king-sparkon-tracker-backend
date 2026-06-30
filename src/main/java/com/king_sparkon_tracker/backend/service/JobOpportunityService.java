@@ -5,7 +5,6 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
-import java.util.Locale;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -113,7 +112,7 @@ public class JobOpportunityService {
 		return new OpportunitiesResponse(
 				openJobPosts(),
 				applicationRepository.findByApplicant_IdOrderByCreatedDateDesc(user.getId()).stream().map(JobApplicationResponse::from).toList(),
-				interviewsForApplicant(user.getId()).stream().map(JobInterviewResponse::from).toList());
+				interviewRepository.findByApplicant_IdOrderByInterviewDateDesc(user.getId()).stream().map(JobInterviewResponse::from).toList());
 	}
 
 	public JobPostResponse createJobPost(CreateJobPostRequest request, String actorUsername) {
@@ -140,7 +139,7 @@ public class JobOpportunityService {
 
 	@Transactional(readOnly = true)
 	public List<JobPostResponse> ownerJobPosts(String actorUsername) {
-		Business business = trackerUserService.businessForActor(actorUsername);
+		Business business = ownerBusiness(actorUsername);
 		return jobPostRepository.findByBusiness_IdOrderByCreatedDateDesc(business.getId()).stream().map(JobPostResponse::from).toList();
 	}
 
@@ -176,20 +175,20 @@ public class JobOpportunityService {
 
 	@Transactional(readOnly = true)
 	public List<JobApplicationResponse> ownerApplications(String actorUsername) {
-		Business business = trackerUserService.businessForActor(actorUsername);
+		Business business = ownerBusiness(actorUsername);
 		return applicationRepository.findByJobPost_Business_IdOrderByCreatedDateDesc(business.getId()).stream().map(JobApplicationResponse::from).toList();
 	}
 
 	@Transactional(readOnly = true)
 	public List<JobApplicationResponse> ownerApplicationsForJob(Long jobPostId, String actorUsername) {
-		Business business = trackerUserService.businessForActor(actorUsername);
+		Business business = ownerBusiness(actorUsername);
 		JobPost post = jobPostRepository.findByIdAndBusiness_Id(jobPostId, business.getId())
 				.orElseThrow(() -> new ResourceNotFoundException("Job post not found: " + jobPostId));
 		return applicationRepository.findByJobPost_IdOrderByCreatedDateDesc(post.getId()).stream().map(JobApplicationResponse::from).toList();
 	}
 
 	public JobApplicationResponse viewApplication(Long applicationId, String actorUsername) {
-		Business business = trackerUserService.businessForActor(actorUsername);
+		Business business = ownerBusiness(actorUsername);
 		JobApplication application = ownerApplication(applicationId, business.getId());
 		application.markViewed();
 		JobApplication saved = applicationRepository.save(application);
@@ -198,7 +197,7 @@ public class JobOpportunityService {
 	}
 
 	public JobApplicationResponse declineApplication(Long applicationId, String actorUsername) {
-		Business business = trackerUserService.businessForActor(actorUsername);
+		Business business = ownerBusiness(actorUsername);
 		JobApplication application = ownerApplication(applicationId, business.getId());
 		application.reject();
 		JobApplication saved = applicationRepository.save(application);
@@ -208,9 +207,9 @@ public class JobOpportunityService {
 	}
 
 	public JobInterviewResponse bookInterview(Long applicationId, BookInterviewRequest request, String actorUsername) {
-		Business business = trackerUserService.businessForActor(actorUsername);
+		Business business = ownerBusiness(actorUsername);
 		JobApplication application = ownerApplication(applicationId, business.getId());
-		if (interviewRepository.findAll().stream().anyMatch(interview -> interview.getApplication().getId().equals(applicationId))) {
+		if (interviewRepository.findByApplication_Id(applicationId).isPresent()) {
 			throw new IllegalArgumentException("Interview already booked for this application");
 		}
 		if (!request.interviewExpiresAt().isBefore(request.interviewDate())) {
@@ -236,13 +235,13 @@ public class JobOpportunityService {
 	@Transactional(readOnly = true)
 	public List<JobInterviewResponse> myInterviews(String actorUsername) {
 		TrackerUser user = trackerUserService.getUserByUsername(actorUsername);
-		return interviewsForApplicant(user.getId()).stream().map(JobInterviewResponse::from).toList();
+		return interviewRepository.findByApplicant_IdOrderByInterviewDateDesc(user.getId()).stream().map(JobInterviewResponse::from).toList();
 	}
 
 	@Transactional(readOnly = true)
 	public List<JobInterviewResponse> ownerInterviews(String actorUsername) {
-		Business business = trackerUserService.businessForActor(actorUsername);
-		return interviewsForBusiness(business.getId()).stream().map(JobInterviewResponse::from).toList();
+		Business business = ownerBusiness(actorUsername);
+		return interviewRepository.findByBusiness_IdOrderByInterviewDateDesc(business.getId()).stream().map(JobInterviewResponse::from).toList();
 	}
 
 	public JobInterviewResponse acceptInterview(Long interviewId, String actorUsername) {
@@ -278,23 +277,8 @@ public class JobOpportunityService {
 	}
 
 	private JobInterview interviewForApplicant(Long interviewId, Long applicantId) {
-		return interviewRepository.findById(interviewId)
-				.filter(interview -> interview.getApplicant().getId().equals(applicantId))
+		return interviewRepository.findByIdAndApplicant_Id(interviewId, applicantId)
 				.orElseThrow(() -> new ResourceNotFoundException("Interview not found: " + interviewId));
-	}
-
-	private List<JobInterview> interviewsForApplicant(Long applicantId) {
-		return interviewRepository.findAll().stream()
-				.filter(interview -> interview.getApplicant().getId().equals(applicantId))
-				.sorted((left, right) -> right.getInterviewDate().compareTo(left.getInterviewDate()))
-				.toList();
-	}
-
-	private List<JobInterview> interviewsForBusiness(Long businessId) {
-		return interviewRepository.findAll().stream()
-				.filter(interview -> interview.getBusiness().getId().equals(businessId))
-				.sorted((left, right) -> right.getInterviewDate().compareTo(left.getInterviewDate()))
-				.toList();
 	}
 
 	private void requireInterviewActionAllowed(JobInterview interview) {
@@ -306,6 +290,12 @@ public class JobOpportunityService {
 			interviewRepository.save(interview);
 			throw new IllegalArgumentException("Interview has expired");
 		}
+	}
+
+	private Business ownerBusiness(String actorUsername) {
+		TrackerUser owner = trackerUserService.getUserByUsername(actorUsername);
+		requireOwner(owner);
+		return trackerUserService.businessForActor(actorUsername);
 	}
 
 	private void requireOwner(TrackerUser actor) {
