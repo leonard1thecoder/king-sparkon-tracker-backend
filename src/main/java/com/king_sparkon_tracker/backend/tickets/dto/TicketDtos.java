@@ -25,54 +25,7 @@ import java.util.List;
 public final class TicketDtos {
     private TicketDtos() {}
 
-    public static final class EventTicketTypeRequest {
-        @NotBlank
-        private String type;
-
-        @NotNull
-        @DecimalMin("0.00")
-        private BigDecimal price;
-
-        @Min(1)
-        private int capacity;
-
-        public EventTicketTypeRequest() {
-        }
-
-        public EventTicketTypeRequest(TicketType type, BigDecimal price, int capacity) {
-            this(type == null ? null : type.name(), price, capacity);
-        }
-
-        public EventTicketTypeRequest(String type, BigDecimal price, int capacity) {
-            this.type = type;
-            this.price = price;
-            this.capacity = capacity;
-        }
-
-        public TicketType type() {
-            return TicketType.fromInput(type);
-        }
-
-        public BigDecimal price() {
-            return price;
-        }
-
-        public int capacity() {
-            return capacity;
-        }
-
-        public void setType(String type) {
-            this.type = type;
-        }
-
-        public void setPrice(BigDecimal price) {
-            this.price = price;
-        }
-
-        public void setCapacity(int capacity) {
-            this.capacity = capacity;
-        }
-    }
+    public record EventTicketTypeRequest(@NotNull TicketType type, @NotNull @DecimalMin("0.00") BigDecimal price, @Min(1) int capacity) {}
 
     public record CreateEventRequest(@NotBlank String ownerId, @NotBlank String name, @NotBlank String description, @NotBlank String location, @NotNull @FutureOrPresent LocalDate eventDate, @NotNull LocalTime eventTime, String bannerUrl, String posterPhotoUrl, @NotNull TicketEventStatus status, @Valid @NotEmpty List<EventTicketTypeRequest> ticketTypes, @Size(max = 100) List<String> workerIds, @Size(max = 100) List<String> affiliateIds) {
         public CreateEventRequest(String ownerId, String name, String description, String location, LocalDate eventDate, LocalTime eventTime, String bannerUrl, TicketEventStatus status, List<EventTicketTypeRequest> ticketTypes) {
@@ -86,106 +39,11 @@ public final class TicketDtos {
         }
     }
 
-    public static final class PurchaseTicketsRequest {
-        @NotBlank
-        private String eventId;
-
-        @NotBlank
-        private String userId;
-
-        @NotBlank
-        private String buyerName;
-
-        @NotBlank
-        @Email
-        private String buyerEmail;
-
-        @NotBlank
-        private String ticketType;
-
-        @Min(1)
-        private int quantity;
-
-        private String callbackUrl;
-
-        public PurchaseTicketsRequest() {
-        }
-
+    public record PurchaseTicketsRequest(@NotBlank String eventId, @NotBlank String userId, @NotBlank String buyerName, @NotBlank @Email String buyerEmail, @NotNull TicketType ticketType, @Min(1) int quantity, String callbackUrl) {
         public PurchaseTicketsRequest(String eventId, String userId, String buyerName, String buyerEmail, TicketType ticketType, int quantity) {
             this(eventId, userId, buyerName, buyerEmail, ticketType, quantity, null);
         }
-
-        public PurchaseTicketsRequest(String eventId, String userId, String buyerName, String buyerEmail, TicketType ticketType, int quantity, String callbackUrl) {
-            this(eventId, userId, buyerName, buyerEmail, ticketType == null ? null : ticketType.name(), quantity, callbackUrl);
-        }
-
-        public PurchaseTicketsRequest(String eventId, String userId, String buyerName, String buyerEmail, String ticketType, int quantity, String callbackUrl) {
-            this.eventId = eventId;
-            this.userId = userId;
-            this.buyerName = buyerName;
-            this.buyerEmail = buyerEmail;
-            this.ticketType = ticketType;
-            this.quantity = quantity;
-            this.callbackUrl = callbackUrl;
-        }
-
-        public String eventId() {
-            return eventId;
-        }
-
-        public String userId() {
-            return userId;
-        }
-
-        public String buyerName() {
-            return buyerName;
-        }
-
-        public String buyerEmail() {
-            return buyerEmail;
-        }
-
-        public TicketType ticketType() {
-            return TicketType.fromInput(ticketType);
-        }
-
-        public int quantity() {
-            return quantity;
-        }
-
-        public String callbackUrl() {
-            return callbackUrl;
-        }
-
-        public void setEventId(String eventId) {
-            this.eventId = eventId;
-        }
-
-        public void setUserId(String userId) {
-            this.userId = userId;
-        }
-
-        public void setBuyerName(String buyerName) {
-            this.buyerName = buyerName;
-        }
-
-        public void setBuyerEmail(String buyerEmail) {
-            this.buyerEmail = buyerEmail;
-        }
-
-        public void setTicketType(String ticketType) {
-            this.ticketType = ticketType;
-        }
-
-        public void setQuantity(int quantity) {
-            this.quantity = quantity;
-        }
-
-        public void setCallbackUrl(String callbackUrl) {
-            this.callbackUrl = callbackUrl;
-        }
     }
-
     public record VerifyTicketRequest(@NotBlank String value, @NotBlank String workerId) {}
     public record TicketWithdrawalRequest(@NotBlank String ownerId, @NotNull @DecimalMin("0.01") BigDecimal grossAmount, String notes) {}
     public record PromoteTicketEventRequest(@DecimalMin("0.01") BigDecimal amount, Instant startsAt, Instant endsAt) {}
