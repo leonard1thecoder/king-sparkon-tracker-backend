@@ -25,6 +25,8 @@ import jakarta.persistence.UniqueConstraint;
 })
 public class JobSeekerProfile {
 
+	private static final int MAX_INTERESTS = 5;
+
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long id;
@@ -59,6 +61,9 @@ public class JobSeekerProfile {
 	@Column(length = 2000)
 	private String about;
 
+	@Column(name = "profile_visible_to_businesses", nullable = false)
+	private boolean profileVisibleToBusinesses;
+
 	@Column(nullable = false)
 	private OffsetDateTime createdDate;
 
@@ -74,8 +79,18 @@ public class JobSeekerProfile {
 			List<String> interestedJobs,
 			JobExperienceLevel experience,
 			String about) {
+		this(user, highestQualification, interestedJobs, experience, about, false);
+	}
+
+	public JobSeekerProfile(
+			TrackerUser user,
+			QualificationLevel highestQualification,
+			List<String> interestedJobs,
+			JobExperienceLevel experience,
+			String about,
+			boolean profileVisibleToBusinesses) {
 		this.user = user;
-		updateProfile(highestQualification, interestedJobs, experience, about);
+		updateProfile(highestQualification, interestedJobs, experience, about, profileVisibleToBusinesses);
 	}
 
 	public void updateProfile(
@@ -83,9 +98,19 @@ public class JobSeekerProfile {
 			List<String> interestedJobs,
 			JobExperienceLevel experience,
 			String about) {
+		updateProfile(highestQualification, interestedJobs, experience, about, profileVisibleToBusinesses);
+	}
+
+	public void updateProfile(
+			QualificationLevel highestQualification,
+			List<String> interestedJobs,
+			JobExperienceLevel experience,
+			String about,
+			boolean profileVisibleToBusinesses) {
 		this.highestQualification = highestQualification;
 		this.experience = experience;
 		this.about = about;
+		this.profileVisibleToBusinesses = profileVisibleToBusinesses;
 		this.interestedJobOne = interestedJobs.get(0);
 		this.interestedJobTwo = interestedJobs.size() > 1 ? interestedJobs.get(1) : null;
 		this.interestedJobThree = interestedJobs.size() > 2 ? interestedJobs.get(2) : null;
@@ -143,6 +168,10 @@ public class JobSeekerProfile {
 		return about;
 	}
 
+	public boolean isProfileVisibleToBusinesses() {
+		return profileVisibleToBusinesses;
+	}
+
 	public OffsetDateTime getCreatedDate() {
 		return createdDate;
 	}
@@ -150,6 +179,4 @@ public class JobSeekerProfile {
 	public OffsetDateTime getModifiedDate() {
 		return modifiedDate;
 	}
-
-	private static final int MAX_INTERESTS = 5;
 }
