@@ -18,6 +18,8 @@ import com.king_sparkon_tracker.backend.dto.JobOpportunityDtos.CreateJobPostRequ
 import com.king_sparkon_tracker.backend.dto.JobOpportunityDtos.JobApplicationResponse;
 import com.king_sparkon_tracker.backend.dto.JobOpportunityDtos.JobInterviewResponse;
 import com.king_sparkon_tracker.backend.dto.JobOpportunityDtos.JobPostResponse;
+import com.king_sparkon_tracker.backend.dto.JobOpportunityDtos.JobProfileAccessRequestResponse;
+import com.king_sparkon_tracker.backend.dto.JobOpportunityDtos.RequestProfileAccessRequest;
 import com.king_sparkon_tracker.backend.service.JobOpportunityService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -28,7 +30,7 @@ import jakarta.validation.Valid;
 @RestController
 @RequestMapping("/api/owner/job-posts")
 @SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
-@Tag(name = "Owner Job Posts", description = "Owner job post creation, application review, and interview booking.")
+@Tag(name = "Owner Job Posts", description = "Owner job post creation, application review, profile access requests, and interview booking.")
 public class OwnerJobPostController {
 
 	private final JobOpportunityService jobOpportunityService;
@@ -53,13 +55,13 @@ public class OwnerJobPostController {
 	}
 
 	@GetMapping("/applications")
-	@Operation(summary = "Owner applications", description = "Lists applications across all owner business job posts.")
+	@Operation(summary = "Owner applications", description = "Lists applications with privacy-aware profile fields and locked certificate URLs until approved.")
 	public List<JobApplicationResponse> applications(Principal principal) {
 		return jobOpportunityService.ownerApplications(principal.getName());
 	}
 
 	@GetMapping("/{jobPostId}/applications")
-	@Operation(summary = "Applications for one job post", description = "Lists applications for a single owner job post.")
+	@Operation(summary = "Applications for one job post", description = "Lists applications for a single owner job post with privacy-aware profile fields.")
 	public List<JobApplicationResponse> applicationsForJob(
 			@PathVariable Long jobPostId,
 			Principal principal) {
@@ -72,6 +74,22 @@ public class OwnerJobPostController {
 			@PathVariable Long applicationId,
 			Principal principal) {
 		return jobOpportunityService.viewApplication(applicationId, principal.getName());
+	}
+
+	@PostMapping("/applications/{applicationId}/profile-access-request")
+	@ResponseStatus(HttpStatus.CREATED)
+	@Operation(summary = "Request private profile access", description = "Requests applicant approval to view qualification and certificate URLs.")
+	public JobProfileAccessRequestResponse requestProfileAccess(
+			@PathVariable Long applicationId,
+			@Valid @RequestBody RequestProfileAccessRequest request,
+			Principal principal) {
+		return jobOpportunityService.requestProfileAccess(applicationId, request, principal.getName());
+	}
+
+	@GetMapping("/profile-access-requests")
+	@Operation(summary = "Owner profile access requests", description = "Lists profile access requests for the current owner business.")
+	public List<JobProfileAccessRequestResponse> profileAccessRequests(Principal principal) {
+		return jobOpportunityService.ownerProfileAccessRequests(principal.getName());
 	}
 
 	@PostMapping("/applications/{applicationId}/reject")
