@@ -68,6 +68,7 @@ public class ProductService {
 		ProductCategory category = requirePresent(request.category(), "Product category is required");
 		BigDecimal price = requireNonNegative(request.price(), "Product price cannot be negative");
 		int stockQuantity = requireNonNegative(request.stockQuantity(), "Stock quantity cannot be negative");
+		String productImageUrl = normalizeOptional(request.productImageUrl());
 
 		boolean returnableEnabled = requirePresent(request.returnableEnabled(), "Returnable enabled flag is required");
 		BigDecimal returnablePrice = moneyWhenEnabled(
@@ -106,7 +107,7 @@ public class ProductService {
 
 		Business business = userService.businessForActor(actorUsername);
 
-		Product product = productRepository.save(new Product(
+		Product product = new Product(
 				name,
 				category,
 				price,
@@ -118,7 +119,9 @@ public class ProductService {
 				nightShiftStartTime,
 				nightShiftEndTime,
 				business
-		));
+		);
+		product.setProductImageUrl(productImageUrl);
+		product = productRepository.save(product);
 
 		auditLogService.record(
 				"PRODUCT_CREATED",
@@ -216,6 +219,29 @@ public class ProductService {
 				.orElseThrow(() -> new ResourceNotFoundException("Product not found: " + id));
 	}
 
+	public Product updateProductImageUrl(Long productId, String productImageUrl, String actorUsername) {
+		businessAccessService.requireFeature(actorUsername, BusinessFeature.CREATE_PRODUCTS);
+
+		Long id = requirePresent(productId, "Product id is required");
+		String normalizedImageUrl = normalizeRequired(productImageUrl, "Product image URL is required");
+		Business business = userService.businessForActor(actorUsername);
+		Product product = getProductForStockUpdate(id, business.getId());
+		product.setProductImageUrl(normalizedImageUrl);
+		Product savedProduct = productRepository.save(product);
+
+		auditLogService.record(
+				"PRODUCT_IMAGE_UPDATED",
+				"Product",
+				String.valueOf(savedProduct.getId()),
+				actorUsername,
+				"Product image updated for tuck shop display",
+				business
+		);
+
+		return productRepository.findWithBarcodesByIdAndBusiness_Id(id, business.getId())
+				.orElseThrow(() -> new ResourceNotFoundException("Product not found: " + id));
+	}
+
 	public Product submitProductForApproval(Long productId, String actorUsername) {
 		businessAccessService.requireFeature(actorUsername, BusinessFeature.ADD_BARCODES);
 
@@ -266,6 +292,16 @@ public class ProductService {
 	}
 
 	@Transactional(readOnly = true)
+	public Page<Product> listTuckShopProducts(Pageable pageable, Long businessId, ProductCategory category, String search) {
+		return productRepository.searchTuckShopProducts(
+				ProductStatus.CREATED,
+				businessId,
+				category,
+				normalizeOptional(search),
+				pageable);
+	}
+
+	@Transactional(readOnly = true)
 	public Product getProductById(Long id) {
 		return productRepository.findWithBarcodesById(id)
 				.orElseThrow(() -> new ResourceNotFoundException("Product not found: " + id));
@@ -280,17 +316,13 @@ public class ProductService {
 	}
 
 	public Product getProductForStockUpdate(Long id) {
-		Product product = productRepository.findLockedById(id)
+		return productRepository.findLockedById(id)
 				.orElseThrow(() -> new ResourceNotFoundException("Product not found: " + id));
-
-		return product;
 	}
 
 	public Product getProductForStockUpdate(Long id, Long businessId) {
-		Product product = productRepository.findLockedByIdAndBusiness_Id(id, businessId)
+		return productRepository.findLockedByIdAndBusiness_Id(id, businessId)
 				.orElseThrow(() -> new ResourceNotFoundException("Product not found: " + id));
-
-		return product;
 	}
 
 	@Transactional(readOnly = true)
