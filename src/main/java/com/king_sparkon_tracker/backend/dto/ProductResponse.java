@@ -24,6 +24,9 @@ public record ProductResponse(
 		@Schema(description = "Product name.", example = "Barcode item")
 		String name,
 
+		@Schema(description = "Product photo URL/path shown in King Sparkon Tuck Shop.")
+		String productImageUrl,
+
 		@Schema(description = "Product category.", example = "Alcohol")
 		ProductCategory category,
 
@@ -101,6 +104,7 @@ public record ProductResponse(
 				product.getBusiness() == null ? null : product.getBusiness().getId(),
 				product.getBusiness() == null ? null : product.getBusiness().getName(),
 				product.getName(),
+				product.getProductImageUrl(),
 				product.getCategory(),
 				product.getStatus(),
 				product.getPrice(),
