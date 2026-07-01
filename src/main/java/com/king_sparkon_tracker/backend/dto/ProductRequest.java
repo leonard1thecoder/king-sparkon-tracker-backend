@@ -11,6 +11,7 @@ import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PositiveOrZero;
+import jakarta.validation.constraints.Size;
 
 public record ProductRequest(
 		@Schema(description = "Product display name.", example = "Barcode item")
@@ -52,6 +53,35 @@ public record ProductRequest(
 		@Schema(description = "Opening stock quantity.", example = "10")
 		@NotNull
 		@PositiveOrZero
-		Integer stockQuantity
+		Integer stockQuantity,
+
+		@Schema(description = "Product photo URL/path shown in King Sparkon Tuck Shop.", example = "https://storage.googleapis.com/king-sparkon/products/coke.png")
+		@Size(max = 2048)
+		String productImageUrl
 ) {
+	public ProductRequest(
+			String name,
+			ProductCategory category,
+			BigDecimal price,
+			Boolean returnableEnabled,
+			BigDecimal returnablePrice,
+			Boolean nightShiftEnabled,
+			BigDecimal nightShiftPrice,
+			LocalTime nightShiftStartTime,
+			LocalTime nightShiftEndTime,
+			Integer stockQuantity) {
+		this(
+				name,
+				category,
+				price,
+				returnableEnabled,
+				returnablePrice,
+				nightShiftEnabled,
+				nightShiftPrice,
+				nightShiftStartTime,
+				nightShiftEndTime,
+				stockQuantity,
+				null
+		);
+	}
 }
