@@ -42,6 +42,9 @@ public class Product {
 	@Column(nullable = false, precision = 12, scale = 2)
 	private BigDecimal price;
 
+	@Column(name = "product_image_url", length = 2048)
+	private String productImageUrl;
+
 	@Column(name = "returnable_enabled", nullable = false)
 	private boolean returnableEnabled;
 
@@ -289,6 +292,16 @@ public class Product {
 
 	public void setPrice(BigDecimal price) {
 		this.price = price;
+	}
+
+	public String getProductImageUrl() {
+		return productImageUrl;
+	}
+
+	public void setProductImageUrl(String productImageUrl) {
+		this.productImageUrl = productImageUrl == null || productImageUrl.isBlank()
+				? null
+				: productImageUrl.trim();
 	}
 
 	public boolean isReturnableEnabled() {
