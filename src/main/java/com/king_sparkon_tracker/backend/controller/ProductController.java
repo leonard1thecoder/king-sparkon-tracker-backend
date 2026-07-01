@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.king_sparkon_tracker.backend.config.OpenApiConfig;
 import com.king_sparkon_tracker.backend.dto.AddProductBarcodeRequest;
 import com.king_sparkon_tracker.backend.dto.PageResponse;
+import com.king_sparkon_tracker.backend.dto.ProductImageUpdateRequest;
 import com.king_sparkon_tracker.backend.dto.ProductRequest;
 import com.king_sparkon_tracker.backend.dto.ProductResponse;
 import com.king_sparkon_tracker.backend.dto.UpdateProductQuantityRequest;
@@ -75,6 +76,15 @@ public class ProductController {
 			@Valid @RequestBody UpdateProductQuantityRequest request,
 			@Parameter(hidden = true) Principal principal) {
 		return responseFrom(productService.updateProductQuantity(id, request, principal.getName()), principal.getName());
+	}
+
+	@PatchMapping("/{id}/image")
+	@Operation(summary = "Update product image URL used by King Sparkon Tuck Shop")
+	public ProductResponse updateProductImage(
+			@PathVariable Long id,
+			@Valid @RequestBody ProductImageUpdateRequest request,
+			@Parameter(hidden = true) Principal principal) {
+		return responseFrom(productService.updateProductImageUrl(id, request.productImageUrl(), principal.getName()), principal.getName());
 	}
 
 	@PostMapping("/{id}/submit-approval")

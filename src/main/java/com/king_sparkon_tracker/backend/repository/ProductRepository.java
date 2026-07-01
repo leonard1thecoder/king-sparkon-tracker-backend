@@ -12,6 +12,7 @@ import org.springframework.data.repository.query.Param;
 
 import com.king_sparkon_tracker.backend.model.Product;
 import com.king_sparkon_tracker.backend.model.ProductCategory;
+import com.king_sparkon_tracker.backend.model.ProductStatus;
 
 import jakarta.persistence.LockModeType;
 
@@ -31,6 +32,27 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
 	@EntityGraph(attributePaths = "barcodes")
 	@Query("select product from Product product where product.id = :id and product.business.id = :businessId")
 	Optional<Product> findWithBarcodesByIdAndBusiness_Id(@Param("id") Long id, @Param("businessId") Long businessId);
+
+	@EntityGraph(attributePaths = "barcodes")
+	@Query("""
+			select product
+			from Product product
+			where product.status = :status
+				and product.stockQuantity > 0
+				and (:businessId is null or product.business.id = :businessId)
+				and (:category is null or product.category = :category)
+				and (
+					:search is null
+					or lower(product.name) like lower(concat('%', :search, '%'))
+					or lower(product.business.name) like lower(concat('%', :search, '%'))
+				)
+			""")
+	Page<Product> searchTuckShopProducts(
+			@Param("status") ProductStatus status,
+			@Param("businessId") Long businessId,
+			@Param("category") ProductCategory category,
+			@Param("search") String search,
+			Pageable pageable);
 
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	@Query("select product from Product product where product.id = :id")

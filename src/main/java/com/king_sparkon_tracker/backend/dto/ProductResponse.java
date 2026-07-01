@@ -24,6 +24,9 @@ public record ProductResponse(
 		@Schema(description = "Product name.", example = "Barcode item")
 		String name,
 
+		@Schema(description = "Product photo URL/path shown in King Sparkon Tuck Shop.")
+		String productImageUrl,
+
 		@Schema(description = "Product category.", example = "Alcohol")
 		ProductCategory category,
 
@@ -85,6 +88,59 @@ public record ProductResponse(
 		int remainingBarcodeSlots
 ) {
 
+	public ProductResponse(
+			Long id,
+			Long businessId,
+			String businessName,
+			String name,
+			ProductCategory category,
+			ProductStatus status,
+			BigDecimal price,
+			BigDecimal salePrice,
+			SupportedCurrency baseCurrency,
+			MoneyResponse localizedPrice,
+			MoneyResponse localizedSalePrice,
+			boolean returnableEnabled,
+			BigDecimal returnablePrice,
+			MoneyResponse localizedReturnablePrice,
+			boolean nightShiftEnabled,
+			BigDecimal nightShiftPrice,
+			MoneyResponse localizedNightShiftPrice,
+			LocalTime nightShiftStartTime,
+			LocalTime nightShiftEndTime,
+			boolean bottleReturnable,
+			int stockQuantity,
+			List<ProductBarcodeResponse> barcodes,
+			int barcodeCount,
+			int remainingBarcodeSlots) {
+		this(
+				id,
+				businessId,
+				businessName,
+				name,
+				null,
+				category,
+				status,
+				price,
+				salePrice,
+				baseCurrency,
+				localizedPrice,
+				localizedSalePrice,
+				returnableEnabled,
+				returnablePrice,
+				localizedReturnablePrice,
+				nightShiftEnabled,
+				nightShiftPrice,
+				localizedNightShiftPrice,
+				nightShiftStartTime,
+				nightShiftEndTime,
+				bottleReturnable,
+				stockQuantity,
+				barcodes,
+				barcodeCount,
+				remainingBarcodeSlots);
+	}
+
 	public static ProductResponse from(
 			Product product,
 			BigDecimal salePrice,
@@ -101,6 +157,7 @@ public record ProductResponse(
 				product.getBusiness() == null ? null : product.getBusiness().getId(),
 				product.getBusiness() == null ? null : product.getBusiness().getName(),
 				product.getName(),
+				product.getProductImageUrl(),
 				product.getCategory(),
 				product.getStatus(),
 				product.getPrice(),
