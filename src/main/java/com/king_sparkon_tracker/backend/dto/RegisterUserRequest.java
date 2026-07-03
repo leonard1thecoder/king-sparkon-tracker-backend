@@ -39,6 +39,7 @@ public record RegisterUserRequest(
 		String physicalAddress,
 
 		@Schema(description = "Cellphone number used for onboarding and account contact.", example = "+27821234567")
+		@NotBlank
 		@Size(max = 32)
 		String cellphoneNumber,
 
