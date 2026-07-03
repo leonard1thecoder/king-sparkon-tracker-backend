@@ -42,7 +42,8 @@ public record RegisterUserRequest(
 		@Size(max = 32)
 		String cellphoneNumber,
 
-		@Schema(description = "Optional affiliate referral code from a pricing-page promotion QR.", example = "AFF-ALICE-1234")
+		@JsonAlias({ "referenceCode", "referralCode", "promoCode" })
+		@Schema(description = "Optional affiliate, reference, referral, or promo code from a pricing-page promotion QR.", example = "AFF-ALICE-1234")
 		@Size(max = 64)
 		String affiliateCode,
 
