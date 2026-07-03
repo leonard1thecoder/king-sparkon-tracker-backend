@@ -29,6 +29,7 @@ public record RegisterAffiliateRequest(
 		String physicalAddress,
 
 		@Schema(description = "Affiliate cellphone number used for onboarding and payout contact.", example = "+27821234567")
+		@NotBlank
 		@Size(max = 32)
 		String cellphoneNumber,
 
