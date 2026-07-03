@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import com.king_sparkon_tracker.backend.dto.SubscribeRequest;
+import com.king_sparkon_tracker.backend.dto.SubscriberMetricsResponse;
 import com.king_sparkon_tracker.backend.model.PromotionChannel;
 import com.king_sparkon_tracker.backend.model.Subscriber;
 import com.king_sparkon_tracker.backend.model.SubscriberContactType;
@@ -52,6 +53,15 @@ public class SubscriberService {
 			return null;
 		}
 		return subscribe(contact, SubscriberType.CLIENT, false, PromotionChannel.ANY, "WEBSITE_PAYMENT");
+	}
+
+	@Transactional(readOnly = true)
+	public SubscriberMetricsResponse metrics() {
+		return new SubscriberMetricsResponse(
+				subscriberRepository.countByActiveTrue(),
+				subscriberRepository.countByActiveTrueAndContactType(SubscriberContactType.EMAIL),
+				subscriberRepository.countByActiveTrueAndContactType(SubscriberContactType.CELLPHONE),
+				subscriberRepository.countByActiveTrueAndAffiliateRegistered(true));
 	}
 
 	public Subscriber subscribe(String rawContact, SubscriberType subscriberType, boolean affiliateRegistered, PromotionChannel preferredChannel, String source) {
