@@ -72,7 +72,8 @@ class AuthenticationPrivilegeRegistrationControllerTest {
                                   "serviceRegisteringFor": "USER",
                                   "username": "client",
                                   "emailAddress": "client@example.com",
-                                  "password": "StrongPassword123"
+                                  "password": "StrongPassword123",
+                                  "cellphoneNumber": "+27821234567"
                                 }
                                 """))
                 .andExpect(status().isCreated())
@@ -96,6 +97,7 @@ class AuthenticationPrivilegeRegistrationControllerTest {
                                   "username": "partner",
                                   "emailAddress": "partner@example.com",
                                   "password": "StrongPassword123",
+                                  "cellphoneNumber": "+27821234567",
                                   "paypalLink": "https://example.com/partner"
                                 }
                                 """))
@@ -124,7 +126,8 @@ class AuthenticationPrivilegeRegistrationControllerTest {
                                   "username": "owner",
                                   "emailAddress": "owner@example.com",
                                   "password": "StrongPassword123",
-                                  "businessName": "Owner Store"
+                                  "businessName": "Owner Store",
+                                  "cellphoneNumber": "+27821234567"
                                 }
                                 """))
                 .andExpect(status().isCreated())

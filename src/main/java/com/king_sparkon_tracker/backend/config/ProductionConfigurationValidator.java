@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.function.Function;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.core.env.Environment;
@@ -78,6 +79,7 @@ public class ProductionConfigurationValidator implements ApplicationRunner {
 	private final Environment environment;
 	private final Function<String, String> envProvider;
 
+	@Autowired
 	public ProductionConfigurationValidator(Environment environment) {
 		this(environment, System::getenv);
 	}

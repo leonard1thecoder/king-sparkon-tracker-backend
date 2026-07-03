@@ -93,7 +93,8 @@ class AuthenticationControllerTest {
 								  "username": "alice",
 								  "emailAddress": "alice@kingsparkon.co.za",
 								  "password": "secret",
-								  "businessName": "Alice Traders"
+								  "businessName": "Alice Traders",
+								  "cellphoneNumber": "+27821234567"
 								}
 								"""))
 				.andExpect(status().isConflict())

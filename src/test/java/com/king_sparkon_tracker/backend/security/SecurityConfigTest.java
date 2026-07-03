@@ -126,7 +126,8 @@ class SecurityConfigTest {
 								  "username": "owner",
 								  "emailAddress": "owner@kingsparkon.co.za",
 								  "password": "secret",
-								  "businessName": "Owner Store"
+								  "businessName": "Owner Store",
+								  "cellphoneNumber": "+27821234567"
 								}
 								"""))
 				.andExpect(status().isCreated())
@@ -268,6 +269,7 @@ class SecurityConfigTest {
 				  "username": "worker",
 				  "emailAddress": "worker@example.com",
 				  "password": "secret",
+				  "cellphoneNumber": "+27821234567",
 				  "jobTitle": "Cashier"
 				}
 				""";

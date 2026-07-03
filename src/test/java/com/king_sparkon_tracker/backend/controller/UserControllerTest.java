@@ -81,6 +81,7 @@ class UserControllerTest {
 						  "username": "worker",
 						  "emailAddress": "worker@example.com",
 						  "password": "secret",
+						  "cellphoneNumber": "+27821234567",
 						  "jobTitle": "Cashier",
 						  "tipQrCodeEnabled": true
 						}
