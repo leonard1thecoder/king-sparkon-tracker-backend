@@ -133,6 +133,11 @@ public class TrackerUser {
 		this.emailVerifiedAt = LocalDateTime.now();
 	}
 
+	public void updateEmailVerificationStatus(boolean emailVerified) {
+		this.emailVerified = emailVerified;
+		this.emailVerifiedAt = emailVerified ? LocalDateTime.now() : null;
+	}
+
 	public void completeOnboarding(String physicalAddress, String cellphoneNumber) {
 		completeOnboarding(physicalAddress, cellphoneNumber, this.profilePictureUrl);
 	}
