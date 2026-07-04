@@ -141,6 +141,7 @@ public class SecurityConfig {
 							.requestMatchers(HttpMethod.POST, "/api/transactions/withdrawals", "/api/transactions/withdrawals/**")
 							.hasAuthority(ownerAuthority)
 							.requestMatchers(HttpMethod.POST, "/api/transactions", "/api/transactions/**").authenticated()
+							.requestMatchers(HttpMethod.GET, "/api/transactions/me").hasAuthority(workerAuthority)
 							.requestMatchers(HttpMethod.GET, "/api/transactions", "/api/transactions/**").hasAuthority(ownerAuthority)
 							.requestMatchers("/api/reports", "/api/reports/**").hasAuthority(ownerAuthority)
 							.requestMatchers("/api/audit-logs", "/api/audit-logs/**").hasAuthority(ownerAuthority)
@@ -155,6 +156,7 @@ public class SecurityConfig {
 							.requestMatchers(HttpMethod.POST, "/api/v1/tickets/me/events/*/boosts").hasAuthority(ownerAuthority)
 							.requestMatchers(HttpMethod.GET, "/api/v1/tickets/me/event-boosts").hasAuthority(ownerAuthority)
 							.requestMatchers("/api/user-dashboard", "/api/user-dashboard/**").authenticated()
+							.requestMatchers(HttpMethod.GET, "/api/tips/me").hasAuthority(workerAuthority)
 							.requestMatchers("/api/tips", "/api/tips/**").hasAuthority(ownerAuthority)
 							.anyRequest().authenticated();
 				})

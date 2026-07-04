@@ -29,6 +29,9 @@ public interface InventoryTransactionRepository extends JpaRepository<InventoryT
 	@EntityGraph(attributePaths = { "employee", "owner", "items", "items.product", "items.barcodes" })
 	Page<InventoryTransaction> findByBusiness_Id(Long businessId, Pageable pageable);
 
+	@EntityGraph(attributePaths = { "employee", "owner", "items", "items.product", "items.barcodes" })
+	Page<InventoryTransaction> findByEmployee_IdAndBusiness_Id(Long employeeId, Long businessId, Pageable pageable);
+
 	@Override
 	@EntityGraph(attributePaths = { "employee", "owner", "items", "items.product", "items.barcodes" })
 	Optional<InventoryTransaction> findById(Long id);

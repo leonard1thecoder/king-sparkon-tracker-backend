@@ -58,6 +58,11 @@ public class TipController {
 		return tipService.getTipsForWorker(workerId);
 	}
 
+	@GetMapping("/me")
+	public List<TipResponse> getMyWorkerTips(Principal principal) {
+		return tipService.getTipsForCurrentWorker(principal.getName());
+	}
+
 	@GetMapping
 	public List<TipResponse> getTipsByStatus(@RequestParam TipStatus status) {
 		return tipService.getTipsByStatus(status);

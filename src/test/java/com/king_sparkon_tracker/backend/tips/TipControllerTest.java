@@ -125,6 +125,16 @@ class TipControllerTest {
 	}
 
 	@Test
+	void getMyWorkerTipsReturnsCurrentWorkerTips() throws Exception {
+		when(tipService.getTipsForCurrentWorker("worker")).thenReturn(List.of(tipResponse(TipStatus.PAID)));
+
+		mockMvc.perform(get("/api/tips/me").principal(() -> "worker"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$[0].workerId").value(10))
+				.andExpect(jsonPath("$[0].status").value("PAID"));
+	}
+
+	@Test
 	void getTipsByStatusReturnsFilteredTips() throws Exception {
 		when(tipService.getTipsByStatus(TipStatus.UNPAID)).thenReturn(List.of(tipResponse(TipStatus.UNPAID)));
 

@@ -109,6 +109,15 @@ public class TipService {
 	}
 
 	@Transactional(readOnly = true)
+	public List<TipResponse> getTipsForCurrentWorker(String workerUsername) {
+		TrackerUser worker = trackerUserService.getUserByUsername(workerUsername);
+		if (worker.getPrivilege() == null || worker.getPrivilege().getName() != PrivilegeRole.Worker) {
+			throw new IllegalArgumentException("Only workers can view their own tips");
+		}
+		return getTipsForWorker(worker.getId());
+	}
+
+	@Transactional(readOnly = true)
 	public List<TipResponse> getTipsForAffiliate(String affiliateUsername) {
 		TrackerUser affiliate = trackerUserService.getUserByUsername(affiliateUsername);
 		requireAffiliate(affiliate);

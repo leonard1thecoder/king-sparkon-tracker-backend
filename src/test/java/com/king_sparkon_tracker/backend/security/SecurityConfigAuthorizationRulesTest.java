@@ -49,6 +49,21 @@ class SecurityConfigAuthorizationRulesTest {
 	}
 
 	@Test
+	void workerDashboardReadRoutesAreBeforeOwnerOnlyCatchalls() throws Exception {
+		String source = Files.readString(Path.of("src/main/java/com/king_sparkon_tracker/backend/security/SecurityConfig.java"));
+
+		String workerTransactionsRule = ".requestMatchers(HttpMethod.GET, \"/api/transactions/me\").hasAuthority(workerAuthority)";
+		String ownerTransactionsRule = ".requestMatchers(HttpMethod.GET, \"/api/transactions\", \"/api/transactions/**\").hasAuthority(ownerAuthority)";
+		String workerTipsRule = ".requestMatchers(HttpMethod.GET, \"/api/tips/me\").hasAuthority(workerAuthority)";
+		String ownerTipsRule = ".requestMatchers(\"/api/tips\", \"/api/tips/**\").hasAuthority(ownerAuthority)";
+
+		assertThat(source).contains(workerTransactionsRule);
+		assertThat(source).contains(workerTipsRule);
+		assertThat(source.indexOf(workerTransactionsRule)).isLessThan(source.indexOf(ownerTransactionsRule));
+		assertThat(source.indexOf(workerTipsRule)).isLessThan(source.indexOf(ownerTipsRule));
+	}
+
+	@Test
 	void businessAccessFilterOnlyRequiresBusinessForBusinessScopedRoles() throws Exception {
 		String source = Files.readString(Path.of("src/main/java/com/king_sparkon_tracker/backend/security/BusinessAccessFilter.java"));
 

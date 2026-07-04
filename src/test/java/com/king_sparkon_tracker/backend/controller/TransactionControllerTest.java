@@ -147,6 +147,20 @@ class TransactionControllerTest {
 	}
 
 	@Test
+	void listMyWorkerTransactionsReturnsOnlyWorkerTransactions() throws Exception {
+		when(transactionService.listWorkerTransactions(PageRequest.of(0, 20), "worker")).thenReturn(new PageImpl<>(
+				java.util.List.of(transaction(TransactionType.SELL)),
+				PageRequest.of(0, 20),
+				1));
+
+		mockMvc.perform(get("/api/transactions/me").principal(() -> "worker"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.content[0].type").value("SELL"))
+				.andExpect(jsonPath("$.content[0].employeeId").value(2))
+				.andExpect(jsonPath("$.totalElements").value(1));
+	}
+
+	@Test
 	void getTransactionByIdReturnsTransaction() throws Exception {
 		when(transactionService.getTransactionById(7L, "owner")).thenReturn(transaction(TransactionType.SELL));
 
@@ -171,11 +185,13 @@ class TransactionControllerTest {
 				"worker@example.com",
 				"encoded",
 				new Privilege(PrivilegeRole.Worker));
+		ReflectionTestUtils.setField(employee, "id", 2L);
 		TrackerUser owner = new TrackerUser(
 				"owner",
 				"owner@kingsparkon.co.za",
 				"encoded",
 				new Privilege(PrivilegeRole.Owner));
+		ReflectionTestUtils.setField(owner, "id", 1L);
 		Product product = new Product("Beer", "6001", ProductCategory.Alcohol, new BigDecimal("20.50"), 10);
 		ReflectionTestUtils.setField(product, "id", 9L);
 		InventoryTransaction transaction = new InventoryTransaction(type, employee, owner);

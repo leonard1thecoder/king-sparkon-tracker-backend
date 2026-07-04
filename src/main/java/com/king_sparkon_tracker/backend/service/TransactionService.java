@@ -186,6 +186,24 @@ public class TransactionService {
 	}
 
 	@Transactional(readOnly = true)
+	public Page<InventoryTransaction> listWorkerTransactions(Pageable pageable, String actorUsername) {
+		TrackerUser worker = userService.getUserByUsername(actorUsername);
+		if (worker.getPrivilege() == null || worker.getPrivilege().getName() != PrivilegeRole.Worker) {
+			throw new IllegalArgumentException("Only workers can view their own transaction history");
+		}
+		Business business = requirePresent(worker.getBusiness(), "Worker must belong to a business");
+
+		log.debug(
+				"worker_transactions_list_requested workerId={} businessId={} page={} size={}",
+				worker.getId(),
+				business.getId(),
+				pageable.getPageNumber(),
+				pageable.getPageSize());
+
+		return transactionRepository.findByEmployee_IdAndBusiness_Id(worker.getId(), business.getId(), pageable);
+	}
+
+	@Transactional(readOnly = true)
 	public InventoryTransaction getTransactionById(Long id) {
 		return transactionRepository.findById(id)
 				.orElseThrow(() -> new ResourceNotFoundException("Transaction not found: " + id));

@@ -92,6 +92,18 @@ public class TransactionController {
 	}
 
 	/**
+	 * Lists transaction history for the authenticated worker only.
+	 */
+	@GetMapping("/me")
+	@Operation(summary = "List my worker transactions", description = "Worker endpoint for viewing only transactions handled by the authenticated worker.")
+	public PageResponse<TransactionResponse> listMyWorkerTransactions(
+			@Parameter(description = "Zero-based page number.") @RequestParam(defaultValue = "0") int page,
+			@Parameter(description = "Page size from 1 to 100.") @RequestParam(defaultValue = "20") int size,
+			@Parameter(hidden = true) Principal principal) {
+		return PageResponse.from(transactionService.listWorkerTransactions(pageable(page, size), principal.getName()), TransactionResponse::from);
+	}
+
+	/**
 	 * Returns one transaction including its product line items.
 	 */
 	@GetMapping("/{id}")
