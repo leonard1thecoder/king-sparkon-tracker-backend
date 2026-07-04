@@ -5,6 +5,7 @@
 .codex/
 .env
 .env.*
+first-time-deployment-env.txt
 target/
 mvnw
 mvnw.cmd
