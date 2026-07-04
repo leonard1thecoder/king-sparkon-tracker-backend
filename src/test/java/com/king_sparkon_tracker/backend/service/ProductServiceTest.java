@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -15,6 +16,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -310,6 +313,30 @@ class ProductServiceTest {
 		when(productRepository.findAll()).thenReturn(products);
 
 		assertThat(productService.listProducts()).containsExactlyElementsOf(products);
+	}
+
+	@Test
+	void listTuckShopProductsWithoutSearchAvoidsSearchPredicate() {
+		PageRequest pageable = PageRequest.of(0, 20);
+		when(productRepository.findTuckShopProducts(ProductStatus.CREATED, null, null, pageable))
+				.thenReturn(new PageImpl<>(List.of(), pageable, 0));
+
+		productService.listTuckShopProducts(pageable, null, null, null);
+
+		verify(productRepository).findTuckShopProducts(ProductStatus.CREATED, null, null, pageable);
+		verify(productRepository, never()).searchTuckShopProducts(any(), any(), any(), any(), any());
+	}
+
+	@Test
+	void listTuckShopProductsWithSearchUsesNormalizedSearchPredicate() {
+		PageRequest pageable = PageRequest.of(0, 20);
+		when(productRepository.searchTuckShopProducts(ProductStatus.CREATED, null, ProductCategory.NonAlcohol, "water", pageable))
+				.thenReturn(new PageImpl<>(List.of(), pageable, 0));
+
+		productService.listTuckShopProducts(pageable, null, ProductCategory.NonAlcohol, " water ");
+
+		verify(productRepository).searchTuckShopProducts(ProductStatus.CREATED, null, ProductCategory.NonAlcohol, "water", pageable);
+		verify(productRepository, never()).findTuckShopProducts(any(), any(), any(), any());
 	}
 
 	@Test

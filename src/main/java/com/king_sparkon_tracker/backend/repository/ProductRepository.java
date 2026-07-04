@@ -41,9 +41,23 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
 				and product.stockQuantity > 0
 				and (:businessId is null or product.business.id = :businessId)
 				and (:category is null or product.category = :category)
+			""")
+	Page<Product> findTuckShopProducts(
+			@Param("status") ProductStatus status,
+			@Param("businessId") Long businessId,
+			@Param("category") ProductCategory category,
+			Pageable pageable);
+
+	@EntityGraph(attributePaths = "barcodes")
+	@Query("""
+			select product
+			from Product product
+			where product.status = :status
+				and product.stockQuantity > 0
+				and (:businessId is null or product.business.id = :businessId)
+				and (:category is null or product.category = :category)
 				and (
-					:search is null
-					or lower(product.name) like lower(concat('%', :search, '%'))
+					lower(product.name) like lower(concat('%', :search, '%'))
 					or lower(product.business.name) like lower(concat('%', :search, '%'))
 				)
 			""")

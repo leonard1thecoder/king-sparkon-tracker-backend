@@ -293,11 +293,21 @@ public class ProductService {
 
 	@Transactional(readOnly = true)
 	public Page<Product> listTuckShopProducts(Pageable pageable, Long businessId, ProductCategory category, String search) {
+		String normalizedSearch = normalizeOptional(search);
+
+		if (normalizedSearch == null) {
+			return productRepository.findTuckShopProducts(
+					ProductStatus.CREATED,
+					businessId,
+					category,
+					pageable);
+		}
+
 		return productRepository.searchTuckShopProducts(
 				ProductStatus.CREATED,
 				businessId,
 				category,
-				normalizeOptional(search),
+				normalizedSearch,
 				pageable);
 	}
 
