@@ -44,6 +44,29 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
 
 	@EntityGraph(attributePaths = "barcodes")
 	@Query("""
+			select distinct product
+			from Product product
+			left join product.barcodes stockUnit
+			where product.business.id = :businessId
+				and (:category is null or product.category = :category)
+				and (:status is null or product.status = :status)
+				and (
+					:search is null
+					or lower(product.name) like lower(concat('%', :search, '%'))
+					or lower(product.productBarcode) like lower(concat('%', :search, '%'))
+					or lower(stockUnit.barcode) like lower(concat('%', :search, '%'))
+					or lower(stockUnit.unitCode) like lower(concat('%', :search, '%'))
+				)
+			""")
+	Page<Product> searchBusinessProducts(
+			@Param("businessId") Long businessId,
+			@Param("category") ProductCategory category,
+			@Param("status") ProductStatus status,
+			@Param("search") String search,
+			Pageable pageable);
+
+	@EntityGraph(attributePaths = "barcodes")
+	@Query("""
 			select product
 			from Product product
 			where product.status = :status
