@@ -24,6 +24,25 @@ This PR adds read-only AI tip confirmation:
 
 AI tips confirmation is read-only. It never marks a tip paid, requests withdrawals, changes workers, or mutates payment data.
 
+## Product readiness
+
+Product listing now supports search, filtering, sorting, and paging:
+
+- `GET /api/products?page=&size=&sortBy=&direction=&q=&search=&category=&status=`
+- `GET /api/v1/tuck-shop/products?page=&size=&sortBy=&direction=&q=&search=&businessId=&category=`
+
+Search covers product name, reusable product barcode, stock-unit barcode snapshots, and stock-unit code on owner products.
+
+Sorting is restricted to safe mapped product fields: id, name, price, stockQuantity, productBarcode, category, and status.
+
+Paging is capped at 100 records per page.
+
+Product read paths are cached and product mutation/stock movement paths evict product caches.
+
+Authenticated requests are rate limited. Business users use the business plan rate limit; authenticated non-business users fall back to the free-trial rate limit.
+
+Security remains role based: owners create/update products, workers add stock units/submit approval, and authenticated users can read products.
+
 ## Full King Sparkon AI wrap-up
 
 This PR also adds a schema-tolerant Full King Sparkon AI layer:
@@ -41,6 +60,8 @@ The implementation is intentionally read-only and schema tolerant so it does not
 Existing barcode model tests remain relevant because they prove reusable product barcodes can map to multiple physical stock units while `unitCode` stays unique.
 
 Existing image upload validation tests remain relevant because the barcode AI flow still rejects empty and unsupported uploads before attempting image decoding.
+
+A product pageable factory test was added to prove page size is capped and unsafe sort input falls back to a safe default.
 
 Local validation still needs to run:
 
