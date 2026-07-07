@@ -74,10 +74,37 @@ public record ProductRequest(
 			BigDecimal nightShiftPrice,
 			LocalTime nightShiftStartTime,
 			LocalTime nightShiftEndTime,
-			Integer stockQuantity) {
+			Integer stockQuantity,
+			String productImageUrl) {
 		this(
 				name,
 				null,
+				category,
+				price,
+				returnableEnabled,
+				returnablePrice,
+				nightShiftEnabled,
+				nightShiftPrice,
+				nightShiftStartTime,
+				nightShiftEndTime,
+				stockQuantity,
+				productImageUrl
+		);
+	}
+
+	public ProductRequest(
+			String name,
+			ProductCategory category,
+			BigDecimal price,
+			Boolean returnableEnabled,
+			BigDecimal returnablePrice,
+			Boolean nightShiftEnabled,
+			BigDecimal nightShiftPrice,
+			LocalTime nightShiftStartTime,
+			LocalTime nightShiftEndTime,
+			Integer stockQuantity) {
+		this(
+				name,
 				category,
 				price,
 				returnableEnabled,
