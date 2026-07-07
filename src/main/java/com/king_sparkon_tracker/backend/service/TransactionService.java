@@ -22,13 +22,13 @@ import org.springframework.transaction.annotation.Transactional;
 import com.king_sparkon_tracker.backend.dto.CreateTransactionRequest;
 import com.king_sparkon_tracker.backend.dto.TransactionItemRequest;
 import com.king_sparkon_tracker.backend.exception.ResourceNotFoundException;
-import com.king_sparkon_tracker.backend.model.TrackerUser;
 import com.king_sparkon_tracker.backend.model.Business;
 import com.king_sparkon_tracker.backend.model.InventoryTransaction;
 import com.king_sparkon_tracker.backend.model.PrivilegeRole;
 import com.king_sparkon_tracker.backend.model.Product;
 import com.king_sparkon_tracker.backend.model.ProductBarcode;
 import com.king_sparkon_tracker.backend.model.ProductBarcodeAvailabilityStatus;
+import com.king_sparkon_tracker.backend.model.TrackerUser;
 import com.king_sparkon_tracker.backend.model.TransactionItem;
 import com.king_sparkon_tracker.backend.model.TransactionPaymentStatus;
 import com.king_sparkon_tracker.backend.model.TransactionPaymentType;
@@ -118,15 +118,15 @@ public class TransactionService {
 
 			BigDecimal unitPrice = productPricingService.priceForTransaction(product, type, overrideUnitPrice);
 
-			List<String> barcodes = barcodesForItem(product, type, quantity, itemRequest.barcodes());
+			List<String> unitCodes = unitCodesForItem(product, type, quantity, itemRequest.barcodes());
 
 			productService.applyStockMovement(product, type, quantity);
 
 			if (type == TransactionType.SELL) {
-				markBarcodesAsSold(product, barcodes, referenceEmail);
+				markUnitCodesAsSold(product, unitCodes, referenceEmail);
 			}
 
-			transaction.addItem(new TransactionItem(product, quantity, unitPrice, barcodes));
+			transaction.addItem(new TransactionItem(product, quantity, unitPrice, unitCodes));
 		}
 
 		InventoryTransaction savedTransaction = transactionRepository.save(transaction);
@@ -313,7 +313,7 @@ public class TransactionService {
 		}
 		if (product.isReturnableEnabled()) {
 			if (transactionPaymentEmail == null) {
-				throw new IllegalArgumentException("Returnable barcode reference email is required");
+				throw new IllegalArgumentException("Returnable stock unit reference email is required");
 			}
 			return transactionPaymentEmail;
 		}
@@ -332,89 +332,89 @@ public class TransactionService {
 						LinkedHashMap::new));
 	}
 
-	private List<String> barcodesForItem(
+	private List<String> unitCodesForItem(
 			Product product,
 			TransactionType type,
 			int quantity,
-			List<String> requestedBarcodes) {
-		List<String> barcodes = normalizeBarcodes(requestedBarcodes);
+			List<String> requestedUnitCodes) {
+		List<String> unitCodes = normalizeUnitCodes(requestedUnitCodes);
 
 		if (type != TransactionType.SELL) {
-			if (!barcodes.isEmpty()) {
-				throw new IllegalArgumentException("Barcodes can only be attached to SELL transactions");
+			if (!unitCodes.isEmpty()) {
+				throw new IllegalArgumentException("Stock unit codes can only be attached to SELL transactions");
 			}
 
 			return List.of();
 		}
 
-		if (barcodes.isEmpty()) {
-			throw new IllegalArgumentException("SELL transaction requires scanned barcodes");
+		if (unitCodes.isEmpty()) {
+			throw new IllegalArgumentException("SELL transaction requires scanned stock unit codes");
 		}
 
-		if (barcodes.size() != quantity) {
-			throw new IllegalArgumentException("SELL transaction barcode count must match quantity");
+		if (unitCodes.size() != quantity) {
+			throw new IllegalArgumentException("SELL transaction stock unit count must match quantity");
 		}
 
-		requireUniqueBarcodes(barcodes);
-		requireBarcodesBelongToProductAndAreAvailable(product, barcodes);
+		requireUniqueUnitCodes(unitCodes);
+		requireUnitCodesBelongToProductAndAreAvailable(product, unitCodes);
 
-		return barcodes;
+		return unitCodes;
 	}
 
-	private List<String> normalizeBarcodes(List<String> barcodes) {
-		if (barcodes == null || barcodes.isEmpty()) {
+	private List<String> normalizeUnitCodes(List<String> unitCodes) {
+		if (unitCodes == null || unitCodes.isEmpty()) {
 			return List.of();
 		}
 
 		List<String> normalized = new ArrayList<>();
 
-		for (String barcode : barcodes) {
-			if (barcode != null && !barcode.isBlank()) {
-				normalized.add(barcode.trim());
+		for (String unitCode : unitCodes) {
+			if (unitCode != null && !unitCode.isBlank()) {
+				normalized.add(unitCode.trim());
 			}
 		}
 
 		return normalized;
 	}
 
-	private void requireUniqueBarcodes(List<String> barcodes) {
-		Set<String> uniqueBarcodes = new LinkedHashSet<>(barcodes);
+	private void requireUniqueUnitCodes(List<String> unitCodes) {
+		Set<String> uniqueUnitCodes = new LinkedHashSet<>(unitCodes);
 
-		if (uniqueBarcodes.size() != barcodes.size()) {
-			throw new IllegalArgumentException("SELL transaction barcodes must be unique");
+		if (uniqueUnitCodes.size() != unitCodes.size()) {
+			throw new IllegalArgumentException("SELL transaction stock unit codes must be unique");
 		}
 	}
 
-	private void requireBarcodesBelongToProductAndAreAvailable(Product product, List<String> barcodes) {
-		Map<String, ProductBarcode> existingBarcodes = new HashMap<>();
+	private void requireUnitCodesBelongToProductAndAreAvailable(Product product, List<String> unitCodes) {
+		Map<String, ProductBarcode> existingUnits = new HashMap<>();
 
-		for (ProductBarcode productBarcode : productBarcodeRepository.findByBarcodeIn(barcodes)) {
-			existingBarcodes.put(productBarcode.getBarcode(), productBarcode);
+		for (ProductBarcode productBarcode : productBarcodeRepository.findByUnitCodeIn(unitCodes)) {
+			existingUnits.put(productBarcode.getUnitCode(), productBarcode);
 		}
 
-		for (String barcode : barcodes) {
-			ProductBarcode productBarcode = existingBarcodes.get(barcode);
+		for (String unitCode : unitCodes) {
+			ProductBarcode productBarcode = existingUnits.get(unitCode);
 
 			if (productBarcode == null || !Objects.equals(product.getId(), productBarcode.getProduct().getId())) {
-				throw new IllegalArgumentException("Every SELL barcode must be registered to the selected product");
+				throw new IllegalArgumentException("Every SELL stock unit code must be registered to the selected product");
 			}
 
 			if (productBarcode.getAvailabilityStatus() != ProductBarcodeAvailabilityStatus.AVAILABLE) {
-				throw new IllegalArgumentException("Barcode is already sold or unavailable: " + barcode);
+				throw new IllegalArgumentException("Stock unit is already sold or unavailable: " + unitCode);
 			}
 		}
 	}
 
-	private void markBarcodesAsSold(Product product, List<String> barcodes, String referenceEmail) {
-		if (barcodes == null || barcodes.isEmpty()) {
+	private void markUnitCodesAsSold(Product product, List<String> unitCodes, String referenceEmail) {
+		if (unitCodes == null || unitCodes.isEmpty()) {
 			return;
 		}
 
-		List<ProductBarcode> productBarcodes = productBarcodeRepository.findByBarcodeIn(barcodes);
+		List<ProductBarcode> productBarcodes = productBarcodeRepository.findByUnitCodeIn(unitCodes);
 
 		for (ProductBarcode productBarcode : productBarcodes) {
 			if (productBarcode.getAvailabilityStatus() != ProductBarcodeAvailabilityStatus.AVAILABLE) {
-				throw new IllegalArgumentException("Barcode is already sold or unavailable: " + productBarcode.getBarcode());
+				throw new IllegalArgumentException("Stock unit is already sold or unavailable: " + productBarcode.getUnitCode());
 			}
 
 			productBarcode.setAvailabilityStatus(ProductBarcodeAvailabilityStatus.SOLD);

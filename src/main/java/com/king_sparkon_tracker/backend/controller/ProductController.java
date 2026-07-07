@@ -3,7 +3,6 @@ package com.king_sparkon_tracker.backend.controller;
 import java.math.BigDecimal;
 import java.security.Principal;
 
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -24,7 +23,10 @@ import com.king_sparkon_tracker.backend.dto.ProductRequest;
 import com.king_sparkon_tracker.backend.dto.ProductResponse;
 import com.king_sparkon_tracker.backend.dto.UpdateProductQuantityRequest;
 import com.king_sparkon_tracker.backend.model.Product;
+import com.king_sparkon_tracker.backend.model.ProductCategory;
+import com.king_sparkon_tracker.backend.model.ProductStatus;
 import com.king_sparkon_tracker.backend.service.PriceLocalizationService;
+import com.king_sparkon_tracker.backend.service.ProductPageableFactory;
 import com.king_sparkon_tracker.backend.service.ProductPricingService;
 import com.king_sparkon_tracker.backend.service.ProductService;
 
@@ -43,14 +45,17 @@ public class ProductController {
 	private final ProductService productService;
 	private final ProductPricingService productPricingService;
 	private final PriceLocalizationService priceLocalizationService;
+	private final ProductPageableFactory productPageableFactory;
 
 	public ProductController(
 			ProductService productService,
 			ProductPricingService productPricingService,
-			PriceLocalizationService priceLocalizationService) {
+			PriceLocalizationService priceLocalizationService,
+			ProductPageableFactory productPageableFactory) {
 		this.productService = productService;
 		this.productPricingService = productPricingService;
 		this.priceLocalizationService = priceLocalizationService;
+		this.productPageableFactory = productPageableFactory;
 	}
 
 	@PostMapping
@@ -95,14 +100,23 @@ public class ProductController {
 	}
 
 	@GetMapping
+	@Operation(summary = "Search, filter, sort, and page business products")
 	public PageResponse<ProductResponse> listProducts(
 			@RequestParam(defaultValue = "0") int page,
 			@RequestParam(defaultValue = "20") int size,
+			@RequestParam(defaultValue = "id") String sortBy,
+			@RequestParam(defaultValue = "desc") String direction,
+			@RequestParam(required = false, name = "q") String query,
+			@RequestParam(required = false) String search,
+			@RequestParam(required = false) ProductCategory category,
+			@RequestParam(required = false) ProductStatus status,
 			@Parameter(hidden = true) Principal principal) {
 		String actorUsername = principal.getName();
+		String effectiveSearch = query == null || query.isBlank() ? search : query;
+		Pageable pageable = productPageableFactory.create(page, size, sortBy, direction);
 
 		return PageResponse.from(
-				productService.listProducts(pageable(page, size), actorUsername),
+				productService.searchProducts(pageable, actorUsername, category, status, effectiveSearch),
 				product -> responseFrom(product, actorUsername)
 		);
 	}
@@ -132,11 +146,5 @@ public class ProductController {
 				priceLocalizationService.localize(product.getReturnablePrice(), actorUsername),
 				priceLocalizationService.localize(product.getNightShiftPrice(), actorUsername)
 		);
-	}
-
-	private Pageable pageable(int page, int size) {
-		int safePage = Math.max(page, 0);
-		int safeSize = Math.min(Math.max(size, 1), 100);
-		return PageRequest.of(safePage, safeSize);
 	}
 }

@@ -158,7 +158,7 @@ public class SecurityConfig {
 							.requestMatchers(HttpMethod.POST, "/api/v1/tickets/me/events/*/boosts").hasAuthority(ownerAuthority)
 							.requestMatchers(HttpMethod.GET, "/api/v1/tickets/me/event-boosts").hasAuthority(ownerAuthority)
 							.requestMatchers("/api/user-dashboard", "/api/user-dashboard/**").authenticated()
-							.requestMatchers(HttpMethod.GET, "/api/tips/me").hasAuthority(workerAuthority)
+							.requestMatchers(HttpMethod.GET, "/api/tips/me", "/api/tips/me/ai-confirm").hasAuthority(workerAuthority)
 							.requestMatchers("/api/tips", "/api/tips/**").hasAuthority(ownerAuthority)
 							.anyRequest().authenticated();
 				})
@@ -178,12 +178,13 @@ public class SecurityConfig {
 
 	@Bean
 	JwtEncoder jwtEncoder(@Value("${app.jwt.secret}") String jwtSecret) {
-		return new NimbusJwtEncoder(new ImmutableSecret<>(jwtSecret.getBytes(StandardCharsets.UTF_8)));
+		SecretKey key = hmacKey(jwtSecret);
+		return new NimbusJwtEncoder(new ImmutableSecret<>(key));
 	}
 
 	@Bean
 	JwtDecoder jwtDecoder(@Value("${app.jwt.secret}") String jwtSecret) {
-		return NimbusJwtDecoder.withSecretKey(jwtSecretKey(jwtSecret))
+		return NimbusJwtDecoder.withSecretKey(hmacKey(jwtSecret))
 				.macAlgorithm(MacAlgorithm.HS256)
 				.build();
 	}
@@ -191,22 +192,30 @@ public class SecurityConfig {
 	@Bean
 	Converter<Jwt, ? extends AbstractAuthenticationToken> jwtAuthenticationConverter() {
 		JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
-		converter.setJwtGrantedAuthoritiesConverter(jwt -> authoritiesFromRoles(jwt.getClaimAsStringList("roles")));
+		converter.setJwtGrantedAuthoritiesConverter(jwt -> {
+			Collection<String> roles = jwt.getClaimAsStringList("roles");
+
+			if (roles == null) {
+				roles = List.of();
+			}
+
+			return roles.stream()
+					.map(SimpleGrantedAuthority::new)
+					.map(GrantedAuthority.class::cast)
+					.toList();
+		});
 		return converter;
 	}
 
-	private Collection<GrantedAuthority> authoritiesFromRoles(List<String> roles) {
-		if (roles == null) {
-			return List.of();
+	private SecretKey hmacKey(String jwtSecret) {
+		byte[] secretBytes = jwtSecret.getBytes(StandardCharsets.UTF_8);
+
+		if (secretBytes.length < 32) {
+			byte[] padded = new byte[32];
+			System.arraycopy(secretBytes, 0, padded, 0, Math.min(secretBytes.length, padded.length));
+			secretBytes = padded;
 		}
 
-		return roles.stream()
-				.map(SimpleGrantedAuthority::new)
-				.map(GrantedAuthority.class::cast)
-				.toList();
-	}
-
-	private SecretKey jwtSecretKey(String jwtSecret) {
-		return new SecretKeySpec(jwtSecret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
+		return new SecretKeySpec(secretBytes, "HmacSHA256");
 	}
 }

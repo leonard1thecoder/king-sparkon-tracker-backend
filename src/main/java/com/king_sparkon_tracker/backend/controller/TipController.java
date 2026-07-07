@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.king_sparkon_tracker.backend.dto.AiTipConfirmationResponse;
 import com.king_sparkon_tracker.backend.dto.PayPalAccountOnboardingRequest;
 import com.king_sparkon_tracker.backend.dto.PayPalAccountResponse;
 import com.king_sparkon_tracker.backend.dto.TipRequest;
@@ -23,6 +24,7 @@ import com.king_sparkon_tracker.backend.dto.WithdrawalEligibilityResponse;
 import com.king_sparkon_tracker.backend.dto.WithdrawalRequest;
 import com.king_sparkon_tracker.backend.dto.WithdrawalResponse;
 import com.king_sparkon_tracker.backend.model.TipStatus;
+import com.king_sparkon_tracker.backend.service.AiTipConfirmationService;
 import com.king_sparkon_tracker.backend.service.TipService;
 import com.king_sparkon_tracker.backend.service.TipWithdrawalService;
 
@@ -34,10 +36,15 @@ public class TipController {
 
 	private final TipService tipService;
 	private final TipWithdrawalService withdrawalService;
+	private final AiTipConfirmationService aiTipConfirmationService;
 
-	public TipController(TipService tipService, TipWithdrawalService withdrawalService) {
+	public TipController(
+			TipService tipService,
+			TipWithdrawalService withdrawalService,
+			AiTipConfirmationService aiTipConfirmationService) {
 		this.tipService = tipService;
 		this.withdrawalService = withdrawalService;
+		this.aiTipConfirmationService = aiTipConfirmationService;
 	}
 
 	@PostMapping
@@ -53,14 +60,29 @@ public class TipController {
 		return tipService.updateTipStatus(tipId, request);
 	}
 
+	@GetMapping("/{tipId}/ai-confirm")
+	public AiTipConfirmationResponse aiConfirmTip(@PathVariable Long tipId, Principal principal) {
+		return aiTipConfirmationService.confirmTipForOwner(tipId, principal.getName());
+	}
+
 	@GetMapping("/worker/{workerId}")
 	public List<TipResponse> getTipsForWorker(@PathVariable Long workerId) {
 		return tipService.getTipsForWorker(workerId);
 	}
 
+	@GetMapping("/worker/{workerId}/ai-confirm")
+	public AiTipConfirmationResponse aiConfirmWorkerTips(@PathVariable Long workerId, Principal principal) {
+		return aiTipConfirmationService.confirmWorkerTipsForOwner(workerId, principal.getName());
+	}
+
 	@GetMapping("/me")
 	public List<TipResponse> getMyWorkerTips(Principal principal) {
 		return tipService.getTipsForCurrentWorker(principal.getName());
+	}
+
+	@GetMapping("/me/ai-confirm")
+	public AiTipConfirmationResponse aiConfirmMyWorkerTips(Principal principal) {
+		return aiTipConfirmationService.confirmMyWorkerTips(principal.getName());
 	}
 
 	@GetMapping

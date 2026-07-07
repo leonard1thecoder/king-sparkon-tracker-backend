@@ -9,18 +9,29 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import com.king_sparkon_tracker.backend.model.Business;
 import com.king_sparkon_tracker.backend.model.ProductBarcode;
 import com.king_sparkon_tracker.backend.model.ProductBarcodeStatus;
-import com.king_sparkon_tracker.backend.model.Business;
 
 public interface ProductBarcodeRepository extends JpaRepository<ProductBarcode, Long> {
 
 	@EntityGraph(attributePaths = { "product", "product.barcodes" })
-	Optional<ProductBarcode> findByBarcode(String barcode);
+	Optional<ProductBarcode> findFirstByBarcode(String barcode);
+
+	default Optional<ProductBarcode> findByBarcode(String barcode) {
+		return findFirstByBarcode(barcode);
+	}
 
 	@EntityGraph(attributePaths = { "product", "product.barcodes" })
-	@Query("select barcode from ProductBarcode barcode where barcode.barcode = :barcode and barcode.product.business.id = :businessId")
-	Optional<ProductBarcode> findByBarcode(@Param("barcode") String barcode, @Param("businessId") Long businessId);
+	Optional<ProductBarcode> findByUnitCode(String unitCode);
+
+	@EntityGraph(attributePaths = { "product", "product.barcodes" })
+	@Query("select barcode from ProductBarcode barcode where barcode.unitCode = :unitCode and barcode.product.business.id = :businessId")
+	Optional<ProductBarcode> findByUnitCode(@Param("unitCode") String unitCode, @Param("businessId") Long businessId);
+
+	@EntityGraph(attributePaths = { "product", "product.barcodes" })
+	@Query("select barcode from ProductBarcode barcode where barcode.barcode = :barcode and barcode.product.business.id = :businessId order by barcode.id asc")
+	List<ProductBarcode> findByBarcode(@Param("barcode") String barcode, @Param("businessId") Long businessId);
 
 	@EntityGraph(attributePaths = "product")
 	@Query("select barcode from ProductBarcode barcode where barcode.id = :id")
@@ -46,11 +57,19 @@ public interface ProductBarcodeRepository extends JpaRepository<ProductBarcode, 
 
 	List<ProductBarcode> findByBarcodeIn(List<String> barcodes);
 
+	List<ProductBarcode> findByUnitCodeIn(List<String> unitCodes);
+
 	List<ProductBarcode> findByProduct_IdOrderByIdAsc(Long productId);
 
 	List<ProductBarcode> findByStatus(ProductBarcodeStatus status);
 
-	boolean existsByBarcode(String barcode);
+	boolean existsByUnitCode(String unitCode);
+
+	boolean existsByProduct_IdAndUnitCode(Long productId, String unitCode);
+
+	default boolean existsByBarcode(String barcode) {
+		return findFirstByBarcode(barcode).isPresent();
+	}
 
 	long countByProduct_Id(Long productId);
 

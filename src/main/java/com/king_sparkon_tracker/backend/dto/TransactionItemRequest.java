@@ -14,9 +14,9 @@ public record TransactionItemRequest(
 		@Schema(description = "Product id to move.", example = "9") @NotNull Long productId,
 		@Schema(description = "Positive quantity to buy or sell.", example = "2") @NotNull @Positive Integer quantity,
 		@Schema(description = "Optional unit price override. Product price is used when omitted.", example = "20.50") @DecimalMin(value = "0.00") BigDecimal unitPrice,
-		@Schema(description = "Scanned item barcodes for SELL movements. Count must match quantity when provided.")
+		@Schema(description = "Scanned unique stock unit codes for SELL movements. Count must match quantity when provided.")
 		List<String> barcodes,
-		@Schema(description = "Customer email reference for returnable barcode claims.", example = "customer@example.com")
+		@Schema(description = "Customer email reference for returnable stock unit claims.", example = "customer@example.com")
 		@Email
 		@Size(max = 255)
 		String referenceEmail) {

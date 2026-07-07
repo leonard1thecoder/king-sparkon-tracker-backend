@@ -3,7 +3,6 @@ package com.king_sparkon_tracker.backend.controller;
 import java.math.BigDecimal;
 import java.security.Principal;
 
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -23,9 +22,11 @@ import com.king_sparkon_tracker.backend.dto.TuckShopPurchaseResponse;
 import com.king_sparkon_tracker.backend.model.Product;
 import com.king_sparkon_tracker.backend.model.ProductCategory;
 import com.king_sparkon_tracker.backend.service.PriceLocalizationService;
+import com.king_sparkon_tracker.backend.service.ProductPageableFactory;
 import com.king_sparkon_tracker.backend.service.ProductPricingService;
 import com.king_sparkon_tracker.backend.service.TuckShopService;
 
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -34,33 +35,42 @@ import jakarta.validation.Valid;
 @RestController
 @RequestMapping("/api/v1/tuck-shop")
 @SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
-@Tag(name = "King Sparkon Tuck Shop", description = "Marketplace endpoints built on the existing product, barcode, transaction, Stripe, and worker-tip implementation.")
+@Tag(name = "King Sparkon Tuck Shop")
 public class TuckShopController {
 
 	private final TuckShopService tuckShopService;
 	private final ProductPricingService productPricingService;
 	private final PriceLocalizationService priceLocalizationService;
+	private final ProductPageableFactory productPageableFactory;
 
 	public TuckShopController(
 			TuckShopService tuckShopService,
 			ProductPricingService productPricingService,
-			PriceLocalizationService priceLocalizationService) {
+			PriceLocalizationService priceLocalizationService,
+			ProductPageableFactory productPageableFactory) {
 		this.tuckShopService = tuckShopService;
 		this.productPricingService = productPricingService;
 		this.priceLocalizationService = priceLocalizationService;
+		this.productPageableFactory = productPageableFactory;
 	}
 
 	@GetMapping("/products")
+	@Operation(summary = "Search, filter, sort, and page tuck shop products")
 	public PageResponse<ProductResponse> products(
 			@RequestParam(defaultValue = "0") int page,
 			@RequestParam(defaultValue = "20") int size,
+			@RequestParam(defaultValue = "name") String sortBy,
+			@RequestParam(defaultValue = "asc") String direction,
 			@RequestParam(required = false) Long businessId,
 			@RequestParam(required = false) ProductCategory category,
+			@RequestParam(required = false, name = "q") String query,
 			@RequestParam(required = false) String search,
 			@Parameter(hidden = true) Principal principal) {
 		String actorUsername = principal.getName();
+		String effectiveSearch = query == null || query.isBlank() ? search : query;
+		Pageable pageable = productPageableFactory.create(page, size, sortBy, direction);
 		return PageResponse.from(
-				tuckShopService.listAvailableProducts(pageable(page, size), businessId, category, search),
+				tuckShopService.listAvailableProducts(pageable, businessId, category, effectiveSearch),
 				product -> responseFrom(product, actorUsername)
 		);
 	}
@@ -98,11 +108,5 @@ public class TuckShopController {
 				priceLocalizationService.localize(product.getReturnablePrice(), actorUsername),
 				priceLocalizationService.localize(product.getNightShiftPrice(), actorUsername)
 		);
-	}
-
-	private Pageable pageable(int page, int size) {
-		int safePage = Math.max(page, 0);
-		int safeSize = Math.min(Math.max(size, 1), 100);
-		return PageRequest.of(safePage, safeSize);
 	}
 }

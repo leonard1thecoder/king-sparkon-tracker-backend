@@ -1,5 +1,7 @@
 package com.king_sparkon_tracker.backend.model;
 
+import java.util.UUID;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -17,8 +19,8 @@ import jakarta.persistence.UniqueConstraint;
 @Table(
 		name = "product_barcodes",
 		uniqueConstraints = @UniqueConstraint(
-				name = "uk_product_barcodes_barcode",
-				columnNames = "barcode"
+				name = "uk_product_barcodes_unit_code",
+				columnNames = "unit_code"
 		)
 )
 public class ProductBarcode {
@@ -31,8 +33,20 @@ public class ProductBarcode {
 	@JoinColumn(name = "product_id", nullable = false)
 	private Product product;
 
-	@Column(nullable = false, unique = true)
+	/*
+	 * Reusable product barcode/GTIN snapshot.
+	 * This is allowed to repeat because many physical stock units can share
+	 * the same retail barcode.
+	 */
+	@Column(nullable = false)
 	private String barcode;
+
+	/*
+	 * King Sparkon internal unique identifier for one physical stock unit.
+	 * This is the value to use when exact item-level tracking is required.
+	 */
+	@Column(name = "unit_code", nullable = false, unique = true, length = 120)
+	private String unitCode;
 
 	@Column(name = "reference_email")
 	private String referenceEmail;
@@ -40,10 +54,10 @@ public class ProductBarcode {
 	/*
 	 * Returnable packaging claim lifecycle.
 	 *
-	 * NOT_CLAIMED   = returnable barcode can still be claimed.
-	 * CLAIMED       = returnable barcode was already claimed.
-	 * EXPIRED       = returnable barcode was not claimed before the Friday 17:00 cutoff.
-	 * NOT_CLAIMABLE = product is not returnable, so this barcode can never be claimed.
+	 * NOT_CLAIMED   = returnable unit can still be claimed.
+	 * CLAIMED       = returnable unit was already claimed.
+	 * EXPIRED       = returnable unit was not claimed before the Friday 17:00 cutoff.
+	 * NOT_CLAIMABLE = product is not returnable, so this unit can never be claimed.
 	 */
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false)
@@ -52,8 +66,8 @@ public class ProductBarcode {
 	/*
 	 * Sale lifecycle.
 	 *
-	 * AVAILABLE = barcode is in stock and can be sold.
-	 * SOLD      = barcode was used in a SELL transaction.
+	 * AVAILABLE = stock unit is in stock and can be sold.
+	 * SOLD      = stock unit was used in a SELL transaction.
 	 */
 	@Enumerated(EnumType.STRING)
 	@Column(name = "availability_status", nullable = false)
@@ -63,8 +77,17 @@ public class ProductBarcode {
 	}
 
 	public ProductBarcode(String barcode) {
+		this(generateUnitCode(), barcode);
+	}
+
+	public ProductBarcode(String unitCode, String barcode) {
+		this.unitCode = unitCode;
 		this.barcode = barcode;
 		this.availabilityStatus = ProductBarcodeAvailabilityStatus.AVAILABLE;
+	}
+
+	public static String generateUnitCode() {
+		return "KST-UNIT-" + UUID.randomUUID().toString().replace("-", "").substring(0, 16).toUpperCase();
 	}
 
 	public Long getId() {
@@ -85,6 +108,14 @@ public class ProductBarcode {
 
 	public void setBarcode(String barcode) {
 		this.barcode = barcode;
+	}
+
+	public String getUnitCode() {
+		return unitCode;
+	}
+
+	public void setUnitCode(String unitCode) {
+		this.unitCode = unitCode;
 	}
 
 	public String getReferenceEmail() {
