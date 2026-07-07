@@ -22,6 +22,10 @@ public record ProductBarcodeResponse(
 		ProductBarcodeStatus status
 ) {
 
+	public ProductBarcodeResponse(Long id, String barcode, String referenceEmail, ProductBarcodeStatus status) {
+		this(id, barcode, barcode, referenceEmail, status);
+	}
+
 	public static ProductBarcodeResponse from(ProductBarcode barcode) {
 		return new ProductBarcodeResponse(
 				barcode.getId(),
