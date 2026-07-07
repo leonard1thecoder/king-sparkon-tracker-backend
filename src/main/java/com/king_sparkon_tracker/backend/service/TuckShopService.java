@@ -111,13 +111,13 @@ public class TuckShopService {
 	private InventoryTransaction createPurchaseTransaction(
 			CreateTuckShopPurchaseRequest request,
 			TrackerUser actor,
-			boolean requireScannedBarcodes,
+			boolean requireScannedUnitCodes,
 			String actorUsername) {
 		List<TuckShopPurchaseItemRequest> itemRequests = requireItems(request.items());
 		Map<Long, Product> lockedProducts = lockProducts(itemRequests);
 		Business business = singleBusiness(lockedProducts.values());
 		TrackerUser owner = business.getOwner();
-		TrackerUser worker = workerForPurchase(request.workerId(), actor, business, requireScannedBarcodes);
+		TrackerUser worker = workerForPurchase(request.workerId(), actor, business, requireScannedUnitCodes);
 
 		String paymentEmail = paymentEmail(request.paymentEmail(), actor);
 		String paymentContact = normalizeOptional(request.paymentContact());
@@ -132,12 +132,12 @@ public class TuckShopService {
 			Long productId = requirePresent(itemRequest.productId(), "Product id is required");
 			Product product = lockedProducts.get(productId);
 			int quantity = requirePositive(itemRequest.quantity(), "Quantity must be greater than zero");
-			List<String> barcodes = barcodesForPurchase(product, quantity, itemRequest.barcodes(), requireScannedBarcodes, paymentEmail);
+			List<String> unitCodes = unitCodesForPurchase(product, quantity, itemRequest.barcodes(), requireScannedUnitCodes, paymentEmail);
 			BigDecimal unitPrice = productPricingService.priceForSale(product);
 
 			productService.applyStockMovement(product, TransactionType.SELL, quantity);
-			markBarcodesAsSold(product, barcodes, paymentEmail);
-			transaction.addItem(new TransactionItem(product, quantity, unitPrice, barcodes));
+			markUnitCodesAsSold(product, unitCodes, paymentEmail);
+			transaction.addItem(new TransactionItem(product, quantity, unitPrice, unitCodes));
 		}
 
 		InventoryTransaction savedTransaction = transactionRepository.save(transaction);
@@ -226,37 +226,37 @@ public class TuckShopService {
 		return worker;
 	}
 
-	private List<String> barcodesForPurchase(
+	private List<String> unitCodesForPurchase(
 			Product product,
 			int quantity,
-			List<String> requestedBarcodes,
-			boolean requireScannedBarcodes,
+			List<String> requestedUnitCodes,
+			boolean requireScannedUnitCodes,
 			String referenceEmail) {
-		List<String> normalized = normalizeBarcodes(requestedBarcodes);
-		if (requireScannedBarcodes && normalized.isEmpty()) {
-			throw new IllegalArgumentException("Worker tuck shop purchase requires scanned product barcodes");
+		List<String> normalized = normalizeBarcodes(requestedUnitCodes);
+		if (requireScannedUnitCodes && normalized.isEmpty()) {
+			throw new IllegalArgumentException("Worker tuck shop purchase requires scanned stock unit codes");
 		}
 		if (!normalized.isEmpty()) {
 			if (normalized.size() != quantity) {
-				throw new IllegalArgumentException("Barcode count must match quantity");
+				throw new IllegalArgumentException("Stock unit code count must match quantity");
 			}
 			requireUniqueBarcodes(normalized);
-			requireBarcodesBelongToProductAndAreAvailable(product, normalized);
+			requireUnitCodesBelongToProductAndAreAvailable(product, normalized);
 			return normalized;
 		}
 
-		List<String> availableBarcodes = productBarcodeRepository.findByProduct_IdOrderByIdAsc(product.getId()).stream()
+		List<String> availableUnitCodes = productBarcodeRepository.findByProduct_IdOrderByIdAsc(product.getId()).stream()
 				.filter(barcode -> barcode.getAvailabilityStatus() == ProductBarcodeAvailabilityStatus.AVAILABLE)
-				.map(ProductBarcode::getBarcode)
+				.map(ProductBarcode::getUnitCode)
 				.limit(quantity)
 				.toList();
-		if (availableBarcodes.size() != quantity) {
-			throw new IllegalArgumentException("Not enough available barcodes for product: " + product.getName());
+		if (availableUnitCodes.size() != quantity) {
+			throw new IllegalArgumentException("Not enough available stock units for product: " + product.getName());
 		}
 		if (product.isReturnableEnabled() && !StringUtils.hasText(referenceEmail)) {
 			throw new IllegalArgumentException("Returnable tuck shop products require a customer reference email");
 		}
-		return availableBarcodes;
+		return availableUnitCodes;
 	}
 
 	private void requireVisibleInTuckShop(Product product) {
@@ -268,27 +268,33 @@ public class TuckShopService {
 		}
 	}
 
-	private void requireBarcodesBelongToProductAndAreAvailable(Product product, List<String> barcodes) {
-		Map<String, ProductBarcode> existingBarcodes = new HashMap<>();
-		for (ProductBarcode productBarcode : productBarcodeRepository.findByBarcodeIn(barcodes)) {
-			existingBarcodes.put(productBarcode.getBarcode(), productBarcode);
+	private void requireUnitCodesBelongToProductAndAreAvailable(Product product, List<String> unitCodes) {
+		Map<String, ProductBarcode> existingUnitCodes = new HashMap<>();
+		for (ProductBarcode productBarcode : productBarcodeRepository.findByUnitCodeIn(unitCodes)) {
+			existingUnitCodes.put(productBarcode.getUnitCode(), productBarcode);
 		}
-		for (String barcode : barcodes) {
-			ProductBarcode productBarcode = existingBarcodes.get(barcode);
+		for (String unitCode : unitCodes) {
+			ProductBarcode productBarcode = existingUnitCodes.get(unitCode);
 			if (productBarcode == null || !Objects.equals(product.getId(), productBarcode.getProduct().getId())) {
-				throw new IllegalArgumentException("Every tuck shop barcode must be registered to the selected product");
+				throw new IllegalArgumentException("Every tuck shop stock unit code must be registered to the selected product");
 			}
 			if (productBarcode.getAvailabilityStatus() != ProductBarcodeAvailabilityStatus.AVAILABLE) {
-				throw new IllegalArgumentException("Barcode is already sold or unavailable: " + barcode);
+				throw new IllegalArgumentException("Stock unit code is already sold or unavailable: " + unitCode);
 			}
 		}
 	}
 
-	private void markBarcodesAsSold(Product product, List<String> barcodes, String referenceEmail) {
-		List<ProductBarcode> productBarcodes = productBarcodeRepository.findByBarcodeIn(barcodes);
+	private void markUnitCodesAsSold(Product product, List<String> unitCodes, String referenceEmail) {
+		List<ProductBarcode> productBarcodes = productBarcodeRepository.findByUnitCodeIn(unitCodes);
+		if (productBarcodes.size() != unitCodes.size()) {
+			throw new IllegalArgumentException("Every tuck shop stock unit code must exist before it can be sold");
+		}
 		for (ProductBarcode productBarcode : productBarcodes) {
+			if (!Objects.equals(product.getId(), productBarcode.getProduct().getId())) {
+				throw new IllegalArgumentException("Every tuck shop stock unit code must belong to the selected product");
+			}
 			if (productBarcode.getAvailabilityStatus() != ProductBarcodeAvailabilityStatus.AVAILABLE) {
-				throw new IllegalArgumentException("Barcode is already sold or unavailable: " + productBarcode.getBarcode());
+				throw new IllegalArgumentException("Stock unit code is already sold or unavailable: " + productBarcode.getUnitCode());
 			}
 			productBarcode.setAvailabilityStatus(ProductBarcodeAvailabilityStatus.SOLD);
 			if (product.isReturnableEnabled()) {
@@ -321,7 +327,7 @@ public class TuckShopService {
 	private void requireUniqueBarcodes(List<String> barcodes) {
 		Set<String> uniqueBarcodes = new LinkedHashSet<>(barcodes);
 		if (uniqueBarcodes.size() != barcodes.size()) {
-			throw new IllegalArgumentException("Tuck shop barcodes must be unique");
+			throw new IllegalArgumentException("Tuck shop stock unit codes must be unique");
 		}
 	}
 
