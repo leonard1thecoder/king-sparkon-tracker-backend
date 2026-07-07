@@ -47,11 +47,13 @@ import com.king_sparkon_tracker.backend.model.SupportedCurrency;
 import com.king_sparkon_tracker.backend.model.TipStatus;
 import com.king_sparkon_tracker.backend.model.TrackerUser;
 import com.king_sparkon_tracker.backend.service.AffiliateLinkService;
+import com.king_sparkon_tracker.backend.service.AiTipConfirmationService;
 import com.king_sparkon_tracker.backend.service.BusinessAccessService;
 import com.king_sparkon_tracker.backend.service.EmailVerificationService;
 import com.king_sparkon_tracker.backend.service.OnboardingProfileService;
 import com.king_sparkon_tracker.backend.service.PasswordResetService;
 import com.king_sparkon_tracker.backend.service.PriceLocalizationService;
+import com.king_sparkon_tracker.backend.service.ProductPageableFactory;
 import com.king_sparkon_tracker.backend.service.ProductPricingService;
 import com.king_sparkon_tracker.backend.service.ProductService;
 import com.king_sparkon_tracker.backend.service.RefreshTokenService;
@@ -94,6 +96,9 @@ class SecurityConfigTest {
 	private ProductPricingService productPricingService;
 
 	@MockitoBean
+	private ProductPageableFactory productPageableFactory;
+
+	@MockitoBean
 	private PriceLocalizationService priceLocalizationService;
 
 	@MockitoBean
@@ -101,6 +106,9 @@ class SecurityConfigTest {
 
 	@MockitoBean
 	private TipWithdrawalService tipWithdrawalService;
+
+	@MockitoBean
+	private AiTipConfirmationService aiTipConfirmationService;
 
 	@MockitoBean
 	private AffiliateLinkService affiliateLinkService;
