@@ -9,6 +9,9 @@ import java.util.List;
  * Request body consumed by the floating chatbot UI.
  */
 public record AiChatRequest(
+        @Size(max = 120, message = "conversationId must not exceed 120 characters")
+        String conversationId,
+
         @NotBlank(message = "message is required")
         @Size(max = 2_000, message = "message must not exceed 2000 characters")
         String message,
