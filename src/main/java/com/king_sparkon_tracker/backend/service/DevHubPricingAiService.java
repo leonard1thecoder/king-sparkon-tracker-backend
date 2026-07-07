@@ -69,7 +69,7 @@ public class DevHubPricingAiService {
 		BigDecimal base = new BigDecimal("8500");
 		if (containsAny(text, "mobile", "android", "ios")) base = base.add(new BigDecimal("9000"));
 		if (containsAny(text, "payment", "stripe", "payfast", "paypal", "checkout")) base = base.add(new BigDecimal("6500"));
-		if (containsAny(text, "ai", "chatbot", "rag", "automation")) base = base.add(new BigDecimal("8500"));
+		if (containsAny(text, "artificial intelligence", "chatbot", "rag", "automation", "machine learning")) base = base.add(new BigDecimal("8500"));
 		if (containsAny(text, "dashboard", "admin", "analytics", "report")) base = base.add(new BigDecimal("5000"));
 		if (containsAny(text, "barcode", "qr", "scanner", "inventory")) base = base.add(new BigDecimal("6500"));
 		if (containsAny(text, "backend", "api", "spring", "database")) base = base.add(new BigDecimal("6000"));
