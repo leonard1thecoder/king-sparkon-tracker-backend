@@ -4,13 +4,10 @@ import com.king_sparkon_tracker.backend.ai.dto.AiChatRequest;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import org.springframework.stereotype.Service;
 
 /**
- * Lightweight retrieval layer for the first chatbot release.
- * It is intentionally read-only and deterministic until vector search is added.
+ * Lightweight deterministic fallback used by tests and as a safety net for vector retrieval failures.
  */
-@Service
 public class StaticAiRetrievalContextService implements AiRetrievalContextService {
 
     @Override
