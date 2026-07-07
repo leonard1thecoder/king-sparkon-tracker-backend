@@ -6,26 +6,13 @@
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
 		<version>4.0.6</version>
-		<relativePath/> <!-- lookup parent from repository -->
+		<relativePath/>
 	</parent>
 	<groupId>com.king_sparkon_tracker</groupId>
 	<artifactId>backend</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<name>King Sparkon Tracker Backend</name>
 	<description>Spring Boot API for King Sparkon Tracker barcode inventory, users, transactions, reports, audit logs, billing, and authentication.</description>
-	<url/>
-	<licenses>
-		<license/>
-	</licenses>
-	<developers>
-		<developer/>
-	</developers>
-	<scm>
-		<connection/>
-		<developerConnection/>
-		<tag/>
-		<url/>
-	</scm>
 	<properties>
 		<java.version>25</java.version>
 		<jacoco.version>0.8.15</jacoco.version>
@@ -94,6 +81,10 @@
 			<artifactId>spring-ai-starter-vector-store-pgvector</artifactId>
 		</dependency>
 		<dependency>
+			<groupId>org.springframework.ai</groupId>
+			<artifactId>spring-ai-vector-store-advisor</artifactId>
+		</dependency>
+		<dependency>
 			<groupId>org.thymeleaf.extras</groupId>
 			<artifactId>thymeleaf-extras-springsecurity6</artifactId>
 		</dependency>
@@ -116,7 +107,6 @@
 			<groupId>io.micrometer</groupId>
 			<artifactId>micrometer-registry-prometheus</artifactId>
 		</dependency>
-
 		<dependency>
 			<groupId>com.h2database</groupId>
 			<artifactId>h2</artifactId>
@@ -188,9 +178,7 @@
 					<execution>
 						<id>default-compile</id>
 						<phase>compile</phase>
-						<goals>
-							<goal>compile</goal>
-						</goals>
+						<goals><goal>compile</goal></goals>
 						<configuration>
 							<annotationProcessorPaths>
 								<path>
@@ -203,9 +191,7 @@
 					<execution>
 						<id>default-testCompile</id>
 						<phase>test-compile</phase>
-						<goals>
-							<goal>testCompile</goal>
-						</goals>
+						<goals><goal>testCompile</goal></goals>
 						<configuration>
 							<annotationProcessorPaths>
 								<path>
@@ -224,20 +210,15 @@
 				<executions>
 					<execution>
 						<id>prepare-agent</id>
-						<goals>
-							<goal>prepare-agent</goal>
-						</goals>
+						<goals><goal>prepare-agent</goal></goals>
 					</execution>
 					<execution>
 						<id>report</id>
 						<phase>verify</phase>
-						<goals>
-							<goal>report</goal>
-						</goals>
+						<goals><goal>report</goal></goals>
 					</execution>
 				</executions>
 			</plugin>
 		</plugins>
 	</build>
-
 </project>
