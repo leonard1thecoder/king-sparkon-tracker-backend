@@ -14,9 +14,14 @@ import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 
 public record ProductRequest(
-		@Schema(description = "Product display name.", example = "Barcode item")
+		@Schema(description = "Product display name.", example = "Coca-Cola 500ml")
 		@NotBlank
 		String name,
+
+		@Schema(description = "Reusable retail product barcode/GTIN. This may be shared by many physical stock units.", example = "5449000000996")
+		@JsonAlias({ "barcode", "gtin", "skuCode" })
+		@Size(max = 128)
+		String productBarcode,
 
 		@Schema(description = "Business reporting category.", example = "Alcohol")
 		@NotNull
@@ -72,6 +77,7 @@ public record ProductRequest(
 			Integer stockQuantity) {
 		this(
 				name,
+				null,
 				category,
 				price,
 				returnableEnabled,
