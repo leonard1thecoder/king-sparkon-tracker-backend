@@ -65,6 +65,10 @@ public class RateLimitService {
 		return check("public-auth:" + key, publicAuthRule);
 	}
 
+	public RateLimitDecision checkAuthenticatedUser(String username) {
+		return check("user:" + username, freeTrialRule);
+	}
+
 	public RateLimitDecision checkBusiness(String businessId, BusinessPlan plan) {
 		return check("business:" + businessId, ruleFor(plan));
 	}
