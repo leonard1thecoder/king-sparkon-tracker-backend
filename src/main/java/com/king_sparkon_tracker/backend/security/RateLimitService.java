@@ -29,6 +29,7 @@ public class RateLimitService {
 	private final String backend;
 	private final StringRedisTemplate redis;
 	private final RateLimitRule publicAuthRule;
+	private final RateLimitRule aiChatRule;
 	private final RateLimitRule freeTrialRule;
 	private final RateLimitRule plusRule;
 	private final RateLimitRule proRule;
@@ -42,6 +43,9 @@ public class RateLimitService {
 			@Value("${app.rate-limit.public-auth.limit:10}") int publicAuthLimit,
 			@Value("${app.rate-limit.public-auth.window-seconds:60}") long publicAuthWindowSeconds,
 			@Value("${app.rate-limit.public-auth.retry-after-seconds:60}") long publicAuthRetryAfterSeconds,
+			@Value("${app.rate-limit.ai-chat.limit:20}") int aiChatLimit,
+			@Value("${app.rate-limit.ai-chat.window-seconds:60}") long aiChatWindowSeconds,
+			@Value("${app.rate-limit.ai-chat.retry-after-seconds:60}") long aiChatRetryAfterSeconds,
 			@Value("${app.rate-limit.free-trial.limit:30}") int freeTrialLimit,
 			@Value("${app.rate-limit.free-trial.window-seconds:60}") long freeTrialWindowSeconds,
 			@Value("${app.rate-limit.free-trial.retry-after-seconds:30}") long freeTrialRetryAfterSeconds,
@@ -56,6 +60,7 @@ public class RateLimitService {
 		this.enabled = enabled;
 		this.backend = backend == null ? "memory" : backend.trim().toLowerCase(Locale.ROOT);
 		this.publicAuthRule = new RateLimitRule("PUBLIC_AUTH", null, publicAuthLimit, publicAuthWindowSeconds, publicAuthRetryAfterSeconds);
+		this.aiChatRule = new RateLimitRule("AI_CHAT", null, aiChatLimit, aiChatWindowSeconds, aiChatRetryAfterSeconds);
 		this.freeTrialRule = new RateLimitRule("FREE_TRIAL", BusinessPlan.FREE_TRIAL, freeTrialLimit, freeTrialWindowSeconds, freeTrialRetryAfterSeconds);
 		this.plusRule = new RateLimitRule("PLUS", BusinessPlan.PLUS, plusLimit, plusWindowSeconds, plusRetryAfterSeconds);
 		this.proRule = new RateLimitRule("PRO", BusinessPlan.PRO, proLimit, proWindowSeconds, proRetryAfterSeconds);
@@ -65,8 +70,8 @@ public class RateLimitService {
 		return check("public-auth:" + key, publicAuthRule);
 	}
 
-	public RateLimitDecision checkAuthenticatedUser(String username) {
-		return check("user:" + username, freeTrialRule);
+	public RateLimitDecision checkAiChat(String key) {
+		return check("ai-chat:" + key, aiChatRule);
 	}
 
 	public RateLimitDecision checkBusiness(String businessId, BusinessPlan plan) {
