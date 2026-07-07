@@ -220,10 +220,7 @@ public class ProductService {
 	}
 
 	@CacheEvict(cacheNames = { "products", "tuckShopProducts", "productByBarcode" }, allEntries = true)
-	public Product updateProductQuantity(
-			Long productId,
-			UpdateProductQuantityRequest request,
-			String actorUsername) {
+	public Product updateProductQuantity(Long productId, UpdateProductQuantityRequest request, String actorUsername) {
 		businessAccessService.requireFeature(actorUsername, BusinessFeature.CREATE_PRODUCTS);
 
 		Long id = requirePresent(productId, "Product id is required");
@@ -333,12 +330,7 @@ public class ProductService {
 
 	@Transactional(readOnly = true)
 	@Cacheable(cacheNames = "products", key = "'search:' + #actorUsername + ':' + #pageable.pageNumber + ':' + #pageable.pageSize + ':' + #pageable.sort + ':' + #category + ':' + #status + ':' + #search")
-	public Page<Product> searchProducts(
-			Pageable pageable,
-			String actorUsername,
-			ProductCategory category,
-			ProductStatus status,
-			String search) {
+	public Page<Product> searchProducts(Pageable pageable, String actorUsername, ProductCategory category, ProductStatus status, String search) {
 		Business business = userService.businessForActor(actorUsername);
 		return productRepository.searchBusinessProducts(
 				business.getId(),
@@ -354,19 +346,10 @@ public class ProductService {
 		String normalizedSearch = normalizeOptional(search);
 
 		if (normalizedSearch == null) {
-			return productRepository.findTuckShopProducts(
-					ProductStatus.CREATED,
-					businessId,
-					category,
-					pageable);
+			return productRepository.findTuckShopProducts(ProductStatus.CREATED, businessId, category, pageable);
 		}
 
-		return productRepository.searchTuckShopProducts(
-				ProductStatus.CREATED,
-				businessId,
-				category,
-				normalizedSearch,
-				pageable);
+		return productRepository.searchTuckShopProducts(ProductStatus.CREATED, businessId, category, normalizedSearch, pageable);
 	}
 
 	@Transactional(readOnly = true)
@@ -378,7 +361,6 @@ public class ProductService {
 	@Transactional(readOnly = true)
 	public Product getProductById(Long id, String actorUsername) {
 		Business business = userService.businessForActor(actorUsername);
-
 		return productRepository.findWithBarcodesByIdAndBusiness_Id(id, business.getId())
 				.orElseThrow(() -> new ResourceNotFoundException("Product not found: " + id));
 	}
@@ -397,7 +379,6 @@ public class ProductService {
 	@Cacheable(cacheNames = "productByBarcode", key = "'public:' + #barcode")
 	public Product getProductByBarcode(String barcode) {
 		String normalizedBarcode = normalizeRequired(barcode, "Barcode is required");
-
 		return productRepository.findFirstByProductBarcode(normalizedBarcode)
 				.or(() -> productBarcodeRepository.findByUnitCode(normalizedBarcode).map(ProductBarcode::getProduct))
 				.or(() -> productBarcodeRepository.findFirstByBarcode(normalizedBarcode).map(ProductBarcode::getProduct))
@@ -414,7 +395,117 @@ public class ProductService {
 				.or(() -> productBarcodeRepository.findByUnitCode(normalizedBarcode, business.getId()).map(ProductBarcode::getProduct))
 				.or(() -> productBarcodeRepository.findByBarcode(normalizedBarcode, business.getId()).stream().findFirst().map(ProductBarcode::getProduct))
 				.orElseThrow(() -> new ResourceNotFoundException("Product not found for barcode or unit code: " + normalizedBarcode));
-
 	}
 
 	@CacheEvict(cacheNames = { "products", "tuckShopProducts", "productByBarcode" }, allEntries = true)
+	public Product applyStockMovement(Product product, TransactionType type, int quantity) {
+		requirePresent(product, "Product is required");
+		requirePresent(type, "Transaction type is required");
+
+		if (quantity <= 0) {
+			throw new IllegalArgumentException("Quantity must be greater than zero");
+		}
+
+		if (type == TransactionType.BUY) {
+			product.setStockQuantity(product.getStockQuantity() + quantity);
+		} else if (type == TransactionType.SELL) {
+			if (product.getStockQuantity() < quantity) {
+				throw new IllegalArgumentException("Not enough stock for product: " + product.getName());
+			}
+			product.setStockQuantity(product.getStockQuantity() - quantity);
+		} else {
+			throw new IllegalArgumentException("Unsupported transaction type: " + type);
+		}
+
+		if (product.getStockQuantity() < 0) {
+			throw new IllegalArgumentException("Not enough stock for product: " + product.getName());
+		}
+
+		return productRepository.save(product);
+	}
+
+	private BarcodeCatalog catalogFor(String productBarcode, String productName, String productImageUrl) {
+		if (!StringUtils.hasText(productBarcode)) {
+			return null;
+		}
+
+		String normalizedBarcode = productBarcode.trim();
+		BarcodeCatalog catalog = barcodeCatalogRepository.findByBarcode(normalizedBarcode)
+				.orElseGet(() -> new BarcodeCatalog(normalizedBarcode));
+
+		if (!StringUtils.hasText(catalog.getProductName())) {
+			catalog.setProductName(productName);
+		}
+		if (!StringUtils.hasText(catalog.getImageUrl())) {
+			catalog.setImageUrl(productImageUrl);
+		}
+
+		return barcodeCatalogRepository.save(catalog);
+	}
+
+	private String generateUniqueUnitCode() {
+		String unitCode;
+		do {
+			unitCode = ProductBarcode.generateUnitCode();
+		} while (productBarcodeRepository.existsByUnitCode(unitCode));
+		return unitCode;
+	}
+
+	private String normalizeRequired(String value, String message) {
+		if (!StringUtils.hasText(value)) {
+			throw new IllegalArgumentException(message);
+		}
+		return value.trim();
+	}
+
+	private String normalizeOptional(String value) {
+		if (!StringUtils.hasText(value)) {
+			return null;
+		}
+		return value.trim();
+	}
+
+	private <T> T requirePresent(T value, String message) {
+		if (value == null) {
+			throw new IllegalArgumentException(message);
+		}
+		return value;
+	}
+
+	private int requireNonNegative(Integer value, String message) {
+		requirePresent(value, message);
+		if (value < 0) {
+			throw new IllegalArgumentException(message);
+		}
+		return value;
+	}
+
+	private BigDecimal requireNonNegative(BigDecimal value, String message) {
+		requirePresent(value, message);
+		if (value.compareTo(BigDecimal.ZERO) < 0) {
+			throw new IllegalArgumentException(message);
+		}
+		return value;
+	}
+
+	private BigDecimal moneyWhenEnabled(boolean enabled, BigDecimal value, String requiredMessage, String negativeMessage) {
+		if (!enabled) {
+			return BigDecimal.ZERO;
+		}
+		return requireNonNegative(requirePresent(value, requiredMessage), negativeMessage);
+	}
+
+	private void sendProductApprovalRequestNotification(Business business, Product product, String actorUsername, long barcodeCount) {
+		try {
+			appEmailService.sendProductApprovalRequestEmail(business, product, actorUsername, barcodeCount);
+		} catch (RuntimeException exception) {
+			log.warn(
+					"product_approval_request_email_failed_non_blocking recipient={} businessId={} productId={} actor={} reason={}",
+					AppEmailService.maskEmail(business.getOwner().getEmailAddress()),
+					business.getId(),
+					product.getId(),
+					actorUsername,
+					exception.getMessage());
+		}
+	}
+}
