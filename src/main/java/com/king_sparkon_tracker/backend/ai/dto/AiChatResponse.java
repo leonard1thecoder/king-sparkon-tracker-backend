@@ -7,6 +7,7 @@ import java.util.List;
  * Response returned to the frontend floating chatbot.
  */
 public record AiChatResponse(
+        String conversationId,
         String answer,
         String model,
         String source,
