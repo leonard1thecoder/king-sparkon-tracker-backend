@@ -53,6 +53,8 @@ public interface ProductBarcodeRepository extends JpaRepository<ProductBarcode, 
 
 	List<ProductBarcode> findByBarcodeIn(List<String> barcodes);
 
+	List<ProductBarcode> findByUnitCodeIn(List<String> unitCodes);
+
 	List<ProductBarcode> findByProduct_IdOrderByIdAsc(Long productId);
 
 	List<ProductBarcode> findByStatus(ProductBarcodeStatus status);
