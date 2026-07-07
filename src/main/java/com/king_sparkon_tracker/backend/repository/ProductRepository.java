@@ -52,10 +52,10 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
 				and (:status is null or product.status = :status)
 				and (
 					:search is null
-					or lower(product.name) like lower(concat('%', :search, '%'))
-					or lower(product.productBarcode) like lower(concat('%', :search, '%'))
-					or lower(stockUnit.barcode) like lower(concat('%', :search, '%'))
-					or lower(stockUnit.unitCode) like lower(concat('%', :search, '%'))
+					or lower(coalesce(product.name, '')) like lower(concat('%', :search, '%'))
+					or lower(coalesce(product.productBarcode, '')) like lower(concat('%', :search, '%'))
+					or lower(coalesce(stockUnit.barcode, '')) like lower(concat('%', :search, '%'))
+					or lower(coalesce(stockUnit.unitCode, '')) like lower(concat('%', :search, '%'))
 				)
 			""")
 	Page<Product> searchBusinessProducts(
@@ -89,9 +89,9 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
 				and (:businessId is null or product.business.id = :businessId)
 				and (:category is null or product.category = :category)
 				and (
-					lower(product.name) like lower(concat('%', :search, '%'))
-					or lower(product.productBarcode) like lower(concat('%', :search, '%'))
-					or lower(product.business.name) like lower(concat('%', :search, '%'))
+					lower(coalesce(product.name, '')) like lower(concat('%', :search, '%'))
+					or lower(coalesce(product.productBarcode, '')) like lower(concat('%', :search, '%'))
+					or lower(coalesce(product.business.name, '')) like lower(concat('%', :search, '%'))
 				)
 			""")
 	Page<Product> searchTuckShopProducts(
