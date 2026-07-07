@@ -20,22 +20,23 @@ public class DefaultAiReadOnlyToolContextService implements AiReadOnlyToolContex
                 : request.message().toLowerCase(Locale.ROOT);
 
         List<String> tools = new ArrayList<>();
-        tools.add("Read-only mode is active. The assistant may explain flows and guide the user, but it must not create, update, delete, pay, verify, or withdraw anything.");
+        tools.add("Read-only mode is active. The assistant may explain flows and use authenticated read-only tools, but it must not create, update, delete, pay, verify, withdraw, or mutate anything.");
+        tools.add("Available authenticated read-only tools: TicketReadOnlyAiTool, ProductReadOnlyAiTool, TipsReadOnlyAiTool, DashboardReadOnlyAiTool.");
 
         if (message.contains("ticket") || message.contains("qr")) {
-            tools.add("Available read-only ticket guidance: explain how buyers get tickets, how workers scan QR codes, and when authenticated ticket lookup is required.");
+            tools.add("TicketReadOnlyAiTool can search safe ticket/event summaries when the request has authenticated backend context.");
         }
 
         if (message.contains("product") || message.contains("barcode") || message.contains("inventory")) {
-            tools.add("Available read-only barcode guidance: explain product scanning, stock movement, audit trails, and when authenticated product lookup is required.");
+            tools.add("ProductReadOnlyAiTool can search safe product/inventory summaries when the request has authenticated backend context.");
         }
 
         if (message.contains("dashboard") || message.contains("owner") || message.contains("business")) {
-            tools.add("Available read-only dashboard guidance: explain owner dashboard sections, worker visibility, reports, and role access without exposing private account data.");
+            tools.add("DashboardReadOnlyAiTool can return safe owner dashboard counts when the request has authenticated backend context.");
         }
 
         if (message.contains("tip") || message.contains("payment") || message.contains("withdraw")) {
-            tools.add("Available read-only payment guidance: explain tips, withdrawals, holds, and fees. The assistant must not perform payment or withdrawal actions.");
+            tools.add("TipsReadOnlyAiTool can search safe worker tip summaries when the request has authenticated backend context. The assistant must not perform payment or withdrawal actions.");
         }
 
         return List.copyOf(tools);
