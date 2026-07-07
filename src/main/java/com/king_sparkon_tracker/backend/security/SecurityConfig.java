@@ -79,6 +79,7 @@ public class SecurityConfig {
 									"/api/health",
 									"/ready",
 									"/api/ready",
+									"/api/v1/ai/health",
 									"/actuator/health",
 									"/actuator/health/**",
 									"/actuator/info"
@@ -107,6 +108,7 @@ public class SecurityConfig {
 							.requestMatchers(HttpMethod.POST, "/api/stripe/webhooks").permitAll()
 							.requestMatchers(HttpMethod.POST, "/api/subscribers").permitAll()
 							.requestMatchers(HttpMethod.DELETE, "/api/subscribers").permitAll()
+							.requestMatchers(HttpMethod.POST, "/api/v1/ai/chat").permitAll()
 							.requestMatchers(HttpMethod.GET, "/api/affiliate-links/public/random").permitAll()
 							.requestMatchers(HttpMethod.POST, "/api/affiliate-links/*/click").permitAll()
 							.requestMatchers(HttpMethod.GET, "/api/v1/tickets/events", "/api/v1/tickets/events/**").permitAll()
