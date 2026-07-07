@@ -35,7 +35,8 @@ public class RateLimitingFilter extends OncePerRequestFilter {
 			"/api/auth/reset-password",
 			"/api/auth/resend-verification",
 			"/api/auth/verify-email",
-			"/api/contact-inquiries"
+			"/api/contact-inquiries",
+			"/api/dev-hub/requests"
 	);
 
 	private static final Set<String> AI_CHAT_PATHS = Set.of(
