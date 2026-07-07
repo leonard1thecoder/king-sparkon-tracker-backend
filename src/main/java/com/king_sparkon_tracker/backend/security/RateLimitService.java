@@ -74,6 +74,10 @@ public class RateLimitService {
 		return check("ai-chat:" + key, aiChatRule);
 	}
 
+	public RateLimitDecision checkAuthenticatedUser(String username) {
+		return check("user:" + username, freeTrialRule);
+	}
+
 	public RateLimitDecision checkBusiness(String businessId, BusinessPlan plan) {
 		return check("business:" + businessId, ruleFor(plan));
 	}
