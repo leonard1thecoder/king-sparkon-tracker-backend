@@ -21,4 +21,8 @@ public record AddProductBarcodeRequest(
 		@Email
 		@Size(max = 255)
 		String referenceEmail) {
+
+	public AddProductBarcodeRequest(String barcode, String referenceEmail) {
+		this(null, barcode, referenceEmail);
+	}
 }
