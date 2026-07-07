@@ -1,5 +1,6 @@
 package com.king_sparkon_tracker.backend.repository;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.domain.Page;
@@ -34,6 +35,14 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
 	Optional<Product> findWithBarcodesByIdAndBusiness_Id(@Param("id") Long id, @Param("businessId") Long businessId);
 
 	@EntityGraph(attributePaths = "barcodes")
+	Optional<Product> findFirstByProductBarcode(String productBarcode);
+
+	@EntityGraph(attributePaths = "barcodes")
+	Optional<Product> findFirstByProductBarcodeAndBusiness_Id(String productBarcode, Long businessId);
+
+	boolean existsByBusiness_IdAndProductBarcode(Long businessId, String productBarcode);
+
+	@EntityGraph(attributePaths = "barcodes")
 	@Query("""
 			select product
 			from Product product
@@ -58,6 +67,7 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
 				and (:category is null or product.category = :category)
 				and (
 					lower(product.name) like lower(concat('%', :search, '%'))
+					or lower(product.productBarcode) like lower(concat('%', :search, '%'))
 					or lower(product.business.name) like lower(concat('%', :search, '%'))
 				)
 			""")
@@ -76,7 +86,7 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
 	@Query("select product from Product product where product.id = :id and product.business.id = :businessId")
 	Optional<Product> findLockedByIdAndBusiness_Id(@Param("id") Long id, @Param("businessId") Long businessId);
 
-	java.util.List<Product> findByBusiness_Id(Long businessId);
+	List<Product> findByBusiness_Id(Long businessId);
 
 	long countByCategory(ProductCategory category);
 
