@@ -3,6 +3,7 @@ package com.king_sparkon_tracker.backend.service;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.Locale;
+import java.util.regex.Pattern;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,6 +16,7 @@ import com.king_sparkon_tracker.backend.dto.DevHubDevelopmentRequestCreateReques
 public class DevHubPricingAiService {
 
 	private static final Logger log = LoggerFactory.getLogger(DevHubPricingAiService.class);
+	private static final Pattern STANDALONE_AI = Pattern.compile("(^|[^a-z0-9])ai([^a-z0-9]|$)");
 
 	private final ChatClient chatClient;
 
@@ -69,7 +71,7 @@ public class DevHubPricingAiService {
 		BigDecimal base = new BigDecimal("8500");
 		if (containsAny(text, "mobile", "android", "ios")) base = base.add(new BigDecimal("9000"));
 		if (containsAny(text, "payment", "stripe", "payfast", "paypal", "checkout")) base = base.add(new BigDecimal("6500"));
-		if (containsAny(text, "artificial intelligence", "chatbot", "rag", "automation", "machine learning")) base = base.add(new BigDecimal("8500"));
+		if (hasStandaloneAi(text) || containsAny(text, "artificial intelligence", "chatbot", "rag", "automation", "machine learning")) base = base.add(new BigDecimal("8500"));
 		if (containsAny(text, "dashboard", "admin", "analytics", "report")) base = base.add(new BigDecimal("5000"));
 		if (containsAny(text, "barcode", "qr", "scanner", "inventory")) base = base.add(new BigDecimal("6500"));
 		if (containsAny(text, "backend", "api", "spring", "database")) base = base.add(new BigDecimal("6000"));
@@ -85,6 +87,10 @@ public class DevHubPricingAiService {
 			}
 		}
 		return false;
+	}
+
+	private boolean hasStandaloneAi(String text) {
+		return STANDALONE_AI.matcher(text).find();
 	}
 
 	private String fallbackPlan(DevHubDevelopmentRequestCreateRequest request, BigDecimal minPrice, BigDecimal maxPrice) {
