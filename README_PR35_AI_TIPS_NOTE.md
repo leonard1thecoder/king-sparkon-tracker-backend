@@ -31,7 +31,9 @@ Product listing now supports search, filtering, sorting, and paging:
 - `GET /api/products?page=&size=&sortBy=&direction=&q=&search=&category=&status=`
 - `GET /api/v1/tuck-shop/products?page=&size=&sortBy=&direction=&q=&search=&businessId=&category=`
 
-Search covers product name, reusable product barcode, stock-unit barcode snapshots, and stock-unit code on owner products.
+Owner product search covers product name, reusable product barcode, stock-unit barcode snapshots, and stock-unit code.
+
+Tuck shop search covers product name, reusable product barcode, and business name.
 
 Sorting is restricted to safe mapped product fields: id, name, price, stockQuantity, productBarcode, category, and status.
 
