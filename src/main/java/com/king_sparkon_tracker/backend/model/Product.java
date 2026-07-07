@@ -19,9 +19,16 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 
 @Entity
-@Table(name = "products")
+@Table(
+		name = "products",
+		uniqueConstraints = @UniqueConstraint(
+				name = "uk_products_business_product_barcode",
+				columnNames = { "business_id", "product_barcode" }
+		)
+)
 public class Product {
 
 	@Id
@@ -30,6 +37,13 @@ public class Product {
 
 	@Column(nullable = false)
 	private String name;
+
+	@Column(name = "product_barcode", length = 128)
+	private String productBarcode;
+
+	@ManyToOne(fetch = FetchType.LAZY)
+	@JoinColumn(name = "barcode_catalog_id")
+	private BarcodeCatalog barcodeCatalog;
 
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false)
@@ -71,7 +85,7 @@ public class Product {
 	private Business business;
 
 	@OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
-	@OrderBy("barcode asc")
+	@OrderBy("unitCode asc")
 	private List<ProductBarcode> barcodes = new ArrayList<>();
 
 	@OneToMany(mappedBy = "product")
@@ -241,7 +255,7 @@ public class Product {
 				nightShiftEndTime,
 				business
 		);
-
+		this.productBarcode = barcode;
 		ProductBarcode productBarcode = new ProductBarcode(barcode);
 		productBarcode.setStatus(initialClaimStatus());
 		addBarcode(productBarcode);
@@ -264,10 +278,23 @@ public class Product {
 	}
 
 	public String getBarcode() {
-		return barcodes.stream()
-				.findFirst()
-				.map(ProductBarcode::getBarcode)
-				.orElse(null);
+		return productBarcode;
+	}
+
+	public String getProductBarcode() {
+		return productBarcode;
+	}
+
+	public void setProductBarcode(String productBarcode) {
+		this.productBarcode = productBarcode;
+	}
+
+	public BarcodeCatalog getBarcodeCatalog() {
+		return barcodeCatalog;
+	}
+
+	public void setBarcodeCatalog(BarcodeCatalog barcodeCatalog) {
+		this.barcodeCatalog = barcodeCatalog;
 	}
 
 	public ProductCategory getCategory() {
@@ -382,6 +409,9 @@ public class Product {
 
 	public void addBarcode(ProductBarcode barcode) {
 		barcode.setProduct(this);
+		if (barcode.getBarcode() == null) {
+			barcode.setBarcode(productBarcode);
+		}
 		barcodes.add(barcode);
 	}
 
