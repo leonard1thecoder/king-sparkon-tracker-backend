@@ -2,8 +2,9 @@ package com.king_sparkon_tracker.backend.ai.tool;
 
 import java.util.List;
 import java.util.Map;
-import org.springframework.ai.tool.ToolContext;
 import org.springframework.ai.tool.annotation.Tool;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -17,8 +18,8 @@ public class DashboardReadOnlyAiTool {
     }
 
     @Tool(description = "Read-only owner dashboard summary. Returns safe counts only and never changes business data.")
-    public String dashboardSummary(ToolContext toolContext) {
-        if (!authenticated(toolContext)) {
+    public String dashboardSummary() {
+        if (!authenticated()) {
             return "Dashboard summary needs authenticated backend context. I can explain dashboard sections publicly, but I cannot expose private dashboard data without authentication.";
         }
 
@@ -34,8 +35,11 @@ public class DashboardReadOnlyAiTool {
         );
     }
 
-    private boolean authenticated(ToolContext toolContext) {
-        Object actor = toolContext == null ? null : toolContext.getContext().get("actor");
-        return actor != null && StringUtils.hasText(String.valueOf(actor)) && !"anonymous".equalsIgnoreCase(String.valueOf(actor));
+    private boolean authenticated() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        return authentication != null
+                && authentication.isAuthenticated()
+                && StringUtils.hasText(authentication.getName())
+                && !"anonymousUser".equals(authentication.getName());
     }
 }
