@@ -6,6 +6,8 @@ import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -66,6 +68,7 @@ public class ProductService {
 		throw new IllegalArgumentException("Product creation requires a business owner");
 	}
 
+	@CacheEvict(cacheNames = { "products", "tuckShopProducts", "productByBarcode" }, allEntries = true)
 	public Product createProduct(ProductRequest request, String actorUsername) {
 		businessAccessService.requireFeature(actorUsername, BusinessFeature.CREATE_PRODUCTS);
 
@@ -147,6 +150,7 @@ public class ProductService {
 		return product;
 	}
 
+	@CacheEvict(cacheNames = { "products", "tuckShopProducts", "productByBarcode" }, allEntries = true)
 	public Product addBarcodeToProduct(Long productId, AddProductBarcodeRequest request, String actorUsername) {
 		businessAccessService.requireFeature(actorUsername, BusinessFeature.ADD_BARCODES);
 
@@ -212,6 +216,7 @@ public class ProductService {
 				.orElseThrow(() -> new ResourceNotFoundException("Product not found: " + id));
 	}
 
+	@CacheEvict(cacheNames = { "products", "tuckShopProducts", "productByBarcode" }, allEntries = true)
 	public Product updateProductQuantity(
 			Long productId,
 			UpdateProductQuantityRequest request,
@@ -247,6 +252,7 @@ public class ProductService {
 				.orElseThrow(() -> new ResourceNotFoundException("Product not found: " + id));
 	}
 
+	@CacheEvict(cacheNames = { "products", "tuckShopProducts", "productByBarcode" }, allEntries = true)
 	public Product updateProductImageUrl(Long productId, String productImageUrl, String actorUsername) {
 		businessAccessService.requireFeature(actorUsername, BusinessFeature.CREATE_PRODUCTS);
 
@@ -270,6 +276,7 @@ public class ProductService {
 				.orElseThrow(() -> new ResourceNotFoundException("Product not found: " + id));
 	}
 
+	@CacheEvict(cacheNames = { "products", "tuckShopProducts", "productByBarcode" }, allEntries = true)
 	public Product submitProductForApproval(Long productId, String actorUsername) {
 		businessAccessService.requireFeature(actorUsername, BusinessFeature.ADD_BARCODES);
 
@@ -309,17 +316,37 @@ public class ProductService {
 	}
 
 	@Transactional(readOnly = true)
+	@Cacheable(cacheNames = "products", key = "'all:' + #pageable.pageNumber + ':' + #pageable.pageSize + ':' + #pageable.sort")
 	public Page<Product> listProducts(Pageable pageable) {
 		return productRepository.findAll(pageable);
 	}
 
 	@Transactional(readOnly = true)
+	@Cacheable(cacheNames = "products", key = "'business:' + #actorUsername + ':' + #pageable.pageNumber + ':' + #pageable.pageSize + ':' + #pageable.sort")
 	public Page<Product> listProducts(Pageable pageable, String actorUsername) {
 		Business business = userService.businessForActor(actorUsername);
 		return productRepository.findByBusiness_Id(business.getId(), pageable);
 	}
 
 	@Transactional(readOnly = true)
+	@Cacheable(cacheNames = "products", key = "'search:' + #actorUsername + ':' + #pageable.pageNumber + ':' + #pageable.pageSize + ':' + #pageable.sort + ':' + #category + ':' + #status + ':' + #search")
+	public Page<Product> searchProducts(
+			Pageable pageable,
+			String actorUsername,
+			ProductCategory category,
+			ProductStatus status,
+			String search) {
+		Business business = userService.businessForActor(actorUsername);
+		return productRepository.searchBusinessProducts(
+				business.getId(),
+				category,
+				status,
+				normalizeOptional(search),
+				pageable);
+	}
+
+	@Transactional(readOnly = true)
+	@Cacheable(cacheNames = "tuckShopProducts", key = "#pageable.pageNumber + ':' + #pageable.pageSize + ':' + #pageable.sort + ':' + #businessId + ':' + #category + ':' + #search")
 	public Page<Product> listTuckShopProducts(Pageable pageable, Long businessId, ProductCategory category, String search) {
 		String normalizedSearch = normalizeOptional(search);
 
@@ -364,6 +391,7 @@ public class ProductService {
 	}
 
 	@Transactional(readOnly = true)
+	@Cacheable(cacheNames = "productByBarcode", key = "'public:' + #barcode")
 	public Product getProductByBarcode(String barcode) {
 		String normalizedBarcode = normalizeRequired(barcode, "Barcode is required");
 
@@ -374,6 +402,7 @@ public class ProductService {
 	}
 
 	@Transactional(readOnly = true)
+	@Cacheable(cacheNames = "productByBarcode", key = "'business:' + #actorUsername + ':' + #barcode")
 	public Product getProductByBarcode(String barcode, String actorUsername) {
 		businessAccessService.requireFeature(actorUsername, BusinessFeature.SCAN_BARCODES);
 
@@ -386,6 +415,7 @@ public class ProductService {
 				.orElseThrow(() -> new ResourceNotFoundException("Product not found for barcode or unit code: " + normalizedBarcode));
 	}
 
+	@CacheEvict(cacheNames = { "products", "tuckShopProducts", "productByBarcode" }, allEntries = true)
 	public Product applyStockMovement(Product product, TransactionType type, int quantity) {
 		requirePresent(product, "Product is required");
 		requirePresent(type, "Transaction type is required");
