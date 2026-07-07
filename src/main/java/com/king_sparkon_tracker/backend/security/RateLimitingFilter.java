@@ -15,9 +15,9 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.king_sparkon_tracker.backend.model.Business;
 import com.king_sparkon_tracker.backend.service.BusinessAccessService;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -38,6 +38,11 @@ public class RateLimitingFilter extends OncePerRequestFilter {
 			"/api/contact-inquiries"
 	);
 
+	private static final Set<String> AI_CHAT_PATHS = Set.of(
+			"/api/v1/ai/chat",
+			"/api/v1/ai/chat/stream"
+	);
+
 	private static final Set<String> EXCLUDED_PATHS = Set.of(
 			"/health",
 			"/api/health",
@@ -45,7 +50,8 @@ public class RateLimitingFilter extends OncePerRequestFilter {
 			"/api/ready",
 			"/actuator/info",
 			"/api/paypal/webhooks",
-			"/api/stripe/webhooks"
+			"/api/stripe/webhooks",
+			"/api/v1/ai/health"
 	);
 
 	private final RateLimitService rateLimitService;
@@ -90,6 +96,10 @@ public class RateLimitingFilter extends OncePerRequestFilter {
 				|| isActuatorHealthPath(path)
 				|| isDocsPath(path)) {
 			return null;
+		}
+
+		if (AI_CHAT_PATHS.contains(path) && HttpMethod.POST.matches(request.getMethod())) {
+			return rateLimitService.checkAiChat(clientAddress(request) + ":" + request.getMethod() + ":" + path);
 		}
 
 		if (PUBLIC_AUTH_PATHS.contains(path)) {

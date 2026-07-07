@@ -1,0 +1,10 @@
+CREATE EXTENSION IF NOT EXISTS vector;
+CREATE EXTENSION IF NOT EXISTS hstore;
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+CREATE TABLE IF NOT EXISTS ai_document_ingestion_log (
+    ingestion_key VARCHAR(160) PRIMARY KEY,
+    description TEXT NOT NULL,
+    document_count INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
