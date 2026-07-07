@@ -106,7 +106,7 @@ public class RateLimitingFilter extends OncePerRequestFilter {
 			String businessId = business.getId() == null ? authentication.getName() : String.valueOf(business.getId());
 			return rateLimitService.checkBusiness(businessId, business.getBusinessPlan());
 		} catch (RuntimeException ignored) {
-			return null;
+			return rateLimitService.checkAuthenticatedUser(authentication.getName());
 		}
 	}
 
