@@ -26,8 +26,7 @@ public class BarcodeImageDecodeService {
 	private static final List<String> ALLOWED_CONTENT_TYPES = List.of(
 			"image/png",
 			"image/jpeg",
-			"image/jpg",
-			"image/webp"
+			"image/jpg"
 	);
 
 	public BarcodeImageDecodeResponse decode(MultipartFile file) {
@@ -69,7 +68,7 @@ public class BarcodeImageDecodeService {
 
 		String contentType = file.getContentType();
 		if (contentType == null || ALLOWED_CONTENT_TYPES.stream().noneMatch(contentType::equalsIgnoreCase)) {
-			throw new IllegalArgumentException("Only PNG, JPG, JPEG, and WEBP barcode images are supported");
+			throw new IllegalArgumentException("Only PNG, JPG, and JPEG barcode images are supported");
 		}
 	}
 }
