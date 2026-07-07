@@ -6,22 +6,26 @@ import com.king_sparkon_tracker.backend.model.ProductBarcodeStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 public record ProductBarcodeResponse(
-		@Schema(description = "Barcode id.", example = "14")
+		@Schema(description = "Stock unit id.", example = "14")
 		Long id,
 
-		@Schema(description = "Unique physical item barcode.", example = "6001")
+		@Schema(description = "Unique King Sparkon stock-unit code.", example = "KST-UNIT-000001")
+		String unitCode,
+
+		@Schema(description = "Reusable retail product barcode snapshot for this unit.", example = "5449000000996")
 		String barcode,
 
 		@Schema(description = "Optional customer email reference for returnable claims.", example = "customer@example.com")
 		String referenceEmail,
 
-		@Schema(description = "Barcode claim status.", example = "NOT_CLAIMED")
+		@Schema(description = "Stock unit claim status.", example = "NOT_CLAIMED")
 		ProductBarcodeStatus status
 ) {
 
 	public static ProductBarcodeResponse from(ProductBarcode barcode) {
 		return new ProductBarcodeResponse(
 				barcode.getId(),
+				barcode.getUnitCode(),
 				barcode.getBarcode(),
 				barcode.getReferenceEmail(),
 				barcode.getStatus()
