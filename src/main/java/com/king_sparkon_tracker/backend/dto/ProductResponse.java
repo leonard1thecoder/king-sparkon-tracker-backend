@@ -24,6 +24,12 @@ public record ProductResponse(
 		@Schema(description = "Product name.", example = "Barcode item")
 		String name,
 
+		@Schema(description = "Reusable retail product barcode/GTIN. This is not globally unique across stock units.", example = "5449000000996")
+		String productBarcode,
+
+		@Schema(description = "Linked global barcode catalog id, when available.", example = "12")
+		Long barcodeCatalogId,
+
 		@Schema(description = "Product photo URL/path shown in King Sparkon Tuck Shop.")
 		String productImageUrl,
 
@@ -78,13 +84,13 @@ public record ProductResponse(
 		@Schema(description = "Current stock quantity.", example = "10")
 		int stockQuantity,
 
-		@Schema(description = "Assigned physical item barcodes for this product, including claim status.")
+		@Schema(description = "Assigned physical stock units for this product, including unit code and claim status.")
 		List<ProductBarcodeResponse> barcodes,
 
-		@Schema(description = "Number of barcodes assigned to this product.", example = "8")
+		@Schema(description = "Number of stock units assigned to this product.", example = "8")
 		int barcodeCount,
 
-		@Schema(description = "How many more barcodes can be assigned before reaching stock quantity.", example = "2")
+		@Schema(description = "How many more stock units can be assigned before reaching stock quantity.", example = "2")
 		int remainingBarcodeSlots
 ) {
 
@@ -118,6 +124,8 @@ public record ProductResponse(
 				businessId,
 				businessName,
 				name,
+				null,
+				null,
 				null,
 				category,
 				status,
@@ -157,6 +165,8 @@ public record ProductResponse(
 				product.getBusiness() == null ? null : product.getBusiness().getId(),
 				product.getBusiness() == null ? null : product.getBusiness().getName(),
 				product.getName(),
+				product.getProductBarcode(),
+				product.getBarcodeCatalog() == null ? null : product.getBarcodeCatalog().getId(),
 				product.getProductImageUrl(),
 				product.getCategory(),
 				product.getStatus(),
