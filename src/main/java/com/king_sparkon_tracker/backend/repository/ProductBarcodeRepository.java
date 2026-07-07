@@ -18,6 +18,10 @@ public interface ProductBarcodeRepository extends JpaRepository<ProductBarcode, 
 	@EntityGraph(attributePaths = { "product", "product.barcodes" })
 	Optional<ProductBarcode> findFirstByBarcode(String barcode);
 
+	default Optional<ProductBarcode> findByBarcode(String barcode) {
+		return findFirstByBarcode(barcode);
+	}
+
 	@EntityGraph(attributePaths = { "product", "product.barcodes" })
 	Optional<ProductBarcode> findByUnitCode(String unitCode);
 
@@ -62,6 +66,10 @@ public interface ProductBarcodeRepository extends JpaRepository<ProductBarcode, 
 	boolean existsByUnitCode(String unitCode);
 
 	boolean existsByProduct_IdAndUnitCode(Long productId, String unitCode);
+
+	default boolean existsByBarcode(String barcode) {
+		return findFirstByBarcode(barcode).isPresent();
+	}
 
 	long countByProduct_Id(Long productId);
 
