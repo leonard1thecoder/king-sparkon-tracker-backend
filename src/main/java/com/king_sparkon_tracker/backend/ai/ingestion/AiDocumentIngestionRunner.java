@@ -29,6 +29,10 @@ public class AiDocumentIngestionRunner implements ApplicationRunner {
             return;
         }
 
-        ingestionService.ingestDefaultKnowledgeBase();
+        try {
+            ingestionService.ingestDefaultKnowledgeBase();
+        } catch (RuntimeException exception) {
+            log.warn("ai_rag_ingestion_failed reason={}", exception.getMessage());
+        }
     }
 }

@@ -40,6 +40,7 @@ public class SpringAiChatServiceImpl implements AiChatService {
     private final ProductReadOnlyAiTool productReadOnlyAiTool;
     private final TipsReadOnlyAiTool tipsReadOnlyAiTool;
     private final DashboardReadOnlyAiTool dashboardReadOnlyAiTool;
+    private final String providerName;
     private final String modelName;
 
     public SpringAiChatServiceImpl(
@@ -52,7 +53,8 @@ public class SpringAiChatServiceImpl implements AiChatService {
             ProductReadOnlyAiTool productReadOnlyAiTool,
             TipsReadOnlyAiTool tipsReadOnlyAiTool,
             DashboardReadOnlyAiTool dashboardReadOnlyAiTool,
-            @Value("${spring.ai.ollama.chat.model:qwen3:4b}") String modelName) {
+            @Value("${app.ai.chat.provider:ollama}") String providerName,
+            @Value("${app.ai.chat.model:qwen3:4b}") String modelName) {
         this.chatClient = chatClient;
         this.questionAnswerAdvisor = questionAnswerAdvisor;
         this.promptFactory = promptFactory;
@@ -62,6 +64,7 @@ public class SpringAiChatServiceImpl implements AiChatService {
         this.productReadOnlyAiTool = productReadOnlyAiTool;
         this.tipsReadOnlyAiTool = tipsReadOnlyAiTool;
         this.dashboardReadOnlyAiTool = dashboardReadOnlyAiTool;
+        this.providerName = providerName;
         this.modelName = modelName;
     }
 
@@ -87,7 +90,7 @@ public class SpringAiChatServiceImpl implements AiChatService {
                     conversationId,
                     answer,
                     modelName,
-                    "SPRING_AI_OLLAMA",
+                    "SPRING_AI_" + providerName.toUpperCase(),
                     buildSuggestions(normalizedRequest.message()),
                     Instant.now()
             );
