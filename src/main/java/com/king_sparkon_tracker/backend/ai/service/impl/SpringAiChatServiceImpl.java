@@ -61,8 +61,8 @@ public class SpringAiChatServiceImpl implements AiChatService {
             TraditionalJpaAiFallbackService traditionalJpaAiFallbackService,
             @Value("${app.ai.chat.provider:ollama}") String providerName,
             @Value("${app.ai.chat.model:qwen3:4b}") String modelName,
-            @Value("${app.ai.chat.enabled:true}") boolean aiChatEnabled,
-            @Value("${app.ai.chat.fallback.enabled:true}") boolean fallbackEnabled) {
+            @Value("${app.ai.chat.enabled:${AI_CHAT_ENABLED:true}}") boolean aiChatEnabled,
+            @Value("${app.ai.chat.fallback.enabled:${AI_CHAT_FALLBACK_ENABLED:true}}") boolean fallbackEnabled) {
         this.chatClient = chatClient;
         this.questionAnswerAdvisor = questionAnswerAdvisor;
         this.promptFactory = promptFactory;
