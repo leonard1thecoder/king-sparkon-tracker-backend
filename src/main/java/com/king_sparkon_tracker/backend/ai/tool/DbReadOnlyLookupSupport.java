@@ -75,7 +75,7 @@ public class DbReadOnlyLookupSupport {
 
     private boolean tableExists(String tableName) {
         Integer count = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name = ?",
+                "SELECT COUNT(*) FROM information_schema.tables WHERE LOWER(table_schema) = 'public' AND LOWER(table_name) = LOWER(?)",
                 Integer.class,
                 tableName
         );
@@ -84,7 +84,7 @@ public class DbReadOnlyLookupSupport {
 
     private List<String> safeColumns(String tableName) {
         List<String> columns = jdbcTemplate.query(
-                "SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = ? ORDER BY ordinal_position",
+                "SELECT column_name FROM information_schema.columns WHERE LOWER(table_schema) = 'public' AND LOWER(table_name) = LOWER(?) ORDER BY ordinal_position",
                 (rs, rowNum) -> rs.getString("column_name"),
                 tableName
         );
