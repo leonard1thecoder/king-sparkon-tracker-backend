@@ -5,7 +5,9 @@ import org.springframework.boot.test.context.SpringBootTest;
 
 @SpringBootTest(properties = {
 		"spring.flyway.enabled=false",
-		"spring.jpa.hibernate.ddl-auto=none"
+		"spring.jpa.hibernate.ddl-auto=none",
+		"spring.ai.vectorstore.pgvector.initialize-schema=false",
+		"app.ai.rag.ingestion.enabled=false"
 })
 class BackendApplicationTests {
 
