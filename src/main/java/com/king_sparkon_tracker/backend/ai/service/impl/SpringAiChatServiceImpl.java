@@ -5,6 +5,7 @@ import com.king_sparkon_tracker.backend.ai.dto.AiChatResponse;
 import com.king_sparkon_tracker.backend.ai.exception.AiChatException;
 import com.king_sparkon_tracker.backend.ai.retrieval.AiRetrievalContextService;
 import com.king_sparkon_tracker.backend.ai.service.AiChatService;
+import com.king_sparkon_tracker.backend.ai.service.TraditionalJpaAiFallbackService;
 import com.king_sparkon_tracker.backend.ai.support.KingSparkonPromptFactory;
 import com.king_sparkon_tracker.backend.ai.tool.AiReadOnlyToolContextService;
 import com.king_sparkon_tracker.backend.ai.tool.DashboardReadOnlyAiTool;
@@ -13,6 +14,7 @@ import com.king_sparkon_tracker.backend.ai.tool.TicketReadOnlyAiTool;
 import com.king_sparkon_tracker.backend.ai.tool.TipsReadOnlyAiTool;
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Consumer;
@@ -40,8 +42,11 @@ public class SpringAiChatServiceImpl implements AiChatService {
     private final ProductReadOnlyAiTool productReadOnlyAiTool;
     private final TipsReadOnlyAiTool tipsReadOnlyAiTool;
     private final DashboardReadOnlyAiTool dashboardReadOnlyAiTool;
+    private final TraditionalJpaAiFallbackService traditionalJpaAiFallbackService;
     private final String providerName;
     private final String modelName;
+    private final boolean aiChatEnabled;
+    private final boolean fallbackEnabled;
 
     public SpringAiChatServiceImpl(
             ChatClient chatClient,
@@ -53,8 +58,11 @@ public class SpringAiChatServiceImpl implements AiChatService {
             ProductReadOnlyAiTool productReadOnlyAiTool,
             TipsReadOnlyAiTool tipsReadOnlyAiTool,
             DashboardReadOnlyAiTool dashboardReadOnlyAiTool,
+            TraditionalJpaAiFallbackService traditionalJpaAiFallbackService,
             @Value("${app.ai.chat.provider:ollama}") String providerName,
-            @Value("${app.ai.chat.model:qwen3:4b}") String modelName) {
+            @Value("${app.ai.chat.model:qwen3:4b}") String modelName,
+            @Value("${app.ai.chat.enabled:true}") boolean aiChatEnabled,
+            @Value("${app.ai.chat.fallback.enabled:true}") boolean fallbackEnabled) {
         this.chatClient = chatClient;
         this.questionAnswerAdvisor = questionAnswerAdvisor;
         this.promptFactory = promptFactory;
@@ -64,8 +72,11 @@ public class SpringAiChatServiceImpl implements AiChatService {
         this.productReadOnlyAiTool = productReadOnlyAiTool;
         this.tipsReadOnlyAiTool = tipsReadOnlyAiTool;
         this.dashboardReadOnlyAiTool = dashboardReadOnlyAiTool;
+        this.traditionalJpaAiFallbackService = traditionalJpaAiFallbackService;
         this.providerName = providerName;
         this.modelName = modelName;
+        this.aiChatEnabled = aiChatEnabled;
+        this.fallbackEnabled = fallbackEnabled;
     }
 
     @Override
@@ -74,6 +85,10 @@ public class SpringAiChatServiceImpl implements AiChatService {
 
         String conversationId = conversationIdFor(request);
         AiChatRequest normalizedRequest = normalizeRequest(request, conversationId);
+
+        if (!aiChatEnabled) {
+            return fallback(normalizedRequest, conversationId, "AI chat disabled by environment");
+        }
 
         try {
             String answer = chatClient
@@ -90,15 +105,21 @@ public class SpringAiChatServiceImpl implements AiChatService {
                     conversationId,
                     answer,
                     modelName,
-                    "SPRING_AI_" + providerName.toUpperCase(),
+                    "SPRING_AI_" + providerName.toUpperCase(Locale.ROOT),
                     buildSuggestions(normalizedRequest.message()),
                     Instant.now()
             );
         } catch (AiChatException exception) {
             throw exception;
         } catch (Exception exception) {
-            log.error("AI chat request failed. model={} conversationId={}", modelName, conversationId, exception);
-            throw new AiChatException("AI assistant is temporarily unavailable", exception);
+            log.warn(
+                    "ai_chat_provider_failed_non_blocking provider={} model={} conversationId={} reason={}",
+                    providerName,
+                    modelName,
+                    conversationId,
+                    rootMessage(exception)
+            );
+            return fallback(normalizedRequest, conversationId, failureReason(exception));
         }
     }
 
@@ -112,6 +133,11 @@ public class SpringAiChatServiceImpl implements AiChatService {
 
         String conversationId = conversationIdFor(request);
         AiChatRequest normalizedRequest = normalizeRequest(request, conversationId);
+
+        if (!aiChatEnabled) {
+            chunkConsumer.accept(fallback(normalizedRequest, conversationId, "AI chat disabled by environment").answer());
+            return;
+        }
 
         try {
             chatClient
@@ -128,9 +154,62 @@ public class SpringAiChatServiceImpl implements AiChatService {
         } catch (AiChatException exception) {
             throw exception;
         } catch (Exception exception) {
-            log.error("AI chat stream failed. model={} conversationId={}", modelName, conversationId, exception);
-            throw new AiChatException("AI assistant stream is temporarily unavailable", exception);
+            log.warn(
+                    "ai_chat_stream_provider_failed_non_blocking provider={} model={} conversationId={} reason={}",
+                    providerName,
+                    modelName,
+                    conversationId,
+                    rootMessage(exception)
+            );
+            chunkConsumer.accept(fallback(normalizedRequest, conversationId, failureReason(exception)).answer());
         }
+    }
+
+    private AiChatResponse fallback(AiChatRequest request, String conversationId, String failureReason) {
+        if (!fallbackEnabled) {
+            throw new AiChatException("AI assistant is temporarily unavailable");
+        }
+        return traditionalJpaAiFallbackService.fallback(request, conversationId, failureReason);
+    }
+
+    private String failureReason(Exception exception) {
+        String rootMessage = rootMessage(exception);
+        String normalized = rootMessage.toLowerCase(Locale.ROOT);
+
+        if (normalized.contains("429") || normalized.contains("quota") || normalized.contains("insufficient_quota")) {
+            return "OpenAI quota exceeded / 429";
+        }
+
+        if (normalized.contains("billing") || normalized.contains("payment required")) {
+            return "OpenAI billing/quota unavailable";
+        }
+
+        if (normalized.contains("rate limit") || normalized.contains("rate_limit")) {
+            return "OpenAI rate limit reached";
+        }
+
+        return "AI provider temporarily unavailable";
+    }
+
+    private String rootMessage(Throwable throwable) {
+        Throwable current = throwable;
+        Throwable root = throwable;
+
+        while (current != null) {
+            root = current;
+            current = current.getCause();
+        }
+
+        String message = root == null ? null : root.getMessage();
+        if (!StringUtils.hasText(message)) {
+            message = throwable == null ? null : throwable.getMessage();
+        }
+
+        if (!StringUtils.hasText(message)) {
+            return "unknown";
+        }
+
+        return message.replaceAll("\\s+", " ").trim();
     }
 
     private void validate(AiChatRequest request) {
