@@ -26,6 +26,8 @@ import jakarta.servlet.http.HttpServletResponse;
 
 public class RateLimitingFilter extends OncePerRequestFilter {
 
+	private static final String DEV_HUB_REQUESTS_PATH = "/api/dev-hub/requests";
+
 	private static final Set<String> PUBLIC_AUTH_PATHS = Set.of(
 			"/api/auth/register",
 			"/api/auth/register-admin",
@@ -102,7 +104,7 @@ public class RateLimitingFilter extends OncePerRequestFilter {
 			return rateLimitService.checkAiChat(clientAddress(request) + ":" + request.getMethod() + ":" + path);
 		}
 
-		if (PUBLIC_AUTH_PATHS.contains(path)) {
+		if (isPublicDevHubCreate(request, path) || PUBLIC_AUTH_PATHS.contains(path)) {
 			return rateLimitService.checkPublicAuth(clientAddress(request) + ":" + request.getMethod() + ":" + path);
 		}
 
@@ -118,6 +120,10 @@ public class RateLimitingFilter extends OncePerRequestFilter {
 		} catch (RuntimeException ignored) {
 			return rateLimitService.checkAuthenticatedUser(authentication.getName());
 		}
+	}
+
+	private boolean isPublicDevHubCreate(HttpServletRequest request, String path) {
+		return DEV_HUB_REQUESTS_PATH.equals(path) && HttpMethod.POST.matches(request.getMethod());
 	}
 
 	private boolean isActuatorHealthPath(String path) {

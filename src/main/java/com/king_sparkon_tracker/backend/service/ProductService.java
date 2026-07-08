@@ -162,6 +162,9 @@ public class ProductService {
 
 		if (requestedProductBarcode != null) {
 			if (productBarcode == null) {
+				if (productRepository.existsByBusiness_IdAndProductBarcode(business.getId(), requestedProductBarcode)) {
+					throw new DuplicateBarcodeException(requestedProductBarcode);
+				}
 				productBarcode = requestedProductBarcode;
 				product.setProductBarcode(productBarcode);
 				product.setBarcodeCatalog(catalogFor(productBarcode, product.getName(), product.getProductImageUrl()));
@@ -217,10 +220,7 @@ public class ProductService {
 	}
 
 	@CacheEvict(cacheNames = { "products", "tuckShopProducts", "productByBarcode" }, allEntries = true)
-	public Product updateProductQuantity(
-			Long productId,
-			UpdateProductQuantityRequest request,
-			String actorUsername) {
+	public Product updateProductQuantity(Long productId, UpdateProductQuantityRequest request, String actorUsername) {
 		businessAccessService.requireFeature(actorUsername, BusinessFeature.CREATE_PRODUCTS);
 
 		Long id = requirePresent(productId, "Product id is required");
@@ -330,12 +330,7 @@ public class ProductService {
 
 	@Transactional(readOnly = true)
 	@Cacheable(cacheNames = "products", key = "'search:' + #actorUsername + ':' + #pageable.pageNumber + ':' + #pageable.pageSize + ':' + #pageable.sort + ':' + #category + ':' + #status + ':' + #search")
-	public Page<Product> searchProducts(
-			Pageable pageable,
-			String actorUsername,
-			ProductCategory category,
-			ProductStatus status,
-			String search) {
+	public Page<Product> searchProducts(Pageable pageable, String actorUsername, ProductCategory category, ProductStatus status, String search) {
 		Business business = userService.businessForActor(actorUsername);
 		return productRepository.searchBusinessProducts(
 				business.getId(),
@@ -351,19 +346,10 @@ public class ProductService {
 		String normalizedSearch = normalizeOptional(search);
 
 		if (normalizedSearch == null) {
-			return productRepository.findTuckShopProducts(
-					ProductStatus.CREATED,
-					businessId,
-					category,
-					pageable);
+			return productRepository.findTuckShopProducts(ProductStatus.CREATED, businessId, category, pageable);
 		}
 
-		return productRepository.searchTuckShopProducts(
-				ProductStatus.CREATED,
-				businessId,
-				category,
-				normalizedSearch,
-				pageable);
+		return productRepository.searchTuckShopProducts(ProductStatus.CREATED, businessId, category, normalizedSearch, pageable);
 	}
 
 	@Transactional(readOnly = true)
@@ -375,7 +361,6 @@ public class ProductService {
 	@Transactional(readOnly = true)
 	public Product getProductById(Long id, String actorUsername) {
 		Business business = userService.businessForActor(actorUsername);
-
 		return productRepository.findWithBarcodesByIdAndBusiness_Id(id, business.getId())
 				.orElseThrow(() -> new ResourceNotFoundException("Product not found: " + id));
 	}
@@ -394,7 +379,6 @@ public class ProductService {
 	@Cacheable(cacheNames = "productByBarcode", key = "'public:' + #barcode")
 	public Product getProductByBarcode(String barcode) {
 		String normalizedBarcode = normalizeRequired(barcode, "Barcode is required");
-
 		return productRepository.findFirstByProductBarcode(normalizedBarcode)
 				.or(() -> productBarcodeRepository.findByUnitCode(normalizedBarcode).map(ProductBarcode::getProduct))
 				.or(() -> productBarcodeRepository.findFirstByBarcode(normalizedBarcode).map(ProductBarcode::getProduct))
@@ -405,10 +389,8 @@ public class ProductService {
 	@Cacheable(cacheNames = "productByBarcode", key = "'business:' + #actorUsername + ':' + #barcode")
 	public Product getProductByBarcode(String barcode, String actorUsername) {
 		businessAccessService.requireFeature(actorUsername, BusinessFeature.SCAN_BARCODES);
-
 		String normalizedBarcode = normalizeRequired(barcode, "Barcode is required");
 		Business business = userService.businessForActor(actorUsername);
-
 		return productRepository.findFirstByProductBarcodeAndBusiness_Id(normalizedBarcode, business.getId())
 				.or(() -> productBarcodeRepository.findByUnitCode(normalizedBarcode, business.getId()).map(ProductBarcode::getProduct))
 				.or(() -> productBarcodeRepository.findByBarcode(normalizedBarcode, business.getId()).stream().findFirst().map(ProductBarcode::getProduct))
@@ -430,7 +412,6 @@ public class ProductService {
 			if (product.getStockQuantity() < quantity) {
 				throw new IllegalArgumentException("Not enough stock for product: " + product.getName());
 			}
-
 			product.setStockQuantity(product.getStockQuantity() - quantity);
 		} else {
 			throw new IllegalArgumentException("Unsupported transaction type: " + type);
@@ -474,7 +455,6 @@ public class ProductService {
 		if (!StringUtils.hasText(value)) {
 			throw new IllegalArgumentException(message);
 		}
-
 		return value.trim();
 	}
 
@@ -482,7 +462,6 @@ public class ProductService {
 		if (!StringUtils.hasText(value)) {
 			return null;
 		}
-
 		return value.trim();
 	}
 
@@ -490,47 +469,33 @@ public class ProductService {
 		if (value == null) {
 			throw new IllegalArgumentException(message);
 		}
-
 		return value;
 	}
 
 	private int requireNonNegative(Integer value, String message) {
 		requirePresent(value, message);
-
 		if (value < 0) {
 			throw new IllegalArgumentException(message);
 		}
-
 		return value;
 	}
 
 	private BigDecimal requireNonNegative(BigDecimal value, String message) {
 		requirePresent(value, message);
-
 		if (value.compareTo(BigDecimal.ZERO) < 0) {
 			throw new IllegalArgumentException(message);
 		}
-
 		return value;
 	}
 
-	private BigDecimal moneyWhenEnabled(
-			boolean enabled,
-			BigDecimal value,
-			String requiredMessage,
-			String negativeMessage) {
+	private BigDecimal moneyWhenEnabled(boolean enabled, BigDecimal value, String requiredMessage, String negativeMessage) {
 		if (!enabled) {
 			return BigDecimal.ZERO;
 		}
-
 		return requireNonNegative(requirePresent(value, requiredMessage), negativeMessage);
 	}
 
-	private void sendProductApprovalRequestNotification(
-			Business business,
-			Product product,
-			String actorUsername,
-			long barcodeCount) {
+	private void sendProductApprovalRequestNotification(Business business, Product product, String actorUsername, long barcodeCount) {
 		try {
 			appEmailService.sendProductApprovalRequestEmail(business, product, actorUsername, barcodeCount);
 		} catch (RuntimeException exception) {

@@ -30,6 +30,7 @@ import com.king_sparkon_tracker.backend.model.Product;
 import com.king_sparkon_tracker.backend.model.ProductCategory;
 import com.king_sparkon_tracker.backend.model.ProductStatus;
 import com.king_sparkon_tracker.backend.service.PriceLocalizationService;
+import com.king_sparkon_tracker.backend.service.ProductPageableFactory;
 import com.king_sparkon_tracker.backend.service.ProductPricingService;
 import com.king_sparkon_tracker.backend.service.ProductService;
 
@@ -47,7 +48,7 @@ class ProductControllerTest {
 		priceLocalizationService = mock(PriceLocalizationService.class);
 		when(productPricingService.priceForSale(any(Product.class))).thenReturn(new BigDecimal("20.50"));
 		mockMvc = MockMvcBuilders
-				.standaloneSetup(new ProductController(productService, productPricingService, priceLocalizationService))
+				.standaloneSetup(new ProductController(productService, productPricingService, priceLocalizationService, new ProductPageableFactory()))
 				.setControllerAdvice(new ApiExceptionHandler())
 				.build();
 	}
@@ -159,7 +160,7 @@ class ProductControllerTest {
 
 	@Test
 	void listProductsReturnsProducts() throws Exception {
-		when(productService.listProducts(PageRequest.of(0, 20), "owner")).thenReturn(new PageImpl<>(
+		when(productService.searchProducts(any(), eq("owner"), any(), any(), any())).thenReturn(new PageImpl<>(
 				java.util.List.of(
 						product("Beer", "6001", ProductCategory.Alcohol, 10),
 						product("Water", "6002", ProductCategory.NonAlcohol, 12)),

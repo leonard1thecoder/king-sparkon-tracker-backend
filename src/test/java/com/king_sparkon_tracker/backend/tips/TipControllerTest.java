@@ -36,6 +36,7 @@ import com.king_sparkon_tracker.backend.model.PayoutAccountStatus;
 import com.king_sparkon_tracker.backend.model.SupportedCurrency;
 import com.king_sparkon_tracker.backend.model.TipStatus;
 import com.king_sparkon_tracker.backend.model.TipWithdrawalStatus;
+import com.king_sparkon_tracker.backend.service.AiTipConfirmationService;
 import com.king_sparkon_tracker.backend.service.TipService;
 import com.king_sparkon_tracker.backend.service.TipWithdrawalService;
 
@@ -43,14 +44,16 @@ class TipControllerTest {
 
 	private TipService tipService;
 	private TipWithdrawalService withdrawalService;
+	private AiTipConfirmationService aiTipConfirmationService;
 	private MockMvc mockMvc;
 
 	@BeforeEach
 	void setUp() {
 		tipService = mock(TipService.class);
 		withdrawalService = mock(TipWithdrawalService.class);
+		aiTipConfirmationService = mock(AiTipConfirmationService.class);
 		mockMvc = MockMvcBuilders
-				.standaloneSetup(new TipController(tipService, withdrawalService))
+				.standaloneSetup(new TipController(tipService, withdrawalService, aiTipConfirmationService))
 				.setControllerAdvice(new ApiExceptionHandler())
 				.build();
 	}

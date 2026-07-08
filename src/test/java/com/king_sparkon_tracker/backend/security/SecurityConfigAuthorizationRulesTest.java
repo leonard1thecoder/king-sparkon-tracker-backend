@@ -54,7 +54,7 @@ class SecurityConfigAuthorizationRulesTest {
 
 		String workerTransactionsRule = ".requestMatchers(HttpMethod.GET, \"/api/transactions/me\").hasAuthority(workerAuthority)";
 		String ownerTransactionsRule = ".requestMatchers(HttpMethod.GET, \"/api/transactions\", \"/api/transactions/**\").hasAuthority(ownerAuthority)";
-		String workerTipsRule = ".requestMatchers(HttpMethod.GET, \"/api/tips/me\").hasAuthority(workerAuthority)";
+		String workerTipsRule = ".requestMatchers(HttpMethod.GET, \"/api/tips/me\", \"/api/tips/me/ai-confirm\").hasAuthority(workerAuthority)";
 		String ownerTipsRule = ".requestMatchers(\"/api/tips\", \"/api/tips/**\").hasAuthority(ownerAuthority)";
 
 		assertThat(source).contains(workerTransactionsRule);

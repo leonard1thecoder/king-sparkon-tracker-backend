@@ -18,8 +18,8 @@ class DbReadOnlyLookupSupportTest {
                 .build();
         JdbcTemplate jdbcTemplate = new JdbcTemplate(database);
         jdbcTemplate.execute("CREATE SCHEMA IF NOT EXISTS public");
-        jdbcTemplate.execute("CREATE TABLE public.products (id BIGINT, product_name VARCHAR(80), password_hash VARCHAR(80), status VARCHAR(20))");
-        jdbcTemplate.update("INSERT INTO public.products (id, product_name, password_hash, status) VALUES (1, 'Scanner Pro', 'secret-hash', 'ACTIVE')");
+        jdbcTemplate.execute("CREATE TABLE public.\"products\" (\"id\" BIGINT, \"product_name\" VARCHAR(80), \"password_hash\" VARCHAR(80), \"status\" VARCHAR(20))");
+        jdbcTemplate.update("INSERT INTO public.\"products\" (\"id\", \"product_name\", \"password_hash\", \"status\") VALUES (1, 'Scanner Pro', 'secret-hash', 'ACTIVE')");
 
         DbReadOnlyLookupSupport lookupSupport = new DbReadOnlyLookupSupport(jdbcTemplate);
 
