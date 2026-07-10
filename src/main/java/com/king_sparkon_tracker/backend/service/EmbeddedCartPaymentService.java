@@ -24,9 +24,18 @@ import com.king_sparkon_tracker.backend.model.ProductStatus;
 import com.king_sparkon_tracker.backend.model.TrackerUser;
 import com.king_sparkon_tracker.backend.repository.ProductRepository;
 import com.king_sparkon_tracker.backend.service.StripeService.CreatedEmbeddedPaymentIntent;
+import com.king_sparkon_tracker.backend.tickets.config.TicketProperties;
+import com.king_sparkon_tracker.backend.tickets.domain.TicketBusinessRules;
 import com.king_sparkon_tracker.backend.tickets.dto.TicketDtos.PurchaseTicketsRequest;
 import com.king_sparkon_tracker.backend.tickets.dto.TicketDtos.TicketPurchaseResponse;
+import com.king_sparkon_tracker.backend.tickets.model.EventTicketType;
+import com.king_sparkon_tracker.backend.tickets.model.TicketEvent;
+import com.king_sparkon_tracker.backend.tickets.model.TicketEventStatus;
+import com.king_sparkon_tracker.backend.tickets.model.TicketPayment;
+import com.king_sparkon_tracker.backend.tickets.model.TicketPaymentStatus;
 import com.king_sparkon_tracker.backend.tickets.model.TicketType;
+import com.king_sparkon_tracker.backend.tickets.repository.TicketEventRepository;
+import com.king_sparkon_tracker.backend.tickets.repository.TicketPaymentRepository;
 import com.king_sparkon_tracker.backend.tickets.service.TicketManagementService;
 import com.stripe.model.PaymentIntent;
 
@@ -43,6 +52,9 @@ public class EmbeddedCartPaymentService {
 	private final TuckShopService tuckShopService;
 	private final TransactionService transactionService;
 	private final TicketManagementService ticketManagementService;
+	private final TicketEventRepository ticketEventRepository;
+	private final TicketPaymentRepository ticketPaymentRepository;
+	private final TicketProperties ticketProperties;
 	private final TrackerUserService trackerUserService;
 
 	public EmbeddedCartPaymentService(
@@ -52,6 +64,9 @@ public class EmbeddedCartPaymentService {
 			TuckShopService tuckShopService,
 			TransactionService transactionService,
 			TicketManagementService ticketManagementService,
+			TicketEventRepository ticketEventRepository,
+			TicketPaymentRepository ticketPaymentRepository,
+			TicketProperties ticketProperties,
 			TrackerUserService trackerUserService) {
 		this.stripeService = stripeService;
 		this.productRepository = productRepository;
@@ -59,6 +74,9 @@ public class EmbeddedCartPaymentService {
 		this.tuckShopService = tuckShopService;
 		this.transactionService = transactionService;
 		this.ticketManagementService = ticketManagementService;
+		this.ticketEventRepository = ticketEventRepository;
+		this.ticketPaymentRepository = ticketPaymentRepository;
+		this.ticketProperties = ticketProperties;
 		this.trackerUserService = trackerUserService;
 	}
 
@@ -182,7 +200,11 @@ public class EmbeddedCartPaymentService {
 					item.quantity(),
 					null));
 			String ticketPaymentId = purchase.payment().id();
-			ticketManagementService.handleEmbeddedPaymentSucceeded(ticketPaymentId, paymentIntentId);
+			TicketPayment ticketPayment = ticketPaymentRepository.findById(ticketPaymentId)
+					.orElseThrow(() -> new ResourceNotFoundException("Ticket payment not found: " + ticketPaymentId));
+			ticketPayment.setStatus(TicketPaymentStatus.SUCCESS);
+			ticketPayment.setPaymentReference(paymentIntentId);
+			ticketPaymentRepository.save(ticketPayment);
 			paymentIds.add(ticketPaymentId);
 		}
 		return paymentIds;
@@ -199,9 +221,25 @@ public class EmbeddedCartPaymentService {
 			total = total.add(productPricingService.priceForSale(product).multiply(BigDecimal.valueOf(quantity)));
 		}
 		for (TicketItem item : safeTickets(request)) {
-			total = total.add(ticketManagementService.quotePurchaseTotal(item.eventId(), item.ticketType(), item.quantity()));
+			total = total.add(quoteTicket(item));
 		}
 		return total.setScale(2, RoundingMode.HALF_UP);
+	}
+
+	private BigDecimal quoteTicket(TicketItem item) {
+		TicketEvent event = ticketEventRepository.findById(item.eventId())
+				.orElseThrow(() -> new ResourceNotFoundException("Ticket event not found: " + item.eventId()));
+		if (event.getStatus() != TicketEventStatus.PUBLISHED) {
+			throw new IllegalArgumentException("Ticket event is not published: " + event.getName());
+		}
+		EventTicketType ticketType = event.getTicketTypes().stream()
+				.filter(candidate -> candidate.getType() == item.ticketType())
+				.findFirst()
+				.orElseThrow(() -> new IllegalArgumentException("Ticket type is unavailable for event: " + event.getName()));
+		TicketBusinessRules.requirePurchaseCapacity(ticketType.getCapacity(), ticketType.getSold(), item.quantity());
+		BigDecimal subtotal = TicketBusinessRules.money(ticketType.getPrice().multiply(BigDecimal.valueOf(item.quantity())));
+		BigDecimal fee = TicketBusinessRules.calculatePercentAmount(subtotal, ticketProperties.checkoutServiceFeePercent());
+		return TicketBusinessRules.money(subtotal.add(fee));
 	}
 
 	private Map<String, String> paymentMetadata(CreateRequest request, String actorUsername, TrackerUser actor) {
