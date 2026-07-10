@@ -56,3 +56,5 @@ jobs:
 
       - name: Compile backend
         run: ./mvnw --batch-mode --no-transfer-progress -DskipTests compile
+
+# Verification-only branch change to force an inspectable pull-request compile run.
