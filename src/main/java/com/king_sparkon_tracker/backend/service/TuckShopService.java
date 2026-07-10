@@ -36,7 +36,6 @@ import com.king_sparkon_tracker.backend.model.ProductCategory;
 import com.king_sparkon_tracker.backend.model.ProductStatus;
 import com.king_sparkon_tracker.backend.model.TrackerUser;
 import com.king_sparkon_tracker.backend.model.TransactionItem;
-import com.king_sparkon_tracker.backend.model.TransactionPaymentType;
 import com.king_sparkon_tracker.backend.model.TransactionType;
 import com.king_sparkon_tracker.backend.repository.InventoryTransactionRepository;
 import com.king_sparkon_tracker.backend.repository.ProductBarcodeRepository;
@@ -95,7 +94,7 @@ public class TuckShopService {
 
 	public TuckShopPurchaseResponse createSelfServicePurchase(CreateTuckShopPurchaseRequest request, String actorUsername) {
 		TrackerUser customer = userService.getUserByUsername(actorUsername);
-		InventoryTransaction transaction = createPurchaseTransaction(request, customer, false, actorUsername);
+		InventoryTransaction transaction = createPurchaseTransaction(request, customer, false, actorUsername, true, null);
 		TipResponse tip = createSeparateWorkerTipIfRequested(request, transaction);
 		return TuckShopPurchaseResponse.from(transaction, tip);
 	}
@@ -103,16 +102,36 @@ public class TuckShopService {
 	public TuckShopPurchaseResponse createWorkerBarcodePurchase(CreateTuckShopPurchaseRequest request, String actorUsername) {
 		TrackerUser worker = userService.getUserByUsername(actorUsername);
 		requireRole(worker, PrivilegeRole.Worker, "Only workers can create barcode tuck shop purchases");
-		InventoryTransaction transaction = createPurchaseTransaction(request, worker, true, actorUsername);
+		InventoryTransaction transaction = createPurchaseTransaction(request, worker, true, actorUsername, true, null);
 		TipResponse tip = createSeparateWorkerTipIfRequested(request, transaction);
 		return TuckShopPurchaseResponse.from(transaction, tip);
+	}
+
+	public TuckShopPurchaseResponse createEmbeddedPaymentPurchase(
+			CreateTuckShopPurchaseRequest request,
+			String actorUsername,
+			String paymentIntentId) {
+		if (!StringUtils.hasText(paymentIntentId)) {
+			throw new IllegalArgumentException("Stripe PaymentIntent id is required for embedded fulfilment");
+		}
+		TrackerUser customer = userService.getUserByUsername(actorUsername);
+		InventoryTransaction transaction = createPurchaseTransaction(
+				request,
+				customer,
+				false,
+				actorUsername,
+				false,
+				paymentIntentId.trim());
+		return TuckShopPurchaseResponse.from(transaction, null);
 	}
 
 	private InventoryTransaction createPurchaseTransaction(
 			CreateTuckShopPurchaseRequest request,
 			TrackerUser actor,
 			boolean requireScannedUnitCodes,
-			String actorUsername) {
+			String actorUsername,
+			boolean createHostedPaymentLink,
+			String embeddedPaymentReference) {
 		List<TuckShopPurchaseItemRequest> itemRequests = requireItems(request.items());
 		Map<Long, Product> lockedProducts = lockProducts(itemRequests);
 		Business business = singleBusiness(lockedProducts.values());
@@ -141,12 +160,16 @@ public class TuckShopService {
 		}
 
 		InventoryTransaction savedTransaction = transactionRepository.save(transaction);
-		CreatedTransactionPaymentLink paymentLink = stripeService.createTransactionPaymentLink(savedTransaction);
-		savedTransaction.markWebsitePaymentPending(paymentEmail, paymentContact, paymentLink.stripeId(), paymentLink.paymentUrl());
+		if (createHostedPaymentLink) {
+			CreatedTransactionPaymentLink paymentLink = stripeService.createTransactionPaymentLink(savedTransaction);
+			savedTransaction.markWebsitePaymentPending(paymentEmail, paymentContact, paymentLink.stripeId(), paymentLink.paymentUrl());
+		} else {
+			savedTransaction.markWebsitePaymentPending(paymentEmail, paymentContact, embeddedPaymentReference, null);
+		}
 		savedTransaction = transactionRepository.save(savedTransaction);
 
 		auditLogService.record(
-				"TUCK_SHOP_PURCHASE_CREATED",
+				createHostedPaymentLink ? "TUCK_SHOP_PURCHASE_CREATED" : "TUCK_SHOP_EMBEDDED_PURCHASE_CREATED",
 				"InventoryTransaction",
 				String.valueOf(savedTransaction.getId()),
 				actorUsername,
@@ -154,13 +177,14 @@ public class TuckShopService {
 				business);
 
 		log.info(
-				"tuck_shop_purchase_created transactionId={} businessId={} actor={} workerId={} itemCount={} total={}",
+				"tuck_shop_purchase_created transactionId={} businessId={} actor={} workerId={} itemCount={} total={} embedded={}",
 				savedTransaction.getId(),
 				business.getId(),
 				actorUsername,
 				worker.getId(),
 				savedTransaction.getItems().size(),
-				savedTransaction.getTotalAmount());
+				savedTransaction.getTotalAmount(),
+				!createHostedPaymentLink);
 
 		return savedTransaction;
 	}
