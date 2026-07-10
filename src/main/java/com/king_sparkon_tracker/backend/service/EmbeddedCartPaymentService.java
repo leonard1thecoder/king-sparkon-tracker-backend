@@ -7,7 +7,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,6 +21,7 @@ import com.king_sparkon_tracker.backend.dto.TuckShopPurchaseResponse;
 import com.king_sparkon_tracker.backend.exception.ResourceNotFoundException;
 import com.king_sparkon_tracker.backend.model.InventoryTransaction;
 import com.king_sparkon_tracker.backend.model.Product;
+import com.king_sparkon_tracker.backend.model.ProductBarcodeAvailabilityStatus;
 import com.king_sparkon_tracker.backend.model.ProductStatus;
 import com.king_sparkon_tracker.backend.model.TrackerUser;
 import com.king_sparkon_tracker.backend.model.TransactionPaymentStatus;
@@ -186,10 +186,7 @@ public class EmbeddedCartPaymentService {
 
 	private int expectedProductTransactionCount(List<TuckShopPurchaseItemRequest> items) {
 		return (int) items.stream()
-				.map(item -> requireProduct(item.productId()))
-				.map(Product::getBusiness)
-				.filter(Objects::nonNull)
-				.map(business -> business.getId())
+				.map(item -> requireBusinessId(requireProduct(item.productId())))
 				.distinct()
 				.count();
 	}
@@ -210,10 +207,7 @@ public class EmbeddedCartPaymentService {
 		Map<Long, List<TuckShopPurchaseItemRequest>> byBusiness = new LinkedHashMap<>();
 		for (TuckShopPurchaseItemRequest item : productItems(metadata)) {
 			Product product = requireProduct(item.productId());
-			Long businessId = product.getBusiness() == null ? null : product.getBusiness().getId();
-			if (businessId == null) {
-				throw new IllegalArgumentException("Every cart product must belong to a business");
-			}
+			Long businessId = requireBusinessId(product);
 			byBusiness.computeIfAbsent(businessId, ignored -> new ArrayList<>()).add(item);
 		}
 
@@ -252,15 +246,33 @@ public class EmbeddedCartPaymentService {
 		for (TuckShopPurchaseItemRequest item : safeProducts(request)) {
 			Product product = requireProduct(item.productId());
 			int quantity = requirePositive(item.quantity());
-			if (product.getStatus() != ProductStatus.CREATED || product.getStockQuantity() < quantity) {
-				throw new IllegalArgumentException("Product is unavailable or has insufficient stock: " + product.getName());
-			}
+			requireProductReadyForPayment(product, quantity);
 			total = total.add(productPricingService.priceForSale(product).multiply(BigDecimal.valueOf(quantity)));
 		}
 		for (TicketItem item : safeTickets(request)) {
 			total = total.add(quoteTicket(item));
 		}
 		return total.setScale(2, RoundingMode.HALF_UP);
+	}
+
+	private void requireProductReadyForPayment(Product product, int quantity) {
+		if (product.getStatus() != ProductStatus.CREATED || product.getStockQuantity() < quantity) {
+			throw new IllegalArgumentException("Product is unavailable or has insufficient stock: " + product.getName());
+		}
+		requireBusinessId(product);
+		long availableUnits = product.getBarcodes().stream()
+				.filter(barcode -> barcode.getAvailabilityStatus() == ProductBarcodeAvailabilityStatus.AVAILABLE)
+				.count();
+		if (availableUnits < quantity) {
+			throw new IllegalArgumentException("Product does not have enough available barcode units: " + product.getName());
+		}
+	}
+
+	private Long requireBusinessId(Product product) {
+		if (product.getBusiness() == null || product.getBusiness().getId() == null || product.getBusiness().getOwner() == null) {
+			throw new IllegalArgumentException("Product must belong to a business with an owner: " + product.getName());
+		}
+		return product.getBusiness().getId();
 	}
 
 	private BigDecimal quoteTicket(TicketItem item) {
