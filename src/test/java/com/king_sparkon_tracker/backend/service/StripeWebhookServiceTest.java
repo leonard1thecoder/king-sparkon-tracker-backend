@@ -9,6 +9,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import java.util.Optional;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -23,12 +25,19 @@ import com.king_sparkon_tracker.backend.repository.StripeWebhookEventRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.stripe.exception.SignatureVerificationException;
 import com.stripe.model.Event;
+import com.stripe.model.PaymentIntent;
 
 @ExtendWith(MockitoExtension.class)
 class StripeWebhookServiceTest {
 
 	@Mock
 	private StripeBillingClient stripeBillingClient;
+
+	@Mock
+	private StripeService stripeService;
+
+	@Mock
+	private EmbeddedCartPaymentService embeddedCartPaymentService;
 
 	@Mock
 	private BusinessBillingService businessBillingService;
@@ -48,6 +57,8 @@ class StripeWebhookServiceTest {
 	void setUp() {
 		service = new StripeWebhookService(
 				stripeBillingClient,
+				stripeService,
+				embeddedCartPaymentService,
 				businessBillingService,
 				transactionService,
 				billingAuditService,
@@ -59,7 +70,7 @@ class StripeWebhookServiceTest {
 	void processVerifiedCheckoutSessionCompleted() throws Exception {
 		Event event = stripeEvent("evt_1", "checkout.session.completed");
 		when(stripeBillingClient.constructEvent(any(), eq("sig_header"))).thenReturn(event);
-		when(eventRepository.existsByStripeEventId("evt_1")).thenReturn(false);
+		when(eventRepository.findByStripeEventId("evt_1")).thenReturn(Optional.empty());
 		when(eventRepository.save(any(StripeWebhookEvent.class)))
 				.thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -77,7 +88,7 @@ class StripeWebhookServiceTest {
 	void processPaymentIntentSucceededMarksWebsitePaymentTransactionPaid() throws Exception {
 		Event event = stripeEvent("evt_txn_paid", "payment_intent.succeeded");
 		when(stripeBillingClient.constructEvent(any(), eq("sig_header"))).thenReturn(event);
-		when(eventRepository.existsByStripeEventId("evt_txn_paid")).thenReturn(false);
+		when(eventRepository.findByStripeEventId("evt_txn_paid")).thenReturn(Optional.empty());
 		when(eventRepository.save(any(StripeWebhookEvent.class)))
 				.thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -104,10 +115,44 @@ class StripeWebhookServiceTest {
 	}
 
 	@Test
+	void processEmbeddedCartPaymentIntentSucceededDispatchesVerifiedFulfilment() throws Exception {
+		Event event = stripeEvent("evt_cart_paid", "payment_intent.succeeded");
+		PaymentIntent paymentIntent = mock(PaymentIntent.class);
+		when(stripeBillingClient.constructEvent(any(), eq("sig_header"))).thenReturn(event);
+		when(eventRepository.findByStripeEventId("evt_cart_paid")).thenReturn(Optional.empty());
+		when(eventRepository.save(any(StripeWebhookEvent.class)))
+				.thenAnswer(invocation -> invocation.getArgument(0));
+		when(stripeService.retrievePaymentIntent("pi_cart_123")).thenReturn(paymentIntent);
+
+		StripeWebhookResponse response = service.process(
+				"""
+				{
+				  "id": "evt_cart_paid",
+				  "type": "payment_intent.succeeded",
+				  "data": {
+				    "object": {
+				      "id": "pi_cart_123",
+				      "metadata": {
+				        "embeddedCart": "true"
+				      }
+				    }
+				  }
+				}
+				""",
+				"sig_header");
+
+		assertThat(response.status()).isEqualTo(StripeWebhookProcessingStatus.PROCESSED);
+		verify(embeddedCartPaymentService).handlePaymentIntentSucceeded(paymentIntent, "evt_cart_paid");
+		verifyNoInteractions(transactionService, businessBillingService);
+	}
+
+	@Test
 	void processDuplicateSkipsBusinessHandling() throws Exception {
 		Event event = stripeEvent("evt_1", "invoice.payment_succeeded");
+		StripeWebhookEvent existing = mock(StripeWebhookEvent.class);
+		when(existing.getStatus()).thenReturn(StripeWebhookProcessingStatus.PROCESSED);
 		when(stripeBillingClient.constructEvent(any(), eq("sig_header"))).thenReturn(event);
-		when(eventRepository.existsByStripeEventId("evt_1")).thenReturn(true);
+		when(eventRepository.findByStripeEventId("evt_1")).thenReturn(Optional.of(existing));
 
 		StripeWebhookResponse response = service.process(
 				invoicePayload("evt_1", "invoice.payment_succeeded", "sub_live_123"),
@@ -147,7 +192,7 @@ class StripeWebhookServiceTest {
 	void processPaymentFailedDispatchesToBillingService() throws Exception {
 		Event event = stripeEvent("evt_failed", "invoice.payment_failed");
 		when(stripeBillingClient.constructEvent(any(), eq("sig_header"))).thenReturn(event);
-		when(eventRepository.existsByStripeEventId("evt_failed")).thenReturn(false);
+		when(eventRepository.findByStripeEventId("evt_failed")).thenReturn(Optional.empty());
 		when(eventRepository.save(any(StripeWebhookEvent.class)))
 				.thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -163,7 +208,7 @@ class StripeWebhookServiceTest {
 	void processUnknownEventStoresAndIgnoresIt() throws Exception {
 		Event event = stripeEvent("evt_unknown", "charge.succeeded");
 		when(stripeBillingClient.constructEvent(any(), eq("sig_header"))).thenReturn(event);
-		when(eventRepository.existsByStripeEventId("evt_unknown")).thenReturn(false);
+		when(eventRepository.findByStripeEventId("evt_unknown")).thenReturn(Optional.empty());
 		when(eventRepository.save(any(StripeWebhookEvent.class)))
 				.thenAnswer(invocation -> invocation.getArgument(0));
 
