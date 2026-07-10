@@ -81,12 +81,21 @@ public class StripeWebhookService {
 			return new StripeWebhookResponse(null, eventType, stripeSubscriptionId, StripeWebhookProcessingStatus.FAILED, "Stripe webhook event id is missing");
 		}
 
-		if (eventRepository.existsByStripeEventId(eventId)) {
-			log.info("stripe_webhook_duplicate_skipped eventId={} type={} stripeSubscriptionId={}", eventId, eventType, stripeSubscriptionId);
-			return new StripeWebhookResponse(eventId, eventType, stripeSubscriptionId, StripeWebhookProcessingStatus.DUPLICATE, "Duplicate Stripe webhook skipped");
+		StripeWebhookEvent webhookEvent = eventRepository.findByStripeEventId(eventId).orElse(null);
+		if (webhookEvent != null) {
+			StripeWebhookProcessingStatus existingStatus = webhookEvent.getStatus();
+			boolean retryable = existingStatus == StripeWebhookProcessingStatus.FAILED
+					|| existingStatus == StripeWebhookProcessingStatus.SIGNATURE_FAILED;
+			if (!retryable) {
+				log.info("stripe_webhook_duplicate_skipped eventId={} type={} stripeSubscriptionId={} status={}", eventId, eventType, stripeSubscriptionId, existingStatus);
+				return new StripeWebhookResponse(eventId, eventType, stripeSubscriptionId, StripeWebhookProcessingStatus.DUPLICATE, "Duplicate Stripe webhook skipped");
+			}
+			webhookEvent.receivedForRetry();
+			webhookEvent = eventRepository.save(webhookEvent);
+			log.info("stripe_webhook_retry_started eventId={} type={} previousStatus={}", eventId, eventType, existingStatus);
+		} else {
+			webhookEvent = eventRepository.save(new StripeWebhookEvent(eventId, eventType, stripeSubscriptionId, rawPayload));
 		}
-
-		StripeWebhookEvent webhookEvent = eventRepository.save(new StripeWebhookEvent(eventId, eventType, stripeSubscriptionId, rawPayload));
 
 		try {
 			boolean handled = handleEvent(eventType, object, eventId);
