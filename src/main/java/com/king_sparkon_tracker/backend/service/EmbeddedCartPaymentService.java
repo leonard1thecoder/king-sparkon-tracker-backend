@@ -26,17 +26,11 @@ import com.king_sparkon_tracker.backend.repository.ProductRepository;
 import com.king_sparkon_tracker.backend.service.StripeService.CreatedEmbeddedPaymentIntent;
 import com.king_sparkon_tracker.backend.tickets.config.TicketProperties;
 import com.king_sparkon_tracker.backend.tickets.domain.TicketBusinessRules;
-import com.king_sparkon_tracker.backend.tickets.dto.TicketDtos.PurchaseTicketsRequest;
-import com.king_sparkon_tracker.backend.tickets.dto.TicketDtos.TicketPurchaseResponse;
 import com.king_sparkon_tracker.backend.tickets.model.EventTicketType;
 import com.king_sparkon_tracker.backend.tickets.model.TicketEvent;
 import com.king_sparkon_tracker.backend.tickets.model.TicketEventStatus;
-import com.king_sparkon_tracker.backend.tickets.model.TicketPayment;
-import com.king_sparkon_tracker.backend.tickets.model.TicketPaymentStatus;
 import com.king_sparkon_tracker.backend.tickets.model.TicketType;
 import com.king_sparkon_tracker.backend.tickets.repository.TicketEventRepository;
-import com.king_sparkon_tracker.backend.tickets.repository.TicketPaymentRepository;
-import com.king_sparkon_tracker.backend.tickets.service.TicketManagementService;
 import com.stripe.model.PaymentIntent;
 
 @Service
@@ -51,9 +45,8 @@ public class EmbeddedCartPaymentService {
 	private final ProductPricingService productPricingService;
 	private final TuckShopService tuckShopService;
 	private final TransactionService transactionService;
-	private final TicketManagementService ticketManagementService;
+	private final EmbeddedTicketFulfilmentService embeddedTicketFulfilmentService;
 	private final TicketEventRepository ticketEventRepository;
-	private final TicketPaymentRepository ticketPaymentRepository;
 	private final TicketProperties ticketProperties;
 	private final TrackerUserService trackerUserService;
 
@@ -63,9 +56,8 @@ public class EmbeddedCartPaymentService {
 			ProductPricingService productPricingService,
 			TuckShopService tuckShopService,
 			TransactionService transactionService,
-			TicketManagementService ticketManagementService,
+			EmbeddedTicketFulfilmentService embeddedTicketFulfilmentService,
 			TicketEventRepository ticketEventRepository,
-			TicketPaymentRepository ticketPaymentRepository,
 			TicketProperties ticketProperties,
 			TrackerUserService trackerUserService) {
 		this.stripeService = stripeService;
@@ -73,9 +65,8 @@ public class EmbeddedCartPaymentService {
 		this.productPricingService = productPricingService;
 		this.tuckShopService = tuckShopService;
 		this.transactionService = transactionService;
-		this.ticketManagementService = ticketManagementService;
+		this.embeddedTicketFulfilmentService = embeddedTicketFulfilmentService;
 		this.ticketEventRepository = ticketEventRepository;
-		this.ticketPaymentRepository = ticketPaymentRepository;
 		this.ticketProperties = ticketProperties;
 		this.trackerUserService = trackerUserService;
 	}
@@ -174,9 +165,10 @@ public class EmbeddedCartPaymentService {
 
 		List<Long> transactionIds = new ArrayList<>();
 		for (List<TuckShopPurchaseItemRequest> items : byBusiness.values()) {
-			TuckShopPurchaseResponse purchase = tuckShopService.createSelfServicePurchase(
+			TuckShopPurchaseResponse purchase = tuckShopService.createEmbeddedPaymentPurchase(
 					new CreateTuckShopPurchaseRequest(buyerEmail, buyerEmail, null, null, null, items),
-					actorUsername);
+					actorUsername,
+					paymentIntentId);
 			transactionService.handleWebsitePaymentSucceeded(purchase.transactionId(), paymentIntentId, stripeEventId);
 			transactionIds.add(purchase.transactionId());
 		}
@@ -191,21 +183,12 @@ public class EmbeddedCartPaymentService {
 			String paymentIntentId) {
 		List<String> paymentIds = new ArrayList<>();
 		for (TicketItem item : ticketItems(metadata)) {
-			TicketPurchaseResponse purchase = ticketManagementService.purchaseTickets(new PurchaseTicketsRequest(
-					item.eventId(),
-					String.valueOf(actor.getId()),
+			paymentIds.add(embeddedTicketFulfilmentService.fulfil(
+					item,
+					actor,
 					buyerName,
 					buyerEmail,
-					item.ticketType(),
-					item.quantity(),
-					null));
-			String ticketPaymentId = purchase.payment().id();
-			TicketPayment ticketPayment = ticketPaymentRepository.findById(ticketPaymentId)
-					.orElseThrow(() -> new ResourceNotFoundException("Ticket payment not found: " + ticketPaymentId));
-			ticketPayment.setStatus(TicketPaymentStatus.SUCCESS);
-			ticketPayment.setPaymentReference(paymentIntentId);
-			ticketPaymentRepository.save(ticketPayment);
-			paymentIds.add(ticketPaymentId);
+					paymentIntentId));
 		}
 		return paymentIds;
 	}
