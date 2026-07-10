@@ -1,0 +1,54 @@
+name: Embedded Stripe Payment CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/main/java/com/king_sparkon_tracker/backend/controller/EmbeddedCartPaymentController.java"
+      - "src/main/java/com/king_sparkon_tracker/backend/controller/StripeWebhookController.java"
+      - "src/main/java/com/king_sparkon_tracker/backend/dto/EmbeddedCartPaymentDtos.java"
+      - "src/main/java/com/king_sparkon_tracker/backend/dto/TuckShopPurchaseResponse.java"
+      - "src/main/java/com/king_sparkon_tracker/backend/model/StripeWebhookEvent.java"
+      - "src/main/java/com/king_sparkon_tracker/backend/repository/StripeWebhookEventRepository.java"
+      - "src/main/java/com/king_sparkon_tracker/backend/service/EmbeddedCartPaymentService.java"
+      - "src/main/java/com/king_sparkon_tracker/backend/service/StripeService.java"
+      - "src/main/java/com/king_sparkon_tracker/backend/service/StripeWebhookService.java"
+      - "pom.xml"
+      - ".github/workflows/stripe-embedded-payment-ci.yml"
+  pull_request:
+    paths:
+      - "src/main/java/com/king_sparkon_tracker/backend/controller/EmbeddedCartPaymentController.java"
+      - "src/main/java/com/king_sparkon_tracker/backend/controller/StripeWebhookController.java"
+      - "src/main/java/com/king_sparkon_tracker/backend/dto/EmbeddedCartPaymentDtos.java"
+      - "src/main/java/com/king_sparkon_tracker/backend/dto/TuckShopPurchaseResponse.java"
+      - "src/main/java/com/king_sparkon_tracker/backend/model/StripeWebhookEvent.java"
+      - "src/main/java/com/king_sparkon_tracker/backend/repository/StripeWebhookEventRepository.java"
+      - "src/main/java/com/king_sparkon_tracker/backend/service/EmbeddedCartPaymentService.java"
+      - "src/main/java/com/king_sparkon_tracker/backend/service/StripeService.java"
+      - "src/main/java/com/king_sparkon_tracker/backend/service/StripeWebhookService.java"
+      - "pom.xml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: embedded-stripe-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: maven
+
+      - name: Compile backend
+        run: ./mvnw --batch-mode --no-transfer-progress -DskipTests compile
