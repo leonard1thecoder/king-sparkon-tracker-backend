@@ -42,6 +42,39 @@ public record TuckShopPurchaseResponse(
 		@Schema(description = "Purchased items.")
 		List<TuckShopPurchaseItemResponse> items
 ) {
+	public TuckShopPurchaseResponse(
+			Long transactionId,
+			Long businessId,
+			String businessName,
+			Long workerId,
+			Long ownerId,
+			BigDecimal productTotal,
+			TransactionPaymentStatus paymentStatus,
+			TransactionPaymentType paymentType,
+			String paymentReference,
+			String paymentUrl,
+			String paymentQrCodeUrl,
+			TipResponse tip,
+			LocalDateTime createdAt,
+			List<TuckShopPurchaseItemResponse> items) {
+		this(
+				transactionId,
+				businessId,
+				businessName,
+				workerId,
+				ownerId,
+				productTotal,
+				paymentStatus,
+				paymentType,
+				paymentReference,
+				paymentUrl,
+				paymentQrCodeUrl,
+				null,
+				tip,
+				createdAt,
+				items);
+	}
+
 	public static TuckShopPurchaseResponse from(InventoryTransaction transaction, TipResponse tip) {
 		return from(transaction, tip, null);
 	}
