@@ -13,6 +13,7 @@ import org.springframework.data.repository.query.Param;
 public interface TicketPaymentRepository extends JpaRepository<TicketPayment, String> {
     List<TicketPayment> findByEventIdIn(Collection<String> eventIds);
     Optional<TicketPayment> findByPaymentReference(String paymentReference);
+    List<TicketPayment> findAllByPaymentReferenceOrderByCreatedAtAsc(String paymentReference);
 
     @Query("select coalesce(sum(payment.totalAmount), 0) from TicketPayment payment where payment.eventId in :eventIds and payment.status = :status")
     BigDecimal sumSuccessfulPaymentsByEventIds(@Param("eventIds") Collection<String> eventIds, @Param("status") TicketPaymentStatus status);
