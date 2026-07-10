@@ -74,8 +74,15 @@ public class StripeWebhookEvent {
 		}
 	}
 
+	public void receivedForRetry() {
+		this.status = StripeWebhookProcessingStatus.RECEIVED;
+		this.failureReason = null;
+		this.processedDate = null;
+	}
+
 	public void processed() {
 		this.status = StripeWebhookProcessingStatus.PROCESSED;
+		this.failureReason = null;
 		this.processedDate = LocalDateTime.now();
 	}
 
@@ -86,6 +93,7 @@ public class StripeWebhookEvent {
 
 	public void ignored() {
 		this.status = StripeWebhookProcessingStatus.IGNORED;
+		this.failureReason = null;
 		this.processedDate = LocalDateTime.now();
 	}
 
