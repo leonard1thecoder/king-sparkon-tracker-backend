@@ -54,7 +54,7 @@ public class StripeService {
 				builder.setReceiptEmail(receiptEmail.trim().toLowerCase());
 			}
 
-			RequestOptions.Builder requestOptions = RequestOptions.builder().setApiKey(apiKey);
+			var requestOptions = RequestOptions.builder().setApiKey(apiKey);
 			if (idempotencyKey != null && !idempotencyKey.isBlank()) {
 				requestOptions.setIdempotencyKey(idempotencyKey.trim());
 			}
