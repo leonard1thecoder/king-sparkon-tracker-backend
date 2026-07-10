@@ -19,27 +19,30 @@ import com.king_sparkon_tracker.backend.model.TransactionType;
 public interface InventoryTransactionRepository extends JpaRepository<InventoryTransaction, Long> {
 
 	@Override
-	@EntityGraph(attributePaths = { "employee", "owner", "items", "items.product", "items.barcodes" })
+	@EntityGraph(attributePaths = { "employee", "owner", "business", "items", "items.product", "items.barcodes" })
 	List<InventoryTransaction> findAll();
 
 	@Override
-	@EntityGraph(attributePaths = { "employee", "owner", "items", "items.product", "items.barcodes" })
+	@EntityGraph(attributePaths = { "employee", "owner", "business", "items", "items.product", "items.barcodes" })
 	Page<InventoryTransaction> findAll(Pageable pageable);
 
-	@EntityGraph(attributePaths = { "employee", "owner", "items", "items.product", "items.barcodes" })
+	@EntityGraph(attributePaths = { "employee", "owner", "business", "items", "items.product", "items.barcodes" })
 	Page<InventoryTransaction> findByBusiness_Id(Long businessId, Pageable pageable);
 
-	@EntityGraph(attributePaths = { "employee", "owner", "items", "items.product", "items.barcodes" })
+	@EntityGraph(attributePaths = { "employee", "owner", "business", "items", "items.product", "items.barcodes" })
 	Page<InventoryTransaction> findByEmployee_IdAndBusiness_Id(Long employeeId, Long businessId, Pageable pageable);
 
 	@Override
-	@EntityGraph(attributePaths = { "employee", "owner", "items", "items.product", "items.barcodes" })
+	@EntityGraph(attributePaths = { "employee", "owner", "business", "items", "items.product", "items.barcodes" })
 	Optional<InventoryTransaction> findById(Long id);
 
-	@EntityGraph(attributePaths = { "employee", "owner", "items", "items.product", "items.barcodes" })
+	@EntityGraph(attributePaths = { "employee", "owner", "business", "items", "items.product", "items.barcodes" })
 	Optional<InventoryTransaction> findByIdAndBusiness_Id(Long id, Long businessId);
 
-	@EntityGraph(attributePaths = { "employee", "owner", "items", "items.product", "items.barcodes" })
+	@EntityGraph(attributePaths = { "employee", "owner", "business", "items", "items.product", "items.barcodes" })
+	List<InventoryTransaction> findByPaymentReferenceOrderByIdAsc(String paymentReference);
+
+	@EntityGraph(attributePaths = { "employee", "owner", "business", "items", "items.product", "items.barcodes" })
 	List<InventoryTransaction> findByBusiness_IdAndTypeAndPaymentTypeAndPaymentStatusAndTransactionWithdrawalIdIsNullAndDateLessThanEqualOrderByDateAsc(
 			Long businessId,
 			TransactionType type,
@@ -47,7 +50,7 @@ public interface InventoryTransactionRepository extends JpaRepository<InventoryT
 			TransactionPaymentStatus paymentStatus,
 			LocalDateTime availableBefore);
 
-	@EntityGraph(attributePaths = { "employee", "owner", "items", "items.product", "items.barcodes" })
+	@EntityGraph(attributePaths = { "employee", "owner", "business", "items", "items.product", "items.barcodes" })
 	@Query("""
 			select it
 			from InventoryTransaction it
