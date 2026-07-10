@@ -22,6 +22,8 @@ public class StripeWebhookService {
 	private static final Logger log = LoggerFactory.getLogger(StripeWebhookService.class);
 
 	private final StripeBillingClient stripeBillingClient;
+	private final StripeService stripeService;
+	private final EmbeddedCartPaymentService embeddedCartPaymentService;
 	private final BusinessBillingService businessBillingService;
 	private final TransactionService transactionService;
 	private final BillingAuditService billingAuditService;
@@ -30,12 +32,16 @@ public class StripeWebhookService {
 
 	public StripeWebhookService(
 			StripeBillingClient stripeBillingClient,
+			StripeService stripeService,
+			EmbeddedCartPaymentService embeddedCartPaymentService,
 			BusinessBillingService businessBillingService,
 			TransactionService transactionService,
 			BillingAuditService billingAuditService,
 			StripeWebhookEventRepository eventRepository,
 			ObjectMapper objectMapper) {
 		this.stripeBillingClient = stripeBillingClient;
+		this.stripeService = stripeService;
+		this.embeddedCartPaymentService = embeddedCartPaymentService;
 		this.businessBillingService = businessBillingService;
 		this.transactionService = transactionService;
 		this.billingAuditService = billingAuditService;
@@ -48,13 +54,7 @@ public class StripeWebhookService {
 		try {
 			payload = objectMapper.readTree(rawPayload);
 		} catch (Exception exception) {
-			return new StripeWebhookResponse(
-					null,
-					null,
-					null,
-					StripeWebhookProcessingStatus.FAILED,
-					"Stripe webhook payload is not valid JSON"
-			);
+			return new StripeWebhookResponse(null, null, null, StripeWebhookProcessingStatus.FAILED, "Stripe webhook payload is not valid JSON");
 		}
 
 		String eventId = text(payload, "id");
@@ -74,82 +74,37 @@ public class StripeWebhookService {
 			return signatureFailed(eventId, eventType, stripeSubscriptionId, rawPayload, "Stripe webhook signature verification failed");
 		} catch (RuntimeException exception) {
 			log.warn("stripe_webhook_verification_failed eventId={} type={} reason={}", eventId, eventType, exception.getMessage());
-			return new StripeWebhookResponse(
-					eventId,
-					eventType,
-					stripeSubscriptionId,
-					StripeWebhookProcessingStatus.FAILED,
-					exception.getMessage()
-			);
+			return new StripeWebhookResponse(eventId, eventType, stripeSubscriptionId, StripeWebhookProcessingStatus.FAILED, exception.getMessage());
 		}
 
 		if (eventId == null || eventId.isBlank()) {
-			return new StripeWebhookResponse(
-					null,
-					eventType,
-					stripeSubscriptionId,
-					StripeWebhookProcessingStatus.FAILED,
-					"Stripe webhook event id is missing"
-			);
+			return new StripeWebhookResponse(null, eventType, stripeSubscriptionId, StripeWebhookProcessingStatus.FAILED, "Stripe webhook event id is missing");
 		}
 
 		if (eventRepository.existsByStripeEventId(eventId)) {
 			log.info("stripe_webhook_duplicate_skipped eventId={} type={} stripeSubscriptionId={}", eventId, eventType, stripeSubscriptionId);
-			return new StripeWebhookResponse(
-					eventId,
-					eventType,
-					stripeSubscriptionId,
-					StripeWebhookProcessingStatus.DUPLICATE,
-					"Duplicate Stripe webhook skipped"
-			);
+			return new StripeWebhookResponse(eventId, eventType, stripeSubscriptionId, StripeWebhookProcessingStatus.DUPLICATE, "Duplicate Stripe webhook skipped");
 		}
 
-		StripeWebhookEvent event = eventRepository.save(new StripeWebhookEvent(
-				eventId,
-				eventType,
-				stripeSubscriptionId,
-				rawPayload
-		));
+		StripeWebhookEvent webhookEvent = eventRepository.save(new StripeWebhookEvent(eventId, eventType, stripeSubscriptionId, rawPayload));
 
 		try {
 			boolean handled = handleEvent(eventType, object, eventId);
 			if (handled) {
-				event.processed();
-				eventRepository.save(event);
-				return new StripeWebhookResponse(
-						eventId,
-						eventType,
-						stripeSubscriptionId,
-						event.getStatus(),
-						"Webhook processed"
-				);
+				webhookEvent.processed();
+				eventRepository.save(webhookEvent);
+				return new StripeWebhookResponse(eventId, eventType, stripeSubscriptionId, webhookEvent.getStatus(), "Webhook processed");
 			}
 
-			event.ignored();
-			eventRepository.save(event);
-			return new StripeWebhookResponse(
-					eventId,
-					eventType,
-					stripeSubscriptionId,
-					event.getStatus(),
-					"Webhook ignored"
-			);
+			webhookEvent.ignored();
+			eventRepository.save(webhookEvent);
+			return new StripeWebhookResponse(eventId, eventType, stripeSubscriptionId, webhookEvent.getStatus(), "Webhook ignored");
 		} catch (RuntimeException exception) {
-			event.failed(exception.getMessage());
-			eventRepository.save(event);
+			webhookEvent.failed(exception.getMessage());
+			eventRepository.save(webhookEvent);
 			log.warn("stripe_webhook_processing_failed eventId={} type={} stripeSubscriptionId={} reason={}",
-					eventId,
-					eventType,
-					stripeSubscriptionId,
-					exception.getMessage());
-
-			return new StripeWebhookResponse(
-					eventId,
-					eventType,
-					stripeSubscriptionId,
-					event.getStatus(),
-					exception.getMessage()
-			);
+					eventId, eventType, stripeSubscriptionId, exception.getMessage());
+			return new StripeWebhookResponse(eventId, eventType, stripeSubscriptionId, webhookEvent.getStatus(), exception.getMessage());
 		}
 	}
 
@@ -165,31 +120,29 @@ public class StripeWebhookService {
 					return true;
 				}
 
-				String subscriptionId = firstText(
-						text(object, "subscription"),
-						text(object.path("subscription_details"), "subscription")
-				);
-				if (subscriptionId == null) {
-					return false;
-				}
-
-				businessBillingService.handleStripeCheckoutSessionCompleted(
-						text(object, "id"),
-						subscriptionId,
-						eventId
-				);
+				String subscriptionId = firstText(text(object, "subscription"), text(object.path("subscription_details"), "subscription"));
+				if (subscriptionId == null) return false;
+				businessBillingService.handleStripeCheckoutSessionCompleted(text(object, "id"), subscriptionId, eventId);
 				return true;
 			}
 			case "payment_intent.succeeded" -> {
-				String transactionId = metadata(object, "transactionId");
-				if (transactionId == null) {
-					return false;
+				if ("true".equalsIgnoreCase(metadata(object, "embeddedCart"))) {
+					embeddedCartPaymentService.handlePaymentIntentSucceeded(
+							stripeService.retrievePaymentIntent(text(object, "id")),
+							eventId);
+					return true;
 				}
+
+				String transactionId = metadata(object, "transactionId");
+				if (transactionId == null) return false;
 				transactionService.handleWebsitePaymentSucceeded(
 						longValue(transactionId, "Stripe transactionId metadata must be numeric"),
 						text(object, "id"),
 						eventId);
 				return true;
+			}
+			case "payment_intent.processing", "payment_intent.payment_failed", "payment_intent.canceled" -> {
+				return "true".equalsIgnoreCase(metadata(object, "embeddedCart"));
 			}
 			case "invoice.payment_succeeded" -> {
 				businessBillingService.handleStripeInvoicePaymentSucceeded(invoiceSubscriptionId(object), eventId);
@@ -221,46 +174,19 @@ public class StripeWebhookService {
 			eventRepository.save(failedEvent);
 		}
 
-		billingAuditService.record(
-				null,
-				BillingAuditAction.WEBHOOK_SIGNATURE_FAILED,
-				"stripe-webhook",
-				eventId,
-				stripeSubscriptionId,
-				reason
-		);
-
-		log.warn("stripe_webhook_signature_failed eventId={} type={} stripeSubscriptionId={} reason={}",
-				eventId,
-				eventType,
-				stripeSubscriptionId,
-				reason);
-
-		return new StripeWebhookResponse(
-				eventId,
-				eventType,
-				stripeSubscriptionId,
-				StripeWebhookProcessingStatus.SIGNATURE_FAILED,
-				reason
-		);
+		billingAuditService.record(null, BillingAuditAction.WEBHOOK_SIGNATURE_FAILED, "stripe-webhook", eventId, stripeSubscriptionId, reason);
+		log.warn("stripe_webhook_signature_failed eventId={} type={} stripeSubscriptionId={} reason={}", eventId, eventType, stripeSubscriptionId, reason);
+		return new StripeWebhookResponse(eventId, eventType, stripeSubscriptionId, StripeWebhookProcessingStatus.SIGNATURE_FAILED, reason);
 	}
 
 	private String extractSubscriptionId(String eventType, JsonNode object) {
-		if ("customer.subscription.deleted".equals(eventType)) {
-			return text(object, "id");
-		}
-
+		if ("customer.subscription.deleted".equals(eventType)) return text(object, "id");
 		if ("checkout.session.completed".equals(eventType)) {
-			return firstText(
-					text(object, "subscription"),
-					text(object.path("subscription_details"), "subscription")
-			);
+			return firstText(text(object, "subscription"), text(object.path("subscription_details"), "subscription"));
 		}
-
 		if ("invoice.payment_succeeded".equals(eventType) || "invoice.payment_failed".equals(eventType)) {
 			return invoiceSubscriptionId(object);
 		}
-
 		return null;
 	}
 
@@ -268,17 +194,13 @@ public class StripeWebhookService {
 		return firstText(
 				text(object, "subscription"),
 				text(object.path("parent").path("subscription_details"), "subscription"),
-				text(object.path("subscription_details"), "subscription")
-		);
+				text(object.path("subscription_details"), "subscription"));
 	}
 
 	private String firstText(String... values) {
 		for (String value : values) {
-			if (value != null && !value.isBlank() && !"null".equalsIgnoreCase(value)) {
-				return value;
-			}
+			if (value != null && !value.isBlank() && !"null".equalsIgnoreCase(value)) return value;
 		}
-
 		return null;
 	}
 
@@ -296,10 +218,7 @@ public class StripeWebhookService {
 
 	private String text(JsonNode node, String fieldName) {
 		JsonNode value = node == null ? null : node.get(fieldName);
-		if (value == null || value.isNull()) {
-			return null;
-		}
-
+		if (value == null || value.isNull()) return null;
 		return value.asText();
 	}
 }
