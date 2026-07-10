@@ -11,8 +11,10 @@ on:
       - "src/main/java/com/king_sparkon_tracker/backend/model/StripeWebhookEvent.java"
       - "src/main/java/com/king_sparkon_tracker/backend/repository/StripeWebhookEventRepository.java"
       - "src/main/java/com/king_sparkon_tracker/backend/service/EmbeddedCartPaymentService.java"
+      - "src/main/java/com/king_sparkon_tracker/backend/service/EmbeddedTicketFulfilmentService.java"
       - "src/main/java/com/king_sparkon_tracker/backend/service/StripeService.java"
       - "src/main/java/com/king_sparkon_tracker/backend/service/StripeWebhookService.java"
+      - "src/main/java/com/king_sparkon_tracker/backend/service/TuckShopService.java"
       - "pom.xml"
       - ".github/workflows/stripe-embedded-payment-ci.yml"
   pull_request:
@@ -24,8 +26,10 @@ on:
       - "src/main/java/com/king_sparkon_tracker/backend/model/StripeWebhookEvent.java"
       - "src/main/java/com/king_sparkon_tracker/backend/repository/StripeWebhookEventRepository.java"
       - "src/main/java/com/king_sparkon_tracker/backend/service/EmbeddedCartPaymentService.java"
+      - "src/main/java/com/king_sparkon_tracker/backend/service/EmbeddedTicketFulfilmentService.java"
       - "src/main/java/com/king_sparkon_tracker/backend/service/StripeService.java"
       - "src/main/java/com/king_sparkon_tracker/backend/service/StripeWebhookService.java"
+      - "src/main/java/com/king_sparkon_tracker/backend/service/TuckShopService.java"
       - "pom.xml"
 
 permissions:
