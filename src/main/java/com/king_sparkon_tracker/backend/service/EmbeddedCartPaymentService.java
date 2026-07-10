@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,9 +20,12 @@ import com.king_sparkon_tracker.backend.dto.EmbeddedCartPaymentDtos.TicketItem;
 import com.king_sparkon_tracker.backend.dto.TuckShopPurchaseItemRequest;
 import com.king_sparkon_tracker.backend.dto.TuckShopPurchaseResponse;
 import com.king_sparkon_tracker.backend.exception.ResourceNotFoundException;
+import com.king_sparkon_tracker.backend.model.InventoryTransaction;
 import com.king_sparkon_tracker.backend.model.Product;
 import com.king_sparkon_tracker.backend.model.ProductStatus;
 import com.king_sparkon_tracker.backend.model.TrackerUser;
+import com.king_sparkon_tracker.backend.model.TransactionPaymentStatus;
+import com.king_sparkon_tracker.backend.repository.InventoryTransactionRepository;
 import com.king_sparkon_tracker.backend.repository.ProductRepository;
 import com.king_sparkon_tracker.backend.service.StripeService.CreatedEmbeddedPaymentIntent;
 import com.king_sparkon_tracker.backend.tickets.config.TicketProperties;
@@ -29,8 +33,11 @@ import com.king_sparkon_tracker.backend.tickets.domain.TicketBusinessRules;
 import com.king_sparkon_tracker.backend.tickets.model.EventTicketType;
 import com.king_sparkon_tracker.backend.tickets.model.TicketEvent;
 import com.king_sparkon_tracker.backend.tickets.model.TicketEventStatus;
+import com.king_sparkon_tracker.backend.tickets.model.TicketPayment;
+import com.king_sparkon_tracker.backend.tickets.model.TicketPaymentStatus;
 import com.king_sparkon_tracker.backend.tickets.model.TicketType;
 import com.king_sparkon_tracker.backend.tickets.repository.TicketEventRepository;
+import com.king_sparkon_tracker.backend.tickets.repository.TicketPaymentRepository;
 import com.stripe.model.PaymentIntent;
 
 @Service
@@ -45,8 +52,10 @@ public class EmbeddedCartPaymentService {
 	private final ProductPricingService productPricingService;
 	private final TuckShopService tuckShopService;
 	private final TransactionService transactionService;
+	private final InventoryTransactionRepository transactionRepository;
 	private final EmbeddedTicketFulfilmentService embeddedTicketFulfilmentService;
 	private final TicketEventRepository ticketEventRepository;
+	private final TicketPaymentRepository ticketPaymentRepository;
 	private final TicketProperties ticketProperties;
 	private final TrackerUserService trackerUserService;
 
@@ -56,8 +65,10 @@ public class EmbeddedCartPaymentService {
 			ProductPricingService productPricingService,
 			TuckShopService tuckShopService,
 			TransactionService transactionService,
+			InventoryTransactionRepository transactionRepository,
 			EmbeddedTicketFulfilmentService embeddedTicketFulfilmentService,
 			TicketEventRepository ticketEventRepository,
+			TicketPaymentRepository ticketPaymentRepository,
 			TicketProperties ticketProperties,
 			TrackerUserService trackerUserService) {
 		this.stripeService = stripeService;
@@ -65,8 +76,10 @@ public class EmbeddedCartPaymentService {
 		this.productPricingService = productPricingService;
 		this.tuckShopService = tuckShopService;
 		this.transactionService = transactionService;
+		this.transactionRepository = transactionRepository;
 		this.embeddedTicketFulfilmentService = embeddedTicketFulfilmentService;
 		this.ticketEventRepository = ticketEventRepository;
+		this.ticketPaymentRepository = ticketPaymentRepository;
 		this.ticketProperties = ticketProperties;
 		this.trackerUserService = trackerUserService;
 	}
@@ -99,13 +112,12 @@ public class EmbeddedCartPaymentService {
 		Map<String, String> metadata = intent.getMetadata();
 		requireActor(metadata, actorUsername);
 
-		boolean fulfilled = Boolean.parseBoolean(metadata.getOrDefault("fulfilled", "false"));
-		List<TuckShopPurchaseResponse> productPurchases = split(metadata.get("transactionIds")).stream()
-				.map(Long::valueOf)
-				.map(transactionService::getTransactionById)
+		FulfilmentSnapshot snapshot = fulfilmentSnapshot(metadata, paymentIntentId);
+		boolean fulfilled = "succeeded".equalsIgnoreCase(intent.getStatus()) && snapshot.complete();
+		List<TuckShopPurchaseResponse> productPurchases = snapshot.transactions().stream()
 				.map(transaction -> TuckShopPurchaseResponse.from(transaction, null, null))
 				.toList();
-		List<String> ticketPaymentIds = split(metadata.get("ticketPaymentIds"));
+		List<String> ticketPaymentIds = snapshot.ticketPayments().stream().map(TicketPayment::getId).toList();
 		BigDecimal amount = BigDecimal.valueOf(intent.getAmount()).movePointLeft(2).setScale(2, RoundingMode.HALF_UP);
 		String message = fulfilled
 				? "Payment verified and cart fulfilled"
@@ -127,24 +139,66 @@ public class EmbeddedCartPaymentService {
 		if (!"true".equalsIgnoreCase(metadata.get("embeddedCart"))) {
 			return;
 		}
-		if (Boolean.parseBoolean(metadata.getOrDefault("fulfilled", "false"))) {
-			return;
-		}
 
 		String actorUsername = required(metadata, "actorUsername");
 		String buyerName = required(metadata, "buyerName");
 		String buyerEmail = required(metadata, "buyerEmail");
 		TrackerUser actor = trackerUserService.getUserByUsername(actorUsername);
+		FulfilmentSnapshot existing = fulfilmentSnapshot(metadata, intent.getId());
+
+		if (existing.complete()) {
+			updateFulfilmentMetadata(intent.getId(), existing.transactionIds(), existing.ticketPaymentIds());
+			return;
+		}
+		if (existing.hasAnyRecords()) {
+			throw new IllegalStateException("Partial embedded cart fulfilment detected for PaymentIntent " + intent.getId());
+		}
 
 		List<Long> transactionIds = fulfilProducts(metadata, actorUsername, buyerEmail, intent.getId(), stripeEventId);
 		List<String> ticketPaymentIds = fulfilTickets(metadata, actor, buyerName, buyerEmail, intent.getId());
+		updateFulfilmentMetadata(intent.getId(), transactionIds, ticketPaymentIds);
+	}
 
+	private void updateFulfilmentMetadata(String paymentIntentId, List<Long> transactionIds, List<String> ticketPaymentIds) {
 		Map<String, String> fulfilmentMetadata = new LinkedHashMap<>();
 		fulfilmentMetadata.put("fulfilled", "true");
 		fulfilmentMetadata.put("fulfilledAt", Instant.now().toString());
 		fulfilmentMetadata.put("transactionIds", join(transactionIds));
 		fulfilmentMetadata.put("ticketPaymentIds", String.join(",", ticketPaymentIds));
-		stripeService.updatePaymentIntentMetadata(intent.getId(), fulfilmentMetadata);
+		stripeService.updatePaymentIntentMetadata(paymentIntentId, fulfilmentMetadata);
+	}
+
+	private FulfilmentSnapshot fulfilmentSnapshot(Map<String, String> metadata, String paymentIntentId) {
+		int expectedTransactions = expectedProductTransactionCount(metadata);
+		int expectedTicketPayments = expectedTicketPaymentCount(metadata);
+		List<InventoryTransaction> transactions = transactionRepository.findByPaymentReferenceOrderByIdAsc(paymentIntentId);
+		List<TicketPayment> ticketPayments = ticketPaymentRepository.findAllByPaymentReferenceOrderByCreatedAtAsc(paymentIntentId);
+		return new FulfilmentSnapshot(expectedTransactions, expectedTicketPayments, transactions, ticketPayments);
+	}
+
+	private int expectedProductTransactionCount(Map<String, String> metadata) {
+		String configured = metadata.get("expectedProductTransactions");
+		if (configured != null && !configured.isBlank()) {
+			return intValue(configured, "Invalid expected product transaction count");
+		}
+		return expectedProductTransactionCount(productItems(metadata));
+	}
+
+	private int expectedProductTransactionCount(List<TuckShopPurchaseItemRequest> items) {
+		return (int) items.stream()
+				.map(item -> requireProduct(item.productId()))
+				.map(Product::getBusiness)
+				.filter(Objects::nonNull)
+				.map(business -> business.getId())
+				.distinct()
+				.count();
+	}
+
+	private int expectedTicketPaymentCount(Map<String, String> metadata) {
+		String configured = metadata.get("expectedTicketPayments");
+		return configured == null || configured.isBlank()
+				? ticketItems(metadata).size()
+				: intValue(configured, "Invalid expected ticket payment count");
 	}
 
 	private List<Long> fulfilProducts(
@@ -233,6 +287,8 @@ public class EmbeddedCartPaymentService {
 		metadata.put("actorId", String.valueOf(actor.getId()));
 		metadata.put("buyerName", request.buyerName().trim());
 		metadata.put("buyerEmail", request.buyerEmail().trim().toLowerCase());
+		metadata.put("expectedProductTransactions", String.valueOf(expectedProductTransactionCount(safeProducts(request))));
+		metadata.put("expectedTicketPayments", String.valueOf(safeTickets(request).size()));
 		metadata.put("productCount", String.valueOf(safeProducts(request).size()));
 		for (int index = 0; index < safeProducts(request).size(); index++) {
 			TuckShopPurchaseItemRequest item = safeProducts(request).get(index);
@@ -306,12 +362,33 @@ public class EmbeddedCartPaymentService {
 		return request.tickets() == null ? List.of() : request.tickets();
 	}
 
-	private List<String> split(String value) {
-		if (value == null || value.isBlank()) return List.of();
-		return List.of(value.split(",")).stream().filter(item -> !item.isBlank()).toList();
-	}
-
 	private String join(List<Long> values) {
 		return values.stream().map(String::valueOf).reduce((left, right) -> left + "," + right).orElse("");
+	}
+
+	private record FulfilmentSnapshot(
+			int expectedTransactions,
+			int expectedTicketPayments,
+			List<InventoryTransaction> transactions,
+			List<TicketPayment> ticketPayments) {
+
+		boolean complete() {
+			return transactions.size() == expectedTransactions
+					&& ticketPayments.size() == expectedTicketPayments
+					&& transactions.stream().allMatch(transaction -> transaction.getPaymentStatus() == TransactionPaymentStatus.PAID)
+					&& ticketPayments.stream().allMatch(payment -> payment.getStatus() == TicketPaymentStatus.SUCCESS);
+		}
+
+		boolean hasAnyRecords() {
+			return !transactions.isEmpty() || !ticketPayments.isEmpty();
+		}
+
+		List<Long> transactionIds() {
+			return transactions.stream().map(InventoryTransaction::getId).toList();
+		}
+
+		List<String> ticketPaymentIds() {
+			return ticketPayments.stream().map(TicketPayment::getId).toList();
+		}
 	}
 }
