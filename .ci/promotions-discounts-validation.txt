@@ -1,0 +1,1 @@
+Validate product promotions, admin Plus and Pro discounts, migrations, pricing and wallet integration.
