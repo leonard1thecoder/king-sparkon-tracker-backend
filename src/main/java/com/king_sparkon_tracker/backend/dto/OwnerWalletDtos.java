@@ -23,6 +23,7 @@ public final class OwnerWalletDtos {
 			String businessName,
 			BigDecimal availableBalance,
 			BigDecimal minimumWithdrawalAmount,
+			BigDecimal withdrawalFeePercent,
 			BigDecimal onlineProductRevenue,
 			BigDecimal ticketRevenue,
 			BigDecimal tipRevenue,
