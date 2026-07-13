@@ -6,8 +6,7 @@ ALTER TABLE business_withdrawals
     ADD COLUMN IF NOT EXISTS payout_currency VARCHAR(3);
 
 CREATE UNIQUE INDEX IF NOT EXISTS uk_business_withdrawals_provider_batch
-    ON business_withdrawals (provider, provider_batch_id)
-    WHERE provider_batch_id IS NOT NULL;
+    ON business_withdrawals (provider, provider_batch_id);
 
 CREATE INDEX IF NOT EXISTS idx_business_withdrawals_provider_status
     ON business_withdrawals (provider, provider_status);
