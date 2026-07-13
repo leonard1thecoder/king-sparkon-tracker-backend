@@ -1,1 +1,1 @@
-Unified owner wallet, withdrawals, product archive, billing and reports validation.
+Unified owner wallet, R100 withdrawals, product archive, billing and reports validation.
