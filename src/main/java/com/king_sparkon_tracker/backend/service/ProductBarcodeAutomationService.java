@@ -210,11 +210,18 @@ public class ProductBarcodeAutomationService {
 		TrackerUser worker = requireWorker(actorUsername);
 		Business business = requireBusiness(worker);
 		return transactionRepository.findByBusiness_Id(business.getId(), Pageable.unpaged()).getContent().stream()
-				.filter(transaction -> transaction.getFulfilmentStatus() == TuckShopFulfilmentStatus.COLLECTED
-						|| transaction.getPaymentStatus() == TransactionPaymentStatus.PAID)
+				.filter(this::isCompletedSale)
 				.sorted(Comparator.comparing(InventoryTransaction::getDate, Comparator.nullsLast(Comparator.naturalOrder())).reversed())
 				.map(transaction -> TuckShopPurchaseResponse.from(transaction, null))
 				.toList();
+	}
+
+	private boolean isCompletedSale(InventoryTransaction transaction) {
+		if (transaction.getFulfilmentStatus() == TuckShopFulfilmentStatus.COLLECTED) {
+			return true;
+		}
+		return transaction.getFulfilmentStatus() == TuckShopFulfilmentStatus.NOT_REQUIRED
+				&& transaction.getPaymentStatus() == TransactionPaymentStatus.PAID;
 	}
 
 	public ProductBarcodeMode modeFor(Product product) {
