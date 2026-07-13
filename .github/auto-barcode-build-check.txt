@@ -1,0 +1,1 @@
+Validate automatic product barcode mode, worker checkout, online preparation and completed sales.
