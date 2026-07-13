@@ -17,10 +17,13 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.king_sparkon_tracker.backend.config.OpenApiConfig;
-import com.king_sparkon_tracker.backend.dto.UserResponse;
 import com.king_sparkon_tracker.backend.dto.CompleteOnboardingRequest;
 import com.king_sparkon_tracker.backend.dto.CreateWorkerRequest;
 import com.king_sparkon_tracker.backend.dto.PageResponse;
+import com.king_sparkon_tracker.backend.dto.UpdateCurrentUserPasswordRequest;
+import com.king_sparkon_tracker.backend.dto.UpdateCurrentUserProfileRequest;
+import com.king_sparkon_tracker.backend.dto.UserResponse;
+import com.king_sparkon_tracker.backend.service.CurrentUserProfileService;
 import com.king_sparkon_tracker.backend.service.OnboardingProfileService;
 import com.king_sparkon_tracker.backend.service.TrackerUserService;
 
@@ -38,10 +41,15 @@ public class UserController {
 
 	private final TrackerUserService userService;
 	private final OnboardingProfileService onboardingProfileService;
+	private final CurrentUserProfileService currentUserProfileService;
 
-	public UserController(TrackerUserService userService, OnboardingProfileService onboardingProfileService) {
+	public UserController(
+			TrackerUserService userService,
+			OnboardingProfileService onboardingProfileService,
+			CurrentUserProfileService currentUserProfileService) {
 		this.userService = userService;
 		this.onboardingProfileService = onboardingProfileService;
+		this.currentUserProfileService = currentUserProfileService;
 	}
 
 	@GetMapping
@@ -55,7 +63,7 @@ public class UserController {
 
 	@PostMapping("/workers")
 	@ResponseStatus(HttpStatus.CREATED)
-	@Operation(summary = "Create worker", description = "Owner-only endpoint for adding one of the allowed worker accounts.")
+	@Operation(summary = "Create worker", description = "Owner-only endpoint for adding one of the allowed worker accounts, including the optional tips privilege.")
 	public UserResponse createWorker(
 			@Valid @RequestBody CreateWorkerRequest request,
 			@Parameter(hidden = true) Principal principal) {
@@ -78,6 +86,23 @@ public class UserController {
 	@Operation(summary = "Current user", description = "Returns the authenticated user's profile and privilege.")
 	public UserResponse currentUser(@Parameter(hidden = true) Principal principal) {
 		return UserResponse.from(userService.getUserByUsername(principal.getName()));
+	}
+
+	@PatchMapping("/me")
+	@Operation(summary = "Update current user profile", description = "Updates email, address, cellphone and profile picture for the authenticated account.")
+	public UserResponse updateCurrentUser(
+			@Valid @RequestBody UpdateCurrentUserProfileRequest request,
+			@Parameter(hidden = true) Principal principal) {
+		return UserResponse.from(currentUserProfileService.updateProfile(request, principal.getName()));
+	}
+
+	@PatchMapping("/me/password")
+	@ResponseStatus(HttpStatus.NO_CONTENT)
+	@Operation(summary = "Update current user password", description = "Validates the current password and replaces it with a new password.")
+	public void updateCurrentUserPassword(
+			@Valid @RequestBody UpdateCurrentUserPasswordRequest request,
+			@Parameter(hidden = true) Principal principal) {
+		currentUserProfileService.updatePassword(request, principal.getName());
 	}
 
 	@PatchMapping("/me/onboarding")
