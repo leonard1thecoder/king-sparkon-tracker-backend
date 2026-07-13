@@ -5,6 +5,7 @@ import java.net.URI;
 import java.util.Base64;
 import java.util.Locale;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -34,6 +35,14 @@ public class GoogleStorageService {
 	}
 
 	public StoredImage storeImage(MultipartFile file, String folder, String ownerKey) {
+		return storeMultipartImage(file, folder, ownerKey, true);
+	}
+
+	public StoredImage storePrivateImage(MultipartFile file, String folder, String ownerKey) {
+		return storeMultipartImage(file, folder, ownerKey, false);
+	}
+
+	private StoredImage storeMultipartImage(MultipartFile file, String folder, String ownerKey, boolean publicAccess) {
 		requireEnabled();
 		if (file == null || file.isEmpty()) {
 			throw new IllegalArgumentException("Image file is required");
@@ -48,7 +57,7 @@ public class GoogleStorageService {
 
 		String contentType = normalizeContentType(file.getContentType());
 		validateImage(contentType, bytes.length);
-		return upload(bytes, contentType, objectName(folder, ownerKey, extensionFor(contentType, file.getOriginalFilename())));
+		return upload(bytes, contentType, objectName(folder, ownerKey, extensionFor(contentType, file.getOriginalFilename())), publicAccess);
 	}
 
 	public String storeImageValue(String value, String folder, String ownerKey) {
@@ -85,17 +94,32 @@ public class GoogleStorageService {
 		String contentType = normalizeContentType(matcher.group(1));
 		byte[] bytes = Base64.getDecoder().decode(matcher.group(2).replaceAll("\\s", ""));
 		validateImage(contentType, bytes.length);
-		return upload(bytes, contentType, objectName(folder, ownerKey, extensionFor(contentType, null)));
+		return upload(bytes, contentType, objectName(folder, ownerKey, extensionFor(contentType, null)), true);
 	}
 
-	private StoredImage upload(byte[] bytes, String contentType, String objectName) {
+	public String signedReadUrl(String objectName, long durationMinutes) {
+		requireEnabled();
+		if (!StringUtils.hasText(objectName)) {
+			return null;
+		}
+
+		BlobInfo blobInfo = BlobInfo.newBuilder(BlobId.of(requiredBucketName(), objectName.trim())).build();
+		return storage().signUrl(
+				blobInfo,
+				Math.max(durationMinutes, 1L),
+				TimeUnit.MINUTES,
+				Storage.SignUrlOption.withV4Signature())
+				.toString();
+	}
+
+	private StoredImage upload(byte[] bytes, String contentType, String objectName, boolean publicAccess) {
 		BlobInfo blobInfo = BlobInfo.newBuilder(BlobId.of(requiredBucketName(), objectName))
 				.setContentType(contentType)
-				.setCacheControl("public, max-age=31536000, immutable")
+				.setCacheControl(publicAccess ? "public, max-age=31536000, immutable" : "private, no-store, max-age=0")
 				.build();
 
 		Blob blob = storage().create(blobInfo, bytes);
-		if (properties.isMakePublic()) {
+		if (publicAccess && properties.isMakePublic()) {
 			blob.createAcl(Acl.of(Acl.User.ofAllUsers(), Acl.Role.READER));
 		}
 
