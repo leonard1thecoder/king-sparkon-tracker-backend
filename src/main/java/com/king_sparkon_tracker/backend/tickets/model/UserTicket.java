@@ -55,9 +55,23 @@ public class UserTicket {
     @Column(length = 64)
     private String scannedByWorkerId;
 
+    @Column(length = 512)
+    private String verificationPhotoObjectName;
+
+    private Instant verificationPhotoCapturedAt;
+
+    private Instant transferredAt;
+
+    @Column(length = 64)
+    private String transferredFromUserId;
+
+    @Column(nullable = false)
+    private Integer ownershipVersion;
+
     @PrePersist
     void prePersist() {
         if (purchasedAt == null) purchasedAt = Instant.now();
+        if (ownershipVersion == null || ownershipVersion < 1) ownershipVersion = 1;
     }
 
     public String getId() { return id; }
@@ -86,4 +100,14 @@ public class UserTicket {
     public void setUsedAt(Instant usedAt) { this.usedAt = usedAt; }
     public String getScannedByWorkerId() { return scannedByWorkerId; }
     public void setScannedByWorkerId(String scannedByWorkerId) { this.scannedByWorkerId = scannedByWorkerId; }
+    public String getVerificationPhotoObjectName() { return verificationPhotoObjectName; }
+    public void setVerificationPhotoObjectName(String verificationPhotoObjectName) { this.verificationPhotoObjectName = verificationPhotoObjectName; }
+    public Instant getVerificationPhotoCapturedAt() { return verificationPhotoCapturedAt; }
+    public void setVerificationPhotoCapturedAt(Instant verificationPhotoCapturedAt) { this.verificationPhotoCapturedAt = verificationPhotoCapturedAt; }
+    public Instant getTransferredAt() { return transferredAt; }
+    public void setTransferredAt(Instant transferredAt) { this.transferredAt = transferredAt; }
+    public String getTransferredFromUserId() { return transferredFromUserId; }
+    public void setTransferredFromUserId(String transferredFromUserId) { this.transferredFromUserId = transferredFromUserId; }
+    public Integer getOwnershipVersion() { return ownershipVersion; }
+    public void setOwnershipVersion(Integer ownershipVersion) { this.ownershipVersion = ownershipVersion; }
 }
