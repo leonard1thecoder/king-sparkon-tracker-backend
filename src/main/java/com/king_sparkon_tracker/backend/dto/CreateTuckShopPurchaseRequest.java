@@ -3,6 +3,8 @@ package com.king_sparkon_tracker.backend.dto;
 import java.math.BigDecimal;
 import java.util.List;
 
+import com.king_sparkon_tracker.backend.model.TransactionPaymentType;
+
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
@@ -12,7 +14,7 @@ import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Size;
 
 public record CreateTuckShopPurchaseRequest(
-		@Schema(description = "Customer email used for the Stripe website-payment transaction.", example = "customer@example.com")
+		@Schema(description = "Customer email used for the payment transaction.", example = "customer@example.com")
 		@Email
 		@Size(max = 255)
 		String paymentEmail,
@@ -35,6 +37,22 @@ public record CreateTuckShopPurchaseRequest(
 
 		@Schema(description = "Existing product items to buy.")
 		@NotEmpty
-		List<@Valid TuckShopPurchaseItemRequest> items
+		List<@Valid TuckShopPurchaseItemRequest> items,
+
+		@Schema(description = "Worker checkout payment type. CASH and SWIPE_MACHINE complete at the counter; WEBSITE_PAYMENT creates a King Sparkon checkout.")
+		TransactionPaymentType paymentType,
+
+		@Schema(description = "Registered customer username required when a worker sends a King Sparkon checkout.")
+		@Size(max = 120)
+		String customerUsername
 ) {
+	public CreateTuckShopPurchaseRequest(
+			String paymentEmail,
+			String paymentContact,
+			Long workerId,
+			BigDecimal tipAmount,
+			String tipCallbackUrl,
+			List<TuckShopPurchaseItemRequest> items) {
+		this(paymentEmail, paymentContact, workerId, tipAmount, tipCallbackUrl, items, null, null);
+	}
 }
