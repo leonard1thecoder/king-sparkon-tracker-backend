@@ -1,0 +1,1 @@
+Validate automatic barcode flow and completed-sales filtering.
