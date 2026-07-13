@@ -12,6 +12,10 @@ public interface TipRepository extends JpaRepository<Tip, Long> {
 
 	List<Tip> findByWorker_IdOrderByCreatedDesc(Long workerId);
 
+	List<Tip> findByWorker_Business_IdAndStatusOrderByCreatedDesc(Long businessId, TipStatus status);
+
+	List<Tip> findByWithdrawal_IdOrderByCreatedDesc(Long withdrawalId);
+
 	List<Tip> findByStatus(TipStatus status);
 
 	List<Tip> findByStatusOrderByCreatedDesc(TipStatus status);
