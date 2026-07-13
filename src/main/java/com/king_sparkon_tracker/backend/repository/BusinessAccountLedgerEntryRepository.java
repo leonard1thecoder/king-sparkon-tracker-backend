@@ -3,6 +3,7 @@ package com.king_sparkon_tracker.backend.repository;
 import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
@@ -22,6 +23,11 @@ public interface BusinessAccountLedgerEntryRepository extends JpaRepository<Busi
 	List<BusinessAccountLedgerEntry> findByBusiness_IdAndEntryTypeOrderByCreatedDateDesc(
 			Long businessId,
 			BusinessAccountEntryType entryType);
+
+	Optional<BusinessAccountLedgerEntry> findByBusiness_IdAndEntryTypeAndProviderReference(
+			Long businessId,
+			BusinessAccountEntryType entryType,
+			String providerReference);
 
 	boolean existsByBusiness_IdAndEntryTypeAndProviderReference(
 			Long businessId,
