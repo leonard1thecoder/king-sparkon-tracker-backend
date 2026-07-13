@@ -3,6 +3,7 @@ package com.king_sparkon_tracker.backend.dto;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import com.king_sparkon_tracker.backend.model.BillingInterval;
 import com.king_sparkon_tracker.backend.model.Business;
 import com.king_sparkon_tracker.backend.model.BusinessPlan;
 import com.king_sparkon_tracker.backend.model.BusinessStatus;
@@ -15,6 +16,8 @@ public record BillingDashboardResponse(
 		BusinessPlan currentPlan,
 		BusinessStatus businessStatus,
 		SubscriptionPaymentStatus paymentStatus,
+		BillingInterval currentBillingInterval,
+		Integer currentTermYears,
 		boolean trial,
 		long trialDaysLeft,
 		LocalDateTime trialEndDate,
@@ -49,6 +52,8 @@ public record BillingDashboardResponse(
 				business.getBusinessPlan(),
 				business.getBusinessStatus(),
 				subscription == null ? null : subscription.getStatus(),
+				subscription == null ? null : subscription.getBillingInterval(),
+				subscription == null ? null : subscription.getTermYears(),
 				trial,
 				trialDaysLeft,
 				business.getTrialEndDate(),
