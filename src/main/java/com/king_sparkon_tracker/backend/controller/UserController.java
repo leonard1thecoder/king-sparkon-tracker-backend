@@ -2,6 +2,7 @@ package com.king_sparkon_tracker.backend.controller;
 
 import java.security.Principal;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -43,6 +44,7 @@ public class UserController {
 	private final OnboardingProfileService onboardingProfileService;
 	private final CurrentUserProfileService currentUserProfileService;
 
+	@Autowired
 	public UserController(
 			TrackerUserService userService,
 			OnboardingProfileService onboardingProfileService,
@@ -50,6 +52,12 @@ public class UserController {
 		this.userService = userService;
 		this.onboardingProfileService = onboardingProfileService;
 		this.currentUserProfileService = currentUserProfileService;
+	}
+
+	public UserController(
+			TrackerUserService userService,
+			OnboardingProfileService onboardingProfileService) {
+		this(userService, onboardingProfileService, null);
 	}
 
 	@GetMapping
