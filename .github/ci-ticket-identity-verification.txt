@@ -1,0 +1,1 @@
+CI verification marker for ticket identity photo, transfer, and manual gate confirmation flow.
