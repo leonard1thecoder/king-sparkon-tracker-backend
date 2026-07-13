@@ -1,0 +1,1 @@
+Validate corrected cache-aware product promotions and Plus/Pro discounts.
