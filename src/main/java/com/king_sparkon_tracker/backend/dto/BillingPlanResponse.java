@@ -19,6 +19,30 @@ public record BillingPlanResponse(
 		boolean workerClocker,
 		boolean affiliateProgram,
 		List<AffiliateCommissionTierResponse> affiliateCommissionTiers,
-		List<String> features
+		List<String> features,
+		BigDecimal originalMonthlyPrice,
+		BigDecimal discountPercent,
+		String discountLabel,
+		boolean discountActive
 ) {
+	public BillingPlanResponse(
+			BusinessPlan plan,
+			String displayName,
+			BigDecimal monthlyPrice,
+			String currency,
+			int maxWorkers,
+			boolean unlimitedWorkers,
+			boolean unlimitedProducts,
+			boolean unlimitedBarcodeScanning,
+			boolean workerTipsPlatform,
+			boolean businessAnalysisAi,
+			boolean workerClocker,
+			boolean affiliateProgram,
+			List<AffiliateCommissionTierResponse> affiliateCommissionTiers,
+			List<String> features) {
+		this(plan, displayName, monthlyPrice, currency, maxWorkers, unlimitedWorkers,
+				unlimitedProducts, unlimitedBarcodeScanning, workerTipsPlatform,
+				businessAnalysisAi, workerClocker, affiliateProgram,
+				affiliateCommissionTiers, features, monthlyPrice, BigDecimal.ZERO, null, false);
+	}
 }
