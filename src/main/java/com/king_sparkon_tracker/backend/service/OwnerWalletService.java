@@ -28,7 +28,6 @@ import com.king_sparkon_tracker.backend.model.BusinessAccountEntryType;
 import com.king_sparkon_tracker.backend.model.BusinessAccountLedgerEntry;
 import com.king_sparkon_tracker.backend.model.BusinessWithdrawal;
 import com.king_sparkon_tracker.backend.model.BusinessWithdrawalStatus;
-import com.king_sparkon_tracker.backend.model.InventoryTransaction;
 import com.king_sparkon_tracker.backend.model.PrivilegeRole;
 import com.king_sparkon_tracker.backend.model.Tip;
 import com.king_sparkon_tracker.backend.model.TipStatus;
@@ -46,7 +45,6 @@ import com.king_sparkon_tracker.backend.repository.TransactionWithdrawalReposito
 import com.king_sparkon_tracker.backend.service.PayPalPayoutService.PayoutQuote;
 import com.king_sparkon_tracker.backend.service.PayPalPayoutService.PayoutSubmission;
 import com.king_sparkon_tracker.backend.tickets.model.TicketEvent;
-import com.king_sparkon_tracker.backend.tickets.model.TicketPayment;
 import com.king_sparkon_tracker.backend.tickets.model.TicketPaymentStatus;
 import com.king_sparkon_tracker.backend.tickets.model.TicketWithdrawal;
 import com.king_sparkon_tracker.backend.tickets.repository.TicketEventRepository;
@@ -61,6 +59,7 @@ public class OwnerWalletService {
 	private static final int MONEY_SCALE = 2;
 	private static final String CURRENCY = "ZAR";
 	private static final String PAYPAL = "PAYPAL";
+	private static final BigDecimal ONE_HUNDRED = new BigDecimal("100");
 
 	private final BusinessAccountService businessAccountService;
 	private final TrackerUserService trackerUserService;
@@ -74,6 +73,7 @@ public class OwnerWalletService {
 	private final BusinessWithdrawalRepository businessWithdrawalRepository;
 	private final PayPalPayoutService payPalPayoutService;
 	private final BigDecimal minimumWithdrawalAmount;
+	private final BigDecimal withdrawalFeePercent;
 
 	public OwnerWalletService(
 			BusinessAccountService businessAccountService,
@@ -87,7 +87,8 @@ public class OwnerWalletService {
 			TicketWithdrawalRepository ticketWithdrawalRepository,
 			BusinessWithdrawalRepository businessWithdrawalRepository,
 			PayPalPayoutService payPalPayoutService,
-			@Value("${app.business-account.withdrawal-minimum-zar:100}") BigDecimal minimumWithdrawalAmount) {
+			@Value("${app.business-account.withdrawal-minimum-zar:100}") BigDecimal minimumWithdrawalAmount,
+			@Value("${app.business-account.withdrawal-fee-percent:7.35}") BigDecimal withdrawalFeePercent) {
 		this.businessAccountService = businessAccountService;
 		this.trackerUserService = trackerUserService;
 		this.transactionRepository = transactionRepository;
@@ -100,6 +101,7 @@ public class OwnerWalletService {
 		this.businessWithdrawalRepository = businessWithdrawalRepository;
 		this.payPalPayoutService = payPalPayoutService;
 		this.minimumWithdrawalAmount = money(minimumWithdrawalAmount);
+		this.withdrawalFeePercent = validFeePercent(withdrawalFeePercent);
 	}
 
 	public OwnerWalletSummaryResponse summary(String actorUsername) {
@@ -133,6 +135,7 @@ public class OwnerWalletService {
 				business.getName(),
 				balance,
 				minimumWithdrawalAmount,
+				withdrawalFeePercent,
 				productRevenue,
 				ticketRevenue,
 				tipRevenue,
@@ -169,13 +172,19 @@ public class OwnerWalletService {
 		Business business = business(owner);
 		reconcile(business, owner);
 
-		BigDecimal amount = money(request.amount());
-		if (amount.compareTo(minimumWithdrawalAmount) < 0) {
+		BigDecimal grossAmount = money(request.amount());
+		if (grossAmount.compareTo(minimumWithdrawalAmount) < 0) {
 			throw new IllegalArgumentException("Owner withdrawal amount must be at least " + CURRENCY + " " + minimumWithdrawalAmount);
 		}
 		BigDecimal availableBalance = businessAccountService.availableBalance(business.getId());
-		if (availableBalance.compareTo(amount) < 0) {
+		if (availableBalance.compareTo(grossAmount) < 0) {
 			throw new IllegalStateException("Withdrawal amount is greater than the available King Sparkon balance");
+		}
+
+		BigDecimal feeAmount = withdrawalFee(grossAmount);
+		BigDecimal netAmount = money(grossAmount.subtract(feeAmount));
+		if (netAmount.signum() <= 0) {
+			throw new IllegalArgumentException("Withdrawal amount is too low after the 7.35% withdrawal fee");
 		}
 
 		String payoutMethod = required(request.payoutMethod(), "Payout method is required").toUpperCase(Locale.ROOT);
@@ -186,18 +195,21 @@ public class OwnerWalletService {
 		if (payoutDestination == null) payoutDestination = optional(owner.getEmailAddress());
 		payoutDestination = paypalEmail(payoutDestination);
 
-		PayoutQuote quote = payPalPayoutService.quote(amount);
+		PayoutQuote quote = payPalPayoutService.quote(netAmount);
 		BusinessWithdrawal withdrawal = businessWithdrawalRepository.saveAndFlush(new BusinessWithdrawal(
 				business,
 				owner.getId(),
-				amount,
+				grossAmount,
+				feeAmount,
+				netAmount,
+				withdrawalFeePercent,
 				PAYPAL,
 				payoutDestination,
 				optional(request.notes())));
 
 		PayoutSubmission payout = payPalPayoutService.submitWithdrawal(
 				withdrawal.getId(),
-				amount,
+				netAmount,
 				payoutDestination);
 		withdrawal.markPayoutSubmitted(
 				PAYPAL,
@@ -211,10 +223,13 @@ public class OwnerWalletService {
 
 		BusinessAccountLedgerEntry ledgerEntry = businessAccountService.postOwnerWithdrawal(
 				business,
-				amount,
+				grossAmount,
 				"PAYPAL-PAYOUT:" + payout.payoutBatchId(),
 				"Owner PayPal withdrawal " + payout.payoutBatchId()
-						+ " · " + quote.payoutAmount() + " " + quote.payoutCurrency(),
+						+ " · gross " + grossAmount + " ZAR"
+						+ " · fee " + feeAmount + " ZAR (" + withdrawalFeePercent + "%)"
+						+ " · net " + netAmount + " ZAR"
+						+ " · PayPal " + quote.payoutAmount() + " " + quote.payoutCurrency(),
 				actorUsername);
 		withdrawal.attachLedgerEntry(ledgerEntry.getId());
 		return fromUnified(businessWithdrawalRepository.save(withdrawal));
@@ -251,7 +266,7 @@ public class OwnerWalletService {
 							business,
 							withdrawal.getAmount(),
 							"PAYPAL-PAYOUT-REVERSAL:" + withdrawal.getId(),
-							"PayPal payout " + withdrawal.getProviderBatchId() + " failed; owner balance restored");
+							"PayPal payout " + withdrawal.getProviderBatchId() + " failed; gross owner debit restored");
 				}
 			} catch (RuntimeException exception) {
 				LOGGER.warn(
@@ -372,8 +387,8 @@ public class OwnerWalletService {
 				"UNIFIED",
 				withdrawal.getBusiness().getId(),
 				money(withdrawal.getAmount()),
-				BigDecimal.ZERO.setScale(MONEY_SCALE),
-				money(withdrawal.getAmount()),
+				money(withdrawal.getFeeAmount()),
+				money(withdrawal.getNetAmount()),
 				CURRENCY,
 				withdrawal.getStatus().name(),
 				withdrawal.getPayoutMethod(),
@@ -477,6 +492,20 @@ public class OwnerWalletService {
 			throw new IllegalArgumentException("Enter a valid PayPal email address");
 		}
 		return email;
+	}
+
+	private BigDecimal withdrawalFee(BigDecimal grossAmount) {
+		return money(grossAmount)
+				.multiply(withdrawalFeePercent)
+				.divide(ONE_HUNDRED, MONEY_SCALE, RoundingMode.HALF_UP);
+	}
+
+	private BigDecimal validFeePercent(BigDecimal value) {
+		BigDecimal normalized = value == null ? BigDecimal.ZERO : value.setScale(MONEY_SCALE, RoundingMode.HALF_UP);
+		if (normalized.signum() < 0 || normalized.compareTo(ONE_HUNDRED) >= 0) {
+			throw new IllegalArgumentException("Owner withdrawal fee percent must be between 0 and 100");
+		}
+		return normalized;
 	}
 
 	private BigDecimal money(BigDecimal amount) {
