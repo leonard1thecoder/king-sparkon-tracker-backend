@@ -105,4 +105,18 @@ public class TransactionItem {
 			this.barcodes.addAll(barcodes);
 		}
 	}
+
+	public void addBarcode(String barcode) {
+		if (barcode == null || barcode.isBlank()) {
+			throw new IllegalArgumentException("Barcode is required");
+		}
+		if (barcodes.size() >= quantity) {
+			throw new IllegalStateException("All purchased units already have assigned barcodes");
+		}
+		String normalized = barcode.trim();
+		if (barcodes.contains(normalized)) {
+			throw new IllegalArgumentException("Barcode is already assigned to this purchase item");
+		}
+		barcodes.add(normalized);
+	}
 }
