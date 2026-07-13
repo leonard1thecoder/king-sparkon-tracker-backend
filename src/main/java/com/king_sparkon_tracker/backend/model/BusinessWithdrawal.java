@@ -2,6 +2,7 @@ package com.king_sparkon_tracker.backend.model;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.Locale;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -47,6 +48,21 @@ public class BusinessWithdrawal {
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false, length = 24)
 	private BusinessWithdrawalStatus status = BusinessWithdrawalStatus.REQUESTED;
+
+	@Column(length = 32)
+	private String provider;
+
+	@Column(name = "provider_batch_id", length = 120)
+	private String providerBatchId;
+
+	@Column(name = "provider_status", length = 40)
+	private String providerStatus;
+
+	@Column(name = "payout_amount", precision = 14, scale = 2)
+	private BigDecimal payoutAmount;
+
+	@Column(name = "payout_currency", length = 3)
+	private String payoutCurrency;
 
 	@Column(name = "ledger_entry_id")
 	private Long ledgerEntryId;
@@ -96,6 +112,41 @@ public class BusinessWithdrawal {
 		this.ledgerEntryId = ledgerEntryId;
 	}
 
+	public void markPayoutSubmitted(
+			String provider,
+			String providerBatchId,
+			String providerStatus,
+			BigDecimal payoutAmount,
+			String payoutCurrency) {
+		this.provider = provider;
+		this.providerBatchId = providerBatchId;
+		this.payoutAmount = payoutAmount;
+		this.payoutCurrency = payoutCurrency;
+		applyProviderStatus(providerStatus);
+	}
+
+	public void applyProviderStatus(String nextProviderStatus) {
+		String normalized = nextProviderStatus == null
+				? "PENDING"
+				: nextProviderStatus.trim().toUpperCase(Locale.ROOT);
+		this.providerStatus = normalized;
+		if ("SUCCESS".equals(normalized)) {
+			this.status = BusinessWithdrawalStatus.PAID;
+			this.processedAt = OffsetDateTime.now();
+			return;
+		}
+		if ("DENIED".equals(normalized)
+				|| "CANCELED".equals(normalized)
+				|| "CANCELLED".equals(normalized)
+				|| "FAILED".equals(normalized)) {
+			this.status = BusinessWithdrawalStatus.FAILED;
+			this.processedAt = OffsetDateTime.now();
+			return;
+		}
+		this.status = BusinessWithdrawalStatus.PROCESSING;
+		this.processedAt = null;
+	}
+
 	public Long getId() {
 		return id;
 	}
@@ -126,6 +177,26 @@ public class BusinessWithdrawal {
 
 	public BusinessWithdrawalStatus getStatus() {
 		return status;
+	}
+
+	public String getProvider() {
+		return provider;
+	}
+
+	public String getProviderBatchId() {
+		return providerBatchId;
+	}
+
+	public String getProviderStatus() {
+		return providerStatus;
+	}
+
+	public BigDecimal getPayoutAmount() {
+		return payoutAmount;
+	}
+
+	public String getPayoutCurrency() {
+		return payoutCurrency;
 	}
 
 	public Long getLedgerEntryId() {
