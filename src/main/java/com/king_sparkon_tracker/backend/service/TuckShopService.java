@@ -36,6 +36,7 @@ import com.king_sparkon_tracker.backend.model.ProductCategory;
 import com.king_sparkon_tracker.backend.model.ProductStatus;
 import com.king_sparkon_tracker.backend.model.TrackerUser;
 import com.king_sparkon_tracker.backend.model.TransactionItem;
+import com.king_sparkon_tracker.backend.model.TransactionPaymentType;
 import com.king_sparkon_tracker.backend.model.TransactionType;
 import com.king_sparkon_tracker.backend.repository.InventoryTransactionRepository;
 import com.king_sparkon_tracker.backend.repository.ProductBarcodeRepository;
@@ -57,6 +58,7 @@ public class TuckShopService {
 	private final StripeService stripeService;
 	private final TipService tipService;
 	private final AuditLogService auditLogService;
+	private final AppEmailService appEmailService;
 
 	public TuckShopService(
 			ProductService productService,
@@ -67,7 +69,8 @@ public class TuckShopService {
 			TrackerUserService userService,
 			StripeService stripeService,
 			TipService tipService,
-			AuditLogService auditLogService) {
+			AuditLogService auditLogService,
+			AppEmailService appEmailService) {
 		this.productService = productService;
 		this.productRepository = productRepository;
 		this.productBarcodeRepository = productBarcodeRepository;
@@ -77,6 +80,7 @@ public class TuckShopService {
 		this.stripeService = stripeService;
 		this.tipService = tipService;
 		this.auditLogService = auditLogService;
+		this.appEmailService = appEmailService;
 	}
 
 	@Transactional(readOnly = true)
@@ -94,7 +98,16 @@ public class TuckShopService {
 
 	public TuckShopPurchaseResponse createSelfServicePurchase(CreateTuckShopPurchaseRequest request, String actorUsername) {
 		TrackerUser customer = userService.getUserByUsername(actorUsername);
-		InventoryTransaction transaction = createPurchaseTransaction(request, customer, false, actorUsername, true, null);
+		InventoryTransaction transaction = createPurchaseTransaction(
+				request,
+				customer,
+				false,
+				actorUsername,
+				true,
+				null,
+				false,
+				TransactionPaymentType.WEBSITE_PAYMENT,
+				customer);
 		TipResponse tip = createSeparateWorkerTipIfRequested(request, transaction);
 		return TuckShopPurchaseResponse.from(transaction, tip);
 	}
@@ -102,7 +115,34 @@ public class TuckShopService {
 	public TuckShopPurchaseResponse createWorkerBarcodePurchase(CreateTuckShopPurchaseRequest request, String actorUsername) {
 		TrackerUser worker = userService.getUserByUsername(actorUsername);
 		requireRole(worker, PrivilegeRole.Worker, "Only workers can create barcode tuck shop purchases");
-		InventoryTransaction transaction = createPurchaseTransaction(request, worker, true, actorUsername, true, null);
+
+		TransactionPaymentType paymentType = request.paymentType() == null
+				? TransactionPaymentType.CASH
+				: request.paymentType();
+		if (paymentType != TransactionPaymentType.CASH
+				&& paymentType != TransactionPaymentType.SWIPE_MACHINE
+				&& paymentType != TransactionPaymentType.WEBSITE_PAYMENT) {
+			throw new IllegalArgumentException("Worker tuck shop payment type must be CASH, SWIPE_MACHINE, or WEBSITE_PAYMENT");
+		}
+
+		TrackerUser customer = null;
+		if (StringUtils.hasText(request.customerUsername())) {
+			customer = userService.getUserByUsername(request.customerUsername().trim());
+		}
+		if (paymentType == TransactionPaymentType.WEBSITE_PAYMENT && customer == null) {
+			throw new IllegalArgumentException("Customer username is required for a King Sparkon checkout");
+		}
+
+		InventoryTransaction transaction = createPurchaseTransaction(
+				request,
+				worker,
+				true,
+				actorUsername,
+				paymentType == TransactionPaymentType.WEBSITE_PAYMENT,
+				null,
+				false,
+				paymentType,
+				customer);
 		TipResponse tip = createSeparateWorkerTipIfRequested(request, transaction);
 		return TuckShopPurchaseResponse.from(transaction, tip);
 	}
@@ -121,7 +161,10 @@ public class TuckShopService {
 				false,
 				actorUsername,
 				false,
-				paymentIntentId.trim());
+				paymentIntentId.trim(),
+				true,
+				TransactionPaymentType.WEBSITE_PAYMENT,
+				customer);
 		return TuckShopPurchaseResponse.from(transaction, null);
 	}
 
@@ -131,60 +174,83 @@ public class TuckShopService {
 			boolean requireScannedUnitCodes,
 			String actorUsername,
 			boolean createHostedPaymentLink,
-			String embeddedPaymentReference) {
+			String embeddedPaymentReference,
+			boolean deferBarcodeAssignment,
+			TransactionPaymentType paymentType,
+			TrackerUser customer) {
 		List<TuckShopPurchaseItemRequest> itemRequests = requireItems(request.items());
 		Map<Long, Product> lockedProducts = lockProducts(itemRequests);
 		Business business = singleBusiness(lockedProducts.values());
 		TrackerUser owner = business.getOwner();
 		TrackerUser worker = workerForPurchase(request.workerId(), actor, business, requireScannedUnitCodes);
 
-		String paymentEmail = paymentEmail(request.paymentEmail(), actor);
+		String paymentEmail = customer == null
+				? paymentEmail(request.paymentEmail(), actor)
+				: customer.getEmailAddress();
 		String paymentContact = normalizeOptional(request.paymentContact());
 		if (paymentContact == null) {
 			paymentContact = paymentEmail;
 		}
 
 		InventoryTransaction transaction = new InventoryTransaction(TransactionType.SELL, worker, owner, business);
-		transaction.prepareWebsitePayment(paymentEmail, paymentContact);
+		transaction.setCustomer(customer);
+		if (deferBarcodeAssignment) {
+			transaction.prepareOnlineCollection(customer);
+		}
+		if (paymentType == TransactionPaymentType.WEBSITE_PAYMENT) {
+			transaction.prepareWebsitePayment(paymentEmail, paymentContact);
+		} else {
+			transaction.markOfflinePayment(paymentType, paymentEmail);
+		}
 
 		for (TuckShopPurchaseItemRequest itemRequest : itemRequests) {
 			Long productId = requirePresent(itemRequest.productId(), "Product id is required");
 			Product product = lockedProducts.get(productId);
 			int quantity = requirePositive(itemRequest.quantity(), "Quantity must be greater than zero");
-			List<String> unitCodes = unitCodesForPurchase(product, quantity, itemRequest.barcodes(), requireScannedUnitCodes, paymentEmail);
+			List<String> unitCodes = deferBarcodeAssignment
+					? List.of()
+					: unitCodesForPurchase(product, quantity, itemRequest.barcodes(), requireScannedUnitCodes, paymentEmail);
 			BigDecimal unitPrice = productPricingService.priceForSale(product);
 
 			productService.applyStockMovement(product, TransactionType.SELL, quantity);
-			markUnitCodesAsSold(product, unitCodes, paymentEmail);
+			if (!deferBarcodeAssignment) {
+				markUnitCodesAsSold(product, unitCodes, paymentEmail);
+			}
 			transaction.addItem(new TransactionItem(product, quantity, unitPrice, unitCodes));
 		}
 
 		InventoryTransaction savedTransaction = transactionRepository.save(transaction);
-		if (createHostedPaymentLink) {
+		if (paymentType == TransactionPaymentType.WEBSITE_PAYMENT && createHostedPaymentLink) {
 			CreatedTransactionPaymentLink paymentLink = stripeService.createTransactionPaymentLink(savedTransaction);
 			savedTransaction.markWebsitePaymentPending(paymentEmail, paymentContact, paymentLink.stripeId(), paymentLink.paymentUrl());
-		} else {
+			savedTransaction = transactionRepository.save(savedTransaction);
+			appEmailService.sendTransactionWebsitePaymentEmail(savedTransaction);
+		} else if (paymentType == TransactionPaymentType.WEBSITE_PAYMENT && StringUtils.hasText(embeddedPaymentReference)) {
 			savedTransaction.markWebsitePaymentPending(paymentEmail, paymentContact, embeddedPaymentReference, null);
+			savedTransaction = transactionRepository.save(savedTransaction);
 		}
-		savedTransaction = transactionRepository.save(savedTransaction);
 
 		auditLogService.record(
-				createHostedPaymentLink ? "TUCK_SHOP_PURCHASE_CREATED" : "TUCK_SHOP_EMBEDDED_PURCHASE_CREATED",
+				deferBarcodeAssignment ? "TUCK_SHOP_ONLINE_COLLECTION_CREATED" : "TUCK_SHOP_PURCHASE_CREATED",
 				"InventoryTransaction",
 				String.valueOf(savedTransaction.getId()),
 				actorUsername,
-				"Tuck shop purchase created with product total: " + savedTransaction.getTotalAmount(),
+				"Tuck shop purchase created with product total: " + savedTransaction.getTotalAmount()
+						+ ", payment type: " + paymentType
+						+ ", barcodes deferred: " + deferBarcodeAssignment,
 				business);
 
 		log.info(
-				"tuck_shop_purchase_created transactionId={} businessId={} actor={} workerId={} itemCount={} total={} embedded={}",
+				"tuck_shop_purchase_created transactionId={} businessId={} actor={} workerId={} customerId={} itemCount={} total={} paymentType={} deferredBarcodes={}",
 				savedTransaction.getId(),
 				business.getId(),
 				actorUsername,
 				worker.getId(),
+				customer == null ? null : customer.getId(),
 				savedTransaction.getItems().size(),
 				savedTransaction.getTotalAmount(),
-				!createHostedPaymentLink);
+				paymentType,
+				deferBarcodeAssignment);
 
 		return savedTransaction;
 	}
@@ -258,15 +324,15 @@ public class TuckShopService {
 			String referenceEmail) {
 		List<String> normalized = normalizeBarcodes(requestedUnitCodes);
 		if (requireScannedUnitCodes && normalized.isEmpty()) {
-			throw new IllegalArgumentException("Worker tuck shop purchase requires scanned stock unit codes");
+			throw new IllegalArgumentException("Worker tuck shop purchase requires scanned product or stock-unit barcodes");
 		}
 		if (!normalized.isEmpty()) {
 			if (normalized.size() != quantity) {
-				throw new IllegalArgumentException("Stock unit code count must match quantity");
+				throw new IllegalArgumentException("Barcode scan count must match quantity");
 			}
-			requireUniqueBarcodes(normalized);
-			requireUnitCodesBelongToProductAndAreAvailable(product, normalized);
-			return normalized;
+			List<String> resolvedUnitCodes = resolveScannedUnitCodes(product, normalized);
+			requireUniqueBarcodes(resolvedUnitCodes);
+			return resolvedUnitCodes;
 		}
 
 		List<String> availableUnitCodes = productBarcodeRepository.findByProduct_IdOrderByIdAsc(product.getId()).stream()
@@ -283,28 +349,30 @@ public class TuckShopService {
 		return availableUnitCodes;
 	}
 
+	private List<String> resolveScannedUnitCodes(Product product, List<String> scannedValues) {
+		List<ProductBarcode> productUnits = productBarcodeRepository.findByProduct_IdOrderByIdAsc(product.getId());
+		Set<String> selected = new LinkedHashSet<>();
+		for (String scannedValue : scannedValues) {
+			ProductBarcode match = productUnits.stream()
+					.filter(unit -> unit.getAvailabilityStatus() == ProductBarcodeAvailabilityStatus.AVAILABLE)
+					.filter(unit -> !selected.contains(unit.getUnitCode()))
+					.filter(unit -> scannedValue.equals(unit.getUnitCode())
+							|| scannedValue.equals(unit.getBarcode())
+							|| scannedValue.equals(product.getProductBarcode()))
+					.findFirst()
+					.orElseThrow(() -> new IllegalArgumentException(
+							"No available stock unit matches scanned barcode " + scannedValue + " for " + product.getName()));
+			selected.add(match.getUnitCode());
+		}
+		return List.copyOf(selected);
+	}
+
 	private void requireVisibleInTuckShop(Product product) {
 		if (product.getStatus() != ProductStatus.CREATED) {
 			throw new IllegalArgumentException("Product is not available in King Sparkon Tuck Shop: " + product.getName());
 		}
 		if (product.getStockQuantity() <= 0) {
 			throw new IllegalArgumentException("Product is out of stock: " + product.getName());
-		}
-	}
-
-	private void requireUnitCodesBelongToProductAndAreAvailable(Product product, List<String> unitCodes) {
-		Map<String, ProductBarcode> existingUnitCodes = new HashMap<>();
-		for (ProductBarcode productBarcode : productBarcodeRepository.findByUnitCodeIn(unitCodes)) {
-			existingUnitCodes.put(productBarcode.getUnitCode(), productBarcode);
-		}
-		for (String unitCode : unitCodes) {
-			ProductBarcode productBarcode = existingUnitCodes.get(unitCode);
-			if (productBarcode == null || !Objects.equals(product.getId(), productBarcode.getProduct().getId())) {
-				throw new IllegalArgumentException("Every tuck shop stock unit code must be registered to the selected product");
-			}
-			if (productBarcode.getAvailabilityStatus() != ProductBarcodeAvailabilityStatus.AVAILABLE) {
-				throw new IllegalArgumentException("Stock unit code is already sold or unavailable: " + unitCode);
-			}
 		}
 	}
 
