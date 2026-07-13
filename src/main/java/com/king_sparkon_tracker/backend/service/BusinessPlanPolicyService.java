@@ -20,10 +20,8 @@ import com.king_sparkon_tracker.backend.model.BusinessStatus;
 public class BusinessPlanPolicyService {
 
 	public static final int UNLIMITED = -1;
-
 	private static final BigDecimal PLUS_MONTHLY_PRICE = new BigDecimal("880.00");
 	private static final BigDecimal PRO_MONTHLY_PRICE = new BigDecimal("2300.00");
-
 	private static final List<AffiliateCommissionTierResponse> AFFILIATE_COMMISSION_TIERS = List.of(
 			new AffiliateCommissionTierResponse("First 3 months", 0, 3, new BigDecimal("18.00")),
 			new AffiliateCommissionTierResponse("After 3 months", 3, 12, new BigDecimal("23.00")),
@@ -37,6 +35,7 @@ public class BusinessPlanPolicyService {
 		this.discountService = discountService;
 	}
 
+	@Cacheable(cacheNames = RedisCacheConfig.BUSINESS_PLAN_PRICES_CACHE, key = "#plan.name()")
 	public BigDecimal monthlyPrice(BusinessPlan plan) {
 		BigDecimal original = originalMonthlyPrice(plan);
 		return discountService == null ? original : discountService.effectivePrice(plan, original);
@@ -64,35 +63,23 @@ public class BusinessPlanPolicyService {
 	}
 
 	public boolean isActiveOrTrial(Business business) {
-		if (business == null || business.getBusinessStatus() == null) {
-			return false;
-		}
-		return business.getBusinessStatus() == BusinessStatus.TRIAL
-				|| business.getBusinessStatus() == BusinessStatus.ACTIVE;
+		if (business == null || business.getBusinessStatus() == null) return false;
+		return business.getBusinessStatus() == BusinessStatus.TRIAL || business.getBusinessStatus() == BusinessStatus.ACTIVE;
 	}
 
 	public void requireActiveOrTrial(Business business) {
-		if (!isActiveOrTrial(business)) {
-			throw new IllegalArgumentException("Business subscription is not active");
-		}
+		if (!isActiveOrTrial(business)) throw new IllegalArgumentException("Business subscription is not active");
 	}
 
 	@Cacheable(
 			cacheNames = RedisCacheConfig.BUSINESS_FEATURE_ACCESS_CACHE,
 			key = "(#business == null ? 'NO_BUSINESS' : #business.id) + ':' + (#business == null || #business.businessPlan == null ? 'FREE_TRIAL' : #business.businessPlan.name()) + ':' + (#business == null || #business.businessStatus == null ? 'NO_STATUS' : #business.businessStatus.name()) + ':' + #feature.name()")
 	public boolean isFeatureEnabled(Business business, BusinessFeature feature) {
-		if (!isActiveOrTrial(business)) {
-			return false;
-		}
+		if (!isActiveOrTrial(business)) return false;
 		BusinessPlan plan = planOf(business);
 		return switch (feature) {
-			case CREATE_WORKERS -> true;
-			case CREATE_PRODUCTS -> true;
-			case ADD_BARCODES -> true;
-			case SCAN_BARCODES -> true;
-			case WORKER_TIPS_PLATFORM -> plan == BusinessPlan.PRO;
-			case BUSINESS_ANALYSIS_AI -> plan == BusinessPlan.PRO;
-			case WORKER_CLOCKER -> plan == BusinessPlan.PRO;
+			case CREATE_WORKERS, CREATE_PRODUCTS, ADD_BARCODES, SCAN_BARCODES -> true;
+			case WORKER_TIPS_PLATFORM, BUSINESS_ANALYSIS_AI, WORKER_CLOCKER -> plan == BusinessPlan.PRO;
 		};
 	}
 
@@ -106,38 +93,11 @@ public class BusinessPlanPolicyService {
 	@Cacheable(cacheNames = RedisCacheConfig.BILLING_PLANS_CACHE)
 	public List<BillingPlanResponse> billingPlans() {
 		return List.of(
-				planResponse(
-						BusinessPlan.FREE_TRIAL,
-						"Free 14 day trial",
-						2,
-						false,
-						true,
-						true,
-						false,
-						false,
-						false,
+				planResponse(BusinessPlan.FREE_TRIAL, "Free 14 day trial", 2, false, true, true, false, false, false,
 						List.of("14 day trial", "2 workers", "Unlimited products", "Unlimited barcode scanning", "Affiliate promo QR tracking")),
-				planResponse(
-						BusinessPlan.PLUS,
-						"Plus",
-						5,
-						false,
-						true,
-						true,
-						false,
-						false,
-						false,
+				planResponse(BusinessPlan.PLUS, "Plus", 5, false, true, true, false, false, false,
 						List.of("5 workers", "Unlimited products", "Unlimited barcode scanning", "Affiliate promo QR tracking")),
-				planResponse(
-						BusinessPlan.PRO,
-						"Pro",
-						UNLIMITED,
-						true,
-						true,
-						true,
-						true,
-						true,
-						true,
+				planResponse(BusinessPlan.PRO, "Pro", UNLIMITED, true, true, true, true, true, true,
 						List.of("Unlimited workers", "Unlimited products", "Unlimited barcode scanning", "Workers tips platform", "Business Analysis AI", "Worker clocker", "Affiliate promo QR tracking"))
 		);
 	}
@@ -157,24 +117,11 @@ public class BusinessPlanPolicyService {
 		BigDecimal effectivePrice = monthlyPrice(plan);
 		BillingPlanDiscount discount = discountService == null ? null : discountService.effectiveDiscount(plan).orElse(null);
 		return new BillingPlanResponse(
-				plan,
-				displayName,
-				effectivePrice,
-				"ZAR",
-				maxWorkers,
-				unlimitedWorkers,
-				unlimitedProducts,
-				unlimitedBarcodeScanning,
-				workerTipsPlatform,
-				businessAnalysisAi,
-				workerClocker,
-				true,
-				AFFILIATE_COMMISSION_TIERS,
-				features,
-				originalPrice,
+				plan, displayName, effectivePrice, "ZAR", maxWorkers, unlimitedWorkers, unlimitedProducts,
+				unlimitedBarcodeScanning, workerTipsPlatform, businessAnalysisAi, workerClocker, true,
+				AFFILIATE_COMMISSION_TIERS, features, originalPrice,
 				discount == null ? BigDecimal.ZERO : discount.getDiscountPercent(),
-				discount == null ? null : discount.getLabel(),
-				discount != null);
+				discount == null ? null : discount.getLabel(), discount != null);
 	}
 
 	@Cacheable(cacheNames = RedisCacheConfig.AFFILIATE_COMMISSION_TIERS_CACHE)
@@ -183,9 +130,6 @@ public class BusinessPlanPolicyService {
 	}
 
 	private BusinessPlan planOf(Business business) {
-		if (business == null || business.getBusinessPlan() == null) {
-			return BusinessPlan.FREE_TRIAL;
-		}
-		return business.getBusinessPlan();
+		return business == null || business.getBusinessPlan() == null ? BusinessPlan.FREE_TRIAL : business.getBusinessPlan();
 	}
 }
