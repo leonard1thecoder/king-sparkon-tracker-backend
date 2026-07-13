@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import com.king_sparkon_tracker.backend.model.InventoryTransaction;
+import com.king_sparkon_tracker.backend.model.TuckShopFulfilmentStatus;
 import com.king_sparkon_tracker.backend.model.TransactionPaymentStatus;
 import com.king_sparkon_tracker.backend.model.TransactionPaymentType;
 
@@ -17,21 +18,21 @@ public record TuckShopPurchaseResponse(
 		Long businessId,
 		@Schema(description = "Business name.", example = "Campus Tuck Shop")
 		String businessName,
-		@Schema(description = "Worker who assisted the transaction, or owner for self-service checkout.", example = "12")
+		@Schema(description = "Worker who assisted or prepared the transaction.", example = "12")
 		Long workerId,
 		@Schema(description = "Owner accountable for the product sale.", example = "5")
 		Long ownerId,
 		@Schema(description = "Product revenue total only. Tips are separate.", example = "62.50")
 		BigDecimal productTotal,
-		@Schema(description = "Website payment status for the product transaction.", example = "PENDING")
+		@Schema(description = "Payment status for the product transaction.", example = "PAID")
 		TransactionPaymentStatus paymentStatus,
 		@Schema(description = "Payment type.", example = "WEBSITE_PAYMENT")
 		TransactionPaymentType paymentType,
-		@Schema(description = "Stripe payment reference for the product transaction.")
+		@Schema(description = "Stripe or payment reference for the product transaction.")
 		String paymentReference,
-		@Schema(description = "Stripe payment URL for the product transaction.")
+		@Schema(description = "Payment URL for the product transaction.")
 		String paymentUrl,
-		@Schema(description = "QR code URL for the product transaction payment URL.")
+		@Schema(description = "QR code URL for the payment URL.")
 		String paymentQrCodeUrl,
 		@Schema(description = "Stripe client secret for an embedded card confirmation. Never log or place this value in a URL.")
 		String clientSecret,
@@ -40,7 +41,25 @@ public record TuckShopPurchaseResponse(
 		@Schema(description = "Transaction date.")
 		LocalDateTime createdAt,
 		@Schema(description = "Purchased items.")
-		List<TuckShopPurchaseItemResponse> items
+		List<TuckShopPurchaseItemResponse> items,
+		@Schema(description = "Registered customer id for an online collection order.")
+		Long customerId,
+		@Schema(description = "Registered customer username for an online collection order.")
+		String customerUsername,
+		@Schema(description = "Product fulfilment lifecycle.")
+		TuckShopFulfilmentStatus fulfilmentStatus,
+		@Schema(description = "Number of purchased units still needing a barcode.")
+		int barcodesRequired,
+		@Schema(description = "Raw collection QR value shown by a worker after all barcodes are assigned.")
+		String collectionQrCodeValue,
+		@Schema(description = "Rendered QR image URL for collection verification.")
+		String collectionQrCodeUrl,
+		@Schema(description = "Date the order became ready for collection.")
+		LocalDateTime collectionReadyAt,
+		@Schema(description = "Date the authenticated customer collected the order.")
+		LocalDateTime collectedAt,
+		@Schema(description = "Worker who completed barcode preparation.")
+		Long preparedByWorkerId
 ) {
 	public TuckShopPurchaseResponse(
 			Long transactionId,
@@ -72,7 +91,16 @@ public record TuckShopPurchaseResponse(
 				null,
 				tip,
 				createdAt,
-				items);
+				items,
+				null,
+				null,
+				TuckShopFulfilmentStatus.NOT_REQUIRED,
+				0,
+				null,
+				null,
+				null,
+				null,
+				null);
 	}
 
 	public static TuckShopPurchaseResponse from(InventoryTransaction transaction, TipResponse tip) {
@@ -95,7 +123,15 @@ public record TuckShopPurchaseResponse(
 				clientSecret,
 				tip,
 				transaction.getDate(),
-				transaction.getItems().stream().map(TuckShopPurchaseItemResponse::from).toList()
-		);
+				transaction.getItems().stream().map(TuckShopPurchaseItemResponse::from).toList(),
+				transaction.getCustomer() == null ? null : transaction.getCustomer().getId(),
+				transaction.getCustomer() == null ? null : transaction.getCustomer().getUsername(),
+				transaction.getFulfilmentStatus(),
+				transaction.getOutstandingBarcodeCount(),
+				transaction.getCollectionQrCodeValue(),
+				transaction.getCollectionQrCodeUrl(),
+				transaction.getCollectionReadyAt(),
+				transaction.getCollectedAt(),
+				transaction.getPreparedByWorkerId());
 	}
 }
