@@ -12,5 +12,9 @@ public interface BusinessWithdrawalRepository extends JpaRepository<BusinessWith
 
 	List<BusinessWithdrawal> findByBusiness_IdOrderByRequestedAtDesc(Long businessId);
 
+	List<BusinessWithdrawal> findByBusiness_IdAndStatusInOrderByRequestedAtDesc(
+			Long businessId,
+			Collection<BusinessWithdrawalStatus> statuses);
+
 	long countByBusiness_IdAndStatusIn(Long businessId, Collection<BusinessWithdrawalStatus> statuses);
 }
