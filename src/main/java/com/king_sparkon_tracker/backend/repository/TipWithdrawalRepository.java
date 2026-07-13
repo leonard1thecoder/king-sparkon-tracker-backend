@@ -9,4 +9,6 @@ import com.king_sparkon_tracker.backend.model.TipWithdrawal;
 public interface TipWithdrawalRepository extends JpaRepository<TipWithdrawal, Long> {
 
 	List<TipWithdrawal> findByWorker_IdOrderByRequestedAtDesc(Long workerId);
+
+	List<TipWithdrawal> findByOwner_Business_IdOrderByRequestedAtDesc(Long businessId);
 }
