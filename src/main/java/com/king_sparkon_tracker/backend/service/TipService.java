@@ -119,6 +119,21 @@ public class TipService {
 	}
 
 	@Transactional(readOnly = true)
+	public List<TipResponse> getTipsForCurrentOwner(String ownerUsername) {
+		TrackerUser owner = trackerUserService.getUserByUsername(ownerUsername);
+		if (owner.getPrivilege() == null || owner.getPrivilege().getName() != PrivilegeRole.Owner) {
+			throw new IllegalArgumentException("Only business owners can view business tips");
+		}
+		if (owner.getBusiness() == null || owner.getBusiness().getId() == null) {
+			throw new IllegalArgumentException("Owner is not linked to a business");
+		}
+		return tipRepository.findByWorker_Business_IdOrderByCreatedDesc(owner.getBusiness().getId())
+				.stream()
+				.map(this::response)
+				.toList();
+	}
+
+	@Transactional(readOnly = true)
 	public List<TipResponse> getTipsForAffiliate(String affiliateUsername) {
 		TrackerUser affiliate = trackerUserService.getUserByUsername(affiliateUsername);
 		requireAffiliate(affiliate);
