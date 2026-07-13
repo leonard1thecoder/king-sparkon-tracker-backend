@@ -5,6 +5,7 @@ import java.security.Principal;
 
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -26,6 +27,7 @@ import com.king_sparkon_tracker.backend.model.Product;
 import com.king_sparkon_tracker.backend.model.ProductCategory;
 import com.king_sparkon_tracker.backend.model.ProductStatus;
 import com.king_sparkon_tracker.backend.service.PriceLocalizationService;
+import com.king_sparkon_tracker.backend.service.ProductArchiveService;
 import com.king_sparkon_tracker.backend.service.ProductPageableFactory;
 import com.king_sparkon_tracker.backend.service.ProductPricingService;
 import com.king_sparkon_tracker.backend.service.ProductService;
@@ -46,16 +48,28 @@ public class ProductController {
 	private final ProductPricingService productPricingService;
 	private final PriceLocalizationService priceLocalizationService;
 	private final ProductPageableFactory productPageableFactory;
+	private final ProductArchiveService productArchiveService;
 
 	public ProductController(
 			ProductService productService,
 			ProductPricingService productPricingService,
 			PriceLocalizationService priceLocalizationService,
 			ProductPageableFactory productPageableFactory) {
+		this(productService, productPricingService, priceLocalizationService, productPageableFactory, null);
+	}
+
+	@org.springframework.beans.factory.annotation.Autowired
+	public ProductController(
+			ProductService productService,
+			ProductPricingService productPricingService,
+			PriceLocalizationService priceLocalizationService,
+			ProductPageableFactory productPageableFactory,
+			ProductArchiveService productArchiveService) {
 		this.productService = productService;
 		this.productPricingService = productPricingService;
 		this.priceLocalizationService = priceLocalizationService;
 		this.productPageableFactory = productPageableFactory;
+		this.productArchiveService = productArchiveService;
 	}
 
 	@PostMapping
@@ -92,6 +106,18 @@ public class ProductController {
 		return responseFrom(productService.updateProductImageUrl(id, request.productImageUrl(), principal.getName()), principal.getName());
 	}
 
+	@DeleteMapping("/{id}")
+	@ResponseStatus(HttpStatus.NO_CONTENT)
+	@Operation(summary = "Delete owner product", description = "Archives the product so it disappears from the customer shop while preserving transaction and barcode history.")
+	public void deleteProduct(
+			@PathVariable Long id,
+			@Parameter(hidden = true) Principal principal) {
+		if (productArchiveService == null) {
+			throw new IllegalStateException("Product archive service is unavailable");
+		}
+		productArchiveService.archive(id, principal.getName());
+	}
+
 	@PostMapping("/{id}/submit-approval")
 	public ProductResponse submitProductForApproval(
 			@PathVariable Long id,
@@ -114,11 +140,9 @@ public class ProductController {
 		String actorUsername = principal.getName();
 		String effectiveSearch = query == null || query.isBlank() ? search : query;
 		Pageable pageable = productPageableFactory.create(page, size, sortBy, direction);
-
 		return PageResponse.from(
 				productService.searchProducts(pageable, actorUsername, category, status, effectiveSearch),
-				product -> responseFrom(product, actorUsername)
-		);
+				product -> responseFrom(product, actorUsername));
 	}
 
 	@GetMapping("/{id}")
@@ -137,14 +161,12 @@ public class ProductController {
 
 	private ProductResponse responseFrom(Product product, String actorUsername) {
 		BigDecimal salePrice = productPricingService.priceForSale(product);
-
 		return ProductResponse.from(
 				product,
 				salePrice,
 				priceLocalizationService.localize(product.getPrice(), actorUsername),
 				priceLocalizationService.localize(salePrice, actorUsername),
 				priceLocalizationService.localize(product.getReturnablePrice(), actorUsername),
-				priceLocalizationService.localize(product.getNightShiftPrice(), actorUsername)
-		);
+				priceLocalizationService.localize(product.getNightShiftPrice(), actorUsername));
 	}
 }
