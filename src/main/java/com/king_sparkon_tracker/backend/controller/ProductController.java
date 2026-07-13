@@ -2,6 +2,7 @@ package com.king_sparkon_tracker.backend.controller;
 
 import java.math.BigDecimal;
 import java.security.Principal;
+import java.util.Optional;
 
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -55,7 +56,7 @@ public class ProductController {
 			ProductPricingService productPricingService,
 			PriceLocalizationService priceLocalizationService,
 			ProductPageableFactory productPageableFactory) {
-		this(productService, productPricingService, priceLocalizationService, productPageableFactory, null);
+		this(productService, productPricingService, priceLocalizationService, productPageableFactory, Optional.empty());
 	}
 
 	@org.springframework.beans.factory.annotation.Autowired
@@ -64,12 +65,12 @@ public class ProductController {
 			ProductPricingService productPricingService,
 			PriceLocalizationService priceLocalizationService,
 			ProductPageableFactory productPageableFactory,
-			ProductArchiveService productArchiveService) {
+			Optional<ProductArchiveService> productArchiveService) {
 		this.productService = productService;
 		this.productPricingService = productPricingService;
 		this.priceLocalizationService = priceLocalizationService;
 		this.productPageableFactory = productPageableFactory;
-		this.productArchiveService = productArchiveService;
+		this.productArchiveService = productArchiveService.orElse(null);
 	}
 
 	@PostMapping
