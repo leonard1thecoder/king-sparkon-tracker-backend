@@ -120,7 +120,7 @@ public class PayPalPayoutService {
 		requireConfigured();
 		try {
 			PayoutResponse response = restClient.get()
-					.uri("/v1/payments/payouts/{batchId}?fields=batch_header", batchId)
+					.uri("/v1/payments/payouts/{batchId}", batchId)
 					.headers(headers -> headers.setBearerAuth(accessToken()))
 					.accept(MediaType.APPLICATION_JSON)
 					.retrieve()
