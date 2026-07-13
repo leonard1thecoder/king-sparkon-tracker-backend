@@ -6,6 +6,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -75,6 +76,26 @@ public class InventoryTransaction {
 	@JoinColumn(name = "business_id")
 	private Business business;
 
+	@ManyToOne(fetch = FetchType.EAGER)
+	@JoinColumn(name = "customer_id")
+	private TrackerUser customer;
+
+	@Enumerated(EnumType.STRING)
+	@Column(name = "fulfilment_status", nullable = false, length = 48)
+	private TuckShopFulfilmentStatus fulfilmentStatus = TuckShopFulfilmentStatus.NOT_REQUIRED;
+
+	@Column(name = "collection_token", unique = true, length = 96)
+	private String collectionToken;
+
+	@Column(name = "collection_ready_at")
+	private LocalDateTime collectionReadyAt;
+
+	@Column(name = "collected_at")
+	private LocalDateTime collectedAt;
+
+	@Column(name = "prepared_by_worker_id")
+	private Long preparedByWorkerId;
+
 	@OneToMany(mappedBy = "transaction", cascade = CascadeType.ALL, orphanRemoval = true)
 	private List<TransactionItem> items = new ArrayList<>();
 
@@ -117,6 +138,9 @@ public class InventoryTransaction {
 	void beforeCreate() {
 		if (date == null) {
 			date = LocalDateTime.now();
+		}
+		if (fulfilmentStatus == null) {
+			fulfilmentStatus = TuckShopFulfilmentStatus.NOT_REQUIRED;
 		}
 	}
 
@@ -167,6 +191,52 @@ public class InventoryTransaction {
 		if ((this.paymentReference == null || this.paymentReference.isBlank()) && paymentReference != null && !paymentReference.isBlank()) {
 			this.paymentReference = paymentReference;
 		}
+	}
+
+	public void prepareOnlineCollection(TrackerUser customer) {
+		this.customer = customer;
+		this.fulfilmentStatus = TuckShopFulfilmentStatus.AWAITING_BARCODE_ASSIGNMENT;
+		this.collectionToken = null;
+		this.collectionReadyAt = null;
+		this.collectedAt = null;
+		this.preparedByWorkerId = null;
+	}
+
+	public void markReadyForCollection(Long workerId) {
+		if (getOutstandingBarcodeCount() > 0) {
+			throw new IllegalStateException("Every purchased unit needs a barcode before collection can be prepared");
+		}
+		this.fulfilmentStatus = TuckShopFulfilmentStatus.READY_FOR_COLLECTION;
+		this.collectionReadyAt = LocalDateTime.now();
+		this.preparedByWorkerId = workerId;
+		if (collectionToken == null || collectionToken.isBlank()) {
+			collectionToken = UUID.randomUUID().toString();
+		}
+	}
+
+	public void markCollected() {
+		if (fulfilmentStatus != TuckShopFulfilmentStatus.READY_FOR_COLLECTION) {
+			throw new IllegalStateException("Only orders ready for collection can be collected");
+		}
+		this.fulfilmentStatus = TuckShopFulfilmentStatus.COLLECTED;
+		this.collectedAt = LocalDateTime.now();
+	}
+
+	public int getOutstandingBarcodeCount() {
+		return items.stream()
+				.mapToInt(item -> Math.max(item.getQuantity() - item.getBarcodes().size(), 0))
+				.sum();
+	}
+
+	public String getCollectionQrCodeValue() {
+		if (collectionToken == null || collectionToken.isBlank()) {
+			return null;
+		}
+		return "KST-COLLECT:" + collectionToken;
+	}
+
+	public String getCollectionQrCodeUrl() {
+		return qrCodeUrl(getCollectionQrCodeValue());
 	}
 
 	public BigDecimal getTotalAmount() {
@@ -285,6 +355,42 @@ public class InventoryTransaction {
 
 	public void setBusiness(Business business) {
 		this.business = business;
+	}
+
+	public TrackerUser getCustomer() {
+		return customer;
+	}
+
+	public void setCustomer(TrackerUser customer) {
+		this.customer = customer;
+	}
+
+	public TuckShopFulfilmentStatus getFulfilmentStatus() {
+		return fulfilmentStatus;
+	}
+
+	public void setFulfilmentStatus(TuckShopFulfilmentStatus fulfilmentStatus) {
+		this.fulfilmentStatus = fulfilmentStatus;
+	}
+
+	public String getCollectionToken() {
+		return collectionToken;
+	}
+
+	public void setCollectionToken(String collectionToken) {
+		this.collectionToken = collectionToken;
+	}
+
+	public LocalDateTime getCollectionReadyAt() {
+		return collectionReadyAt;
+	}
+
+	public LocalDateTime getCollectedAt() {
+		return collectedAt;
+	}
+
+	public Long getPreparedByWorkerId() {
+		return preparedByWorkerId;
 	}
 
 	public List<TransactionItem> getItems() {
