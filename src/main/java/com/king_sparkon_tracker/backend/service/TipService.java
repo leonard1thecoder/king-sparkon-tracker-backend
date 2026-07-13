@@ -12,10 +12,10 @@ import com.king_sparkon_tracker.backend.dto.TipRequest;
 import com.king_sparkon_tracker.backend.dto.TipResponse;
 import com.king_sparkon_tracker.backend.dto.UpdateTipStatusRequest;
 import com.king_sparkon_tracker.backend.exception.ResourceNotFoundException;
+import com.king_sparkon_tracker.backend.model.PrivilegeRole;
 import com.king_sparkon_tracker.backend.model.Tip;
 import com.king_sparkon_tracker.backend.model.TipStatus;
 import com.king_sparkon_tracker.backend.model.TrackerUser;
-import com.king_sparkon_tracker.backend.model.PrivilegeRole;
 import com.king_sparkon_tracker.backend.repository.TipRepository;
 import com.king_sparkon_tracker.backend.service.StripeService.CreatedTipPaymentLink;
 
@@ -114,6 +114,7 @@ public class TipService {
 		if (worker.getPrivilege() == null || worker.getPrivilege().getName() != PrivilegeRole.Worker) {
 			throw new IllegalArgumentException("Only workers can view their own tips");
 		}
+		requireWorkerTipsPrivilege(worker);
 		return getTipsForWorker(worker.getId());
 	}
 
@@ -161,6 +162,15 @@ public class TipService {
 				|| (user.getPrivilege().getName() != PrivilegeRole.Worker
 				&& user.getPrivilege().getName() != PrivilegeRole.Affiliate)) {
 			throw new IllegalArgumentException("Tips can only be created for worker or affiliate accounts");
+		}
+		if (user.getPrivilege().getName() == PrivilegeRole.Worker) {
+			requireWorkerTipsPrivilege(user);
+		}
+	}
+
+	private void requireWorkerTipsPrivilege(TrackerUser worker) {
+		if (!worker.isTipQrCodeEnabled()) {
+			throw new IllegalArgumentException("This worker is not privileged to receive tips. The business owner must enable tips for this worker account");
 		}
 	}
 
