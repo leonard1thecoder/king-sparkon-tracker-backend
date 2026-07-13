@@ -3,12 +3,14 @@ package com.king_sparkon_tracker.backend.service;
 import java.math.BigDecimal;
 import java.util.List;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import com.king_sparkon_tracker.backend.config.RedisCacheConfig;
 import com.king_sparkon_tracker.backend.dto.AffiliateCommissionTierResponse;
 import com.king_sparkon_tracker.backend.dto.BillingPlanResponse;
+import com.king_sparkon_tracker.backend.model.BillingPlanDiscount;
 import com.king_sparkon_tracker.backend.model.Business;
 import com.king_sparkon_tracker.backend.model.BusinessFeature;
 import com.king_sparkon_tracker.backend.model.BusinessPlan;
@@ -20,7 +22,6 @@ public class BusinessPlanPolicyService {
 	public static final int UNLIMITED = -1;
 
 	private static final BigDecimal PLUS_MONTHLY_PRICE = new BigDecimal("880.00");
-
 	private static final BigDecimal PRO_MONTHLY_PRICE = new BigDecimal("2300.00");
 
 	private static final List<AffiliateCommissionTierResponse> AFFILIATE_COMMISSION_TIERS = List.of(
@@ -29,8 +30,19 @@ public class BusinessPlanPolicyService {
 			new AffiliateCommissionTierResponse("After 1 year", 12, null, new BigDecimal("28.00"))
 	);
 
-	@Cacheable(cacheNames = RedisCacheConfig.BUSINESS_PLAN_PRICES_CACHE, key = "#plan.name()")
+	private BillingPlanDiscountService discountService;
+
+	@Autowired(required = false)
+	void setDiscountService(BillingPlanDiscountService discountService) {
+		this.discountService = discountService;
+	}
+
 	public BigDecimal monthlyPrice(BusinessPlan plan) {
+		BigDecimal original = originalMonthlyPrice(plan);
+		return discountService == null ? original : discountService.effectivePrice(plan, original);
+	}
+
+	public BigDecimal originalMonthlyPrice(BusinessPlan plan) {
 		return switch (plan) {
 			case FREE_TRIAL -> BigDecimal.ZERO;
 			case PLUS -> PLUS_MONTHLY_PRICE;
@@ -55,7 +67,6 @@ public class BusinessPlanPolicyService {
 		if (business == null || business.getBusinessStatus() == null) {
 			return false;
 		}
-
 		return business.getBusinessStatus() == BusinessStatus.TRIAL
 				|| business.getBusinessStatus() == BusinessStatus.ACTIVE;
 	}
@@ -73,9 +84,7 @@ public class BusinessPlanPolicyService {
 		if (!isActiveOrTrial(business)) {
 			return false;
 		}
-
 		BusinessPlan plan = planOf(business);
-
 		return switch (feature) {
 			case CREATE_WORKERS -> true;
 			case CREATE_PRODUCTS -> true;
@@ -89,20 +98,16 @@ public class BusinessPlanPolicyService {
 
 	public void requireFeature(Business business, BusinessFeature feature) {
 		requireActiveOrTrial(business);
-
 		if (!isFeatureEnabled(business, feature)) {
 			throw new IllegalArgumentException("Feature " + feature + " is not available on " + planOf(business) + " plan");
 		}
 	}
 
-	@Cacheable(cacheNames = RedisCacheConfig.BILLING_PLANS_CACHE)
 	public List<BillingPlanResponse> billingPlans() {
 		return List.of(
-				new BillingPlanResponse(
+				planResponse(
 						BusinessPlan.FREE_TRIAL,
 						"Free 14 day trial",
-						BigDecimal.ZERO,
-						"ZAR",
 						2,
 						false,
 						true,
@@ -110,21 +115,10 @@ public class BusinessPlanPolicyService {
 						false,
 						false,
 						false,
-						true,
-						AFFILIATE_COMMISSION_TIERS,
-						List.of(
-								"14 day trial",
-								"2 workers",
-								"Unlimited products",
-								"Unlimited barcode scanning",
-								"Affiliate promo QR tracking"
-						)
-				),
-				new BillingPlanResponse(
+						List.of("14 day trial", "2 workers", "Unlimited products", "Unlimited barcode scanning", "Affiliate promo QR tracking")),
+				planResponse(
 						BusinessPlan.PLUS,
 						"Plus",
-						PLUS_MONTHLY_PRICE,
-						"ZAR",
 						5,
 						false,
 						true,
@@ -132,20 +126,10 @@ public class BusinessPlanPolicyService {
 						false,
 						false,
 						false,
-						true,
-						AFFILIATE_COMMISSION_TIERS,
-						List.of(
-								"5 workers",
-								"Unlimited products",
-								"Unlimited barcode scanning",
-								"Affiliate promo QR tracking"
-						)
-				),
-				new BillingPlanResponse(
+						List.of("5 workers", "Unlimited products", "Unlimited barcode scanning", "Affiliate promo QR tracking")),
+				planResponse(
 						BusinessPlan.PRO,
 						"Pro",
-						PRO_MONTHLY_PRICE,
-						"ZAR",
 						UNLIMITED,
 						true,
 						true,
@@ -153,19 +137,43 @@ public class BusinessPlanPolicyService {
 						true,
 						true,
 						true,
-						true,
-						AFFILIATE_COMMISSION_TIERS,
-						List.of(
-								"Unlimited workers",
-								"Unlimited products",
-								"Unlimited barcode scanning",
-								"Workers tips platform",
-								"Business Analysis AI",
-								"Worker clocker",
-								"Affiliate promo QR tracking"
-						)
-				)
+						List.of("Unlimited workers", "Unlimited products", "Unlimited barcode scanning", "Workers tips platform", "Business Analysis AI", "Worker clocker", "Affiliate promo QR tracking"))
 		);
+	}
+
+	private BillingPlanResponse planResponse(
+			BusinessPlan plan,
+			String displayName,
+			int maxWorkers,
+			boolean unlimitedWorkers,
+			boolean unlimitedProducts,
+			boolean unlimitedBarcodeScanning,
+			boolean workerTipsPlatform,
+			boolean businessAnalysisAi,
+			boolean workerClocker,
+			List<String> features) {
+		BigDecimal originalPrice = originalMonthlyPrice(plan);
+		BigDecimal effectivePrice = monthlyPrice(plan);
+		BillingPlanDiscount discount = discountService == null ? null : discountService.effectiveDiscount(plan).orElse(null);
+		return new BillingPlanResponse(
+				plan,
+				displayName,
+				effectivePrice,
+				"ZAR",
+				maxWorkers,
+				unlimitedWorkers,
+				unlimitedProducts,
+				unlimitedBarcodeScanning,
+				workerTipsPlatform,
+				businessAnalysisAi,
+				workerClocker,
+				true,
+				AFFILIATE_COMMISSION_TIERS,
+				features,
+				originalPrice,
+				discount == null ? BigDecimal.ZERO : discount.getDiscountPercent(),
+				discount == null ? null : discount.getLabel(),
+				discount != null);
 	}
 
 	@Cacheable(cacheNames = RedisCacheConfig.AFFILIATE_COMMISSION_TIERS_CACHE)
@@ -177,7 +185,6 @@ public class BusinessPlanPolicyService {
 		if (business == null || business.getBusinessPlan() == null) {
 			return BusinessPlan.FREE_TRIAL;
 		}
-
 		return business.getBusinessPlan();
 	}
 }
