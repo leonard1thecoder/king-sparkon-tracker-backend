@@ -42,22 +42,18 @@ public class UserController {
 
 	private final TrackerUserService userService;
 	private final OnboardingProfileService onboardingProfileService;
-	private final CurrentUserProfileService currentUserProfileService;
-
-	@Autowired
-	public UserController(
-			TrackerUserService userService,
-			OnboardingProfileService onboardingProfileService,
-			CurrentUserProfileService currentUserProfileService) {
-		this.userService = userService;
-		this.onboardingProfileService = onboardingProfileService;
-		this.currentUserProfileService = currentUserProfileService;
-	}
+	private CurrentUserProfileService currentUserProfileService;
 
 	public UserController(
 			TrackerUserService userService,
 			OnboardingProfileService onboardingProfileService) {
-		this(userService, onboardingProfileService, null);
+		this.userService = userService;
+		this.onboardingProfileService = onboardingProfileService;
+	}
+
+	@Autowired(required = false)
+	void setCurrentUserProfileService(CurrentUserProfileService currentUserProfileService) {
+		this.currentUserProfileService = currentUserProfileService;
 	}
 
 	@GetMapping
@@ -101,7 +97,7 @@ public class UserController {
 	public UserResponse updateCurrentUser(
 			@Valid @RequestBody UpdateCurrentUserProfileRequest request,
 			@Parameter(hidden = true) Principal principal) {
-		return UserResponse.from(currentUserProfileService.updateProfile(request, principal.getName()));
+		return UserResponse.from(profileService().updateProfile(request, principal.getName()));
 	}
 
 	@PatchMapping("/me/password")
@@ -110,7 +106,7 @@ public class UserController {
 	public void updateCurrentUserPassword(
 			@Valid @RequestBody UpdateCurrentUserPasswordRequest request,
 			@Parameter(hidden = true) Principal principal) {
-		currentUserProfileService.updatePassword(request, principal.getName());
+		profileService().updatePassword(request, principal.getName());
 	}
 
 	@PatchMapping("/me/onboarding")
@@ -127,6 +123,13 @@ public class UserController {
 			@Parameter(description = "User id.") @PathVariable Long id,
 			@Parameter(hidden = true) Principal principal) {
 		return UserResponse.from(userService.getUserById(id, principal.getName()));
+	}
+
+	private CurrentUserProfileService profileService() {
+		if (currentUserProfileService == null) {
+			throw new IllegalStateException("Current user profile service is unavailable");
+		}
+		return currentUserProfileService;
 	}
 
 	private Pageable pageable(int page, int size) {
