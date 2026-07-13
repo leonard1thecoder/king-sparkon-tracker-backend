@@ -25,13 +25,10 @@ import com.king_sparkon_tracker.backend.repository.TrackerUserRepository;
 public class BillingPlanDiscountService {
 
 	private static final BigDecimal ONE_HUNDRED = new BigDecimal("100.00");
-
 	private final BillingPlanDiscountRepository discountRepository;
 	private final TrackerUserRepository userRepository;
 
-	public BillingPlanDiscountService(
-			BillingPlanDiscountRepository discountRepository,
-			TrackerUserRepository userRepository) {
+	public BillingPlanDiscountService(BillingPlanDiscountRepository discountRepository, TrackerUserRepository userRepository) {
 		this.discountRepository = discountRepository;
 		this.userRepository = userRepository;
 	}
@@ -45,28 +42,20 @@ public class BillingPlanDiscountService {
 				.toList();
 	}
 
-	@CacheEvict(cacheNames = RedisCacheConfig.BILLING_PLANS_CACHE, allEntries = true)
-	public BillingDiscountResponse upsert(
-			BusinessPlan plan,
-			UpsertBillingDiscountRequest request,
-			String actorUsername) {
+	@CacheEvict(
+			cacheNames = { RedisCacheConfig.BILLING_PLANS_CACHE, RedisCacheConfig.BUSINESS_PLAN_PRICES_CACHE },
+			allEntries = true)
+	public BillingDiscountResponse upsert(BusinessPlan plan, UpsertBillingDiscountRequest request, String actorUsername) {
 		requireAdmin(actorUsername);
 		requirePaidPlan(plan);
 		if (request.startsAt() != null && request.endsAt() != null && !request.endsAt().isAfter(request.startsAt())) {
 			throw new IllegalArgumentException("Discount end date must be after the start date");
 		}
-
 		BillingPlanDiscount discount = discountRepository.findByBusinessPlan(plan)
 				.orElseGet(() -> new BillingPlanDiscount(plan));
-		discount.update(
-				money(request.discountPercent()),
-				request.label().trim(),
-				request.active(),
-				request.startsAt(),
-				request.endsAt(),
-				actorUsername);
-		BillingPlanDiscount saved = discountRepository.save(discount);
-		return BillingDiscountResponse.from(saved, OffsetDateTime.now());
+		discount.update(money(request.discountPercent()), request.label().trim(), request.active(),
+				request.startsAt(), request.endsAt(), actorUsername);
+		return BillingDiscountResponse.from(discountRepository.save(discount), OffsetDateTime.now());
 	}
 
 	@Transactional(readOnly = true)
@@ -80,8 +69,7 @@ public class BillingPlanDiscountService {
 	public BigDecimal effectivePrice(BusinessPlan plan, BigDecimal originalPrice) {
 		BigDecimal original = money(originalPrice);
 		return effectiveDiscount(plan)
-				.map(discount -> original
-						.multiply(ONE_HUNDRED.subtract(discount.getDiscountPercent()))
+				.map(discount -> original.multiply(ONE_HUNDRED.subtract(discount.getDiscountPercent()))
 						.divide(ONE_HUNDRED, 2, RoundingMode.HALF_UP))
 				.orElse(original);
 	}
