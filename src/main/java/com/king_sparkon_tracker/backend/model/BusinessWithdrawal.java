@@ -22,6 +22,8 @@ import jakarta.persistence.Table;
 @Table(name = "business_withdrawals")
 public class BusinessWithdrawal {
 
+	private static final BigDecimal ZERO_MONEY = new BigDecimal("0.00");
+
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long id;
@@ -35,6 +37,15 @@ public class BusinessWithdrawal {
 
 	@Column(nullable = false, precision = 14, scale = 2)
 	private BigDecimal amount;
+
+	@Column(name = "fee_amount", nullable = false, precision = 14, scale = 2)
+	private BigDecimal feeAmount;
+
+	@Column(name = "net_amount", nullable = false, precision = 14, scale = 2)
+	private BigDecimal netAmount;
+
+	@Column(name = "withdrawal_fee_percent", nullable = false, precision = 5, scale = 2)
+	private BigDecimal withdrawalFeePercent;
 
 	@Column(name = "payout_method", nullable = false, length = 40)
 	private String payoutMethod;
@@ -86,9 +97,25 @@ public class BusinessWithdrawal {
 			String payoutMethod,
 			String payoutDestination,
 			String notes) {
+		this(business, ownerId, amount, ZERO_MONEY, amount, ZERO_MONEY, payoutMethod, payoutDestination, notes);
+	}
+
+	public BusinessWithdrawal(
+			Business business,
+			Long ownerId,
+			BigDecimal amount,
+			BigDecimal feeAmount,
+			BigDecimal netAmount,
+			BigDecimal withdrawalFeePercent,
+			String payoutMethod,
+			String payoutDestination,
+			String notes) {
 		this.business = business;
 		this.ownerId = ownerId;
 		this.amount = amount;
+		this.feeAmount = feeAmount;
+		this.netAmount = netAmount;
+		this.withdrawalFeePercent = withdrawalFeePercent;
 		this.payoutMethod = payoutMethod;
 		this.payoutDestination = payoutDestination;
 		this.notes = notes;
@@ -98,6 +125,9 @@ public class BusinessWithdrawal {
 	@PrePersist
 	void beforeCreate() {
 		OffsetDateTime now = OffsetDateTime.now();
+		if (feeAmount == null) feeAmount = ZERO_MONEY;
+		if (netAmount == null) netAmount = amount;
+		if (withdrawalFeePercent == null) withdrawalFeePercent = ZERO_MONEY;
 		if (requestedAt == null) requestedAt = now;
 		if (updatedAt == null) updatedAt = now;
 		if (status == null) status = BusinessWithdrawalStatus.REQUESTED;
@@ -161,6 +191,18 @@ public class BusinessWithdrawal {
 
 	public BigDecimal getAmount() {
 		return amount;
+	}
+
+	public BigDecimal getFeeAmount() {
+		return feeAmount;
+	}
+
+	public BigDecimal getNetAmount() {
+		return netAmount;
+	}
+
+	public BigDecimal getWithdrawalFeePercent() {
+		return withdrawalFeePercent;
 	}
 
 	public String getPayoutMethod() {
