@@ -7,8 +7,10 @@ import java.util.List;
 import com.king_sparkon_tracker.backend.dto.BusinessAccountDtos.BusinessAccountLedgerEntryResponse;
 
 import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 public final class OwnerWalletDtos {
@@ -28,13 +30,17 @@ public final class OwnerWalletDtos {
 			BigDecimal promotionSpend,
 			BigDecimal withdrawn,
 			long pendingWithdrawalCount,
-			List<BusinessAccountLedgerEntryResponse> recentEntries) {
+			List<BusinessAccountLedgerEntryResponse> recentEntries,
+			String payoutProvider,
+			String payoutCurrency,
+			BigDecimal zarPerPayoutUnit,
+			boolean payoutConfigured) {
 	}
 
 	public record OwnerWithdrawalRequest(
 			@NotNull @DecimalMin("100.00") BigDecimal amount,
-			@NotBlank @Size(max = 40) String payoutMethod,
-			@Size(max = 320) String payoutDestination,
+			@NotBlank @Pattern(regexp = "(?i)PAYPAL", message = "Only PAYPAL withdrawals are supported") @Size(max = 40) String payoutMethod,
+			@Email @Size(max = 320) String payoutDestination,
 			@Size(max = 700) String notes) {
 	}
 
@@ -51,6 +57,11 @@ public final class OwnerWalletDtos {
 			String payoutDestination,
 			String notes,
 			OffsetDateTime requestedAt,
-			OffsetDateTime processedAt) {
+			OffsetDateTime processedAt,
+			String provider,
+			String providerBatchId,
+			String providerStatus,
+			BigDecimal payoutAmount,
+			String payoutCurrency) {
 	}
 }
