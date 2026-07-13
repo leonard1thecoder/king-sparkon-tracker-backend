@@ -99,6 +99,21 @@ class TipServiceTest {
 	}
 
 	@Test
+	void createTipRejectsWorkerWithoutTipsPrivilege() {
+		TrackerUser worker = worker(11L);
+		worker.updateWorkerProfile("Cashier", false);
+		when(trackerUserService.getUserById(11L)).thenReturn(worker);
+
+		assertThatThrownBy(() -> tipService.createTip(new TipRequest(
+				11L,
+				new BigDecimal("50.00"),
+				"https://app.example/tips/return",
+				"+27821234567")))
+				.isInstanceOf(IllegalArgumentException.class)
+				.hasMessageContaining("not privileged to receive tips");
+	}
+
+	@Test
 	void updateTipStatusTransitionsUnpaidTipToPaid() {
 		stubTipSave();
 		Tip tip = new Tip(worker(10L), new BigDecimal("100.00"));
@@ -175,6 +190,7 @@ class TipServiceTest {
 				"worker-" + id + "@example.com",
 				"encoded",
 				new Privilege(PrivilegeRole.Worker));
+		worker.updateWorkerProfile("Worker", true);
 		ReflectionTestUtils.setField(worker, "id", id);
 		return worker;
 	}
