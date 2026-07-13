@@ -181,6 +181,20 @@ public class BusinessAccountService {
 				true);
 	}
 
+	public BusinessAccountLedgerEntry postOwnerWithdrawalReversalIfAbsent(
+			Business business,
+			BigDecimal amount,
+			String providerReference,
+			String description) {
+		return postSignedEntryIfAbsent(
+				business,
+				normalizePositive(amount, "Withdrawal reversal amount must be greater than zero"),
+				BusinessAccountEntryType.OWNER_WITHDRAWAL_REVERSAL_CREDIT,
+				required(providerReference, "Withdrawal reversal reference is required"),
+				description,
+				"PAYPAL_PAYOUT_RECONCILIATION");
+	}
+
 	private BusinessAccountLedgerEntry postDebit(
 			Business business,
 			BigDecimal amount,
