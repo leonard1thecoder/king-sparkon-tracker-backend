@@ -56,7 +56,7 @@ class BusinessAccountServiceTest {
 				"Ticket boost",
 				"owner"))
 				.isInstanceOf(IllegalStateException.class)
-				.hasMessageContaining("Top up the account first");
+				.hasMessageContaining("balance is too low");
 	}
 
 	@Test
