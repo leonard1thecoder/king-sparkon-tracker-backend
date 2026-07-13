@@ -2,6 +2,7 @@ package com.king_sparkon_tracker.backend.controller;
 
 import java.math.BigDecimal;
 import java.security.Principal;
+import java.util.List;
 
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -15,15 +16,18 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.king_sparkon_tracker.backend.config.OpenApiConfig;
+import com.king_sparkon_tracker.backend.dto.AssignTuckShopBarcodeRequest;
 import com.king_sparkon_tracker.backend.dto.CreateTuckShopPurchaseRequest;
 import com.king_sparkon_tracker.backend.dto.PageResponse;
 import com.king_sparkon_tracker.backend.dto.ProductResponse;
 import com.king_sparkon_tracker.backend.dto.TuckShopPurchaseResponse;
+import com.king_sparkon_tracker.backend.dto.VerifyTuckShopCollectionRequest;
 import com.king_sparkon_tracker.backend.model.Product;
 import com.king_sparkon_tracker.backend.model.ProductCategory;
 import com.king_sparkon_tracker.backend.service.PriceLocalizationService;
 import com.king_sparkon_tracker.backend.service.ProductPageableFactory;
 import com.king_sparkon_tracker.backend.service.ProductPricingService;
+import com.king_sparkon_tracker.backend.service.TuckShopCollectionService;
 import com.king_sparkon_tracker.backend.service.TuckShopService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -39,16 +43,19 @@ import jakarta.validation.Valid;
 public class TuckShopController {
 
 	private final TuckShopService tuckShopService;
+	private final TuckShopCollectionService collectionService;
 	private final ProductPricingService productPricingService;
 	private final PriceLocalizationService priceLocalizationService;
 	private final ProductPageableFactory productPageableFactory;
 
 	public TuckShopController(
 			TuckShopService tuckShopService,
+			TuckShopCollectionService collectionService,
 			ProductPricingService productPricingService,
 			PriceLocalizationService priceLocalizationService,
 			ProductPageableFactory productPageableFactory) {
 		this.tuckShopService = tuckShopService;
+		this.collectionService = collectionService;
 		this.productPricingService = productPricingService;
 		this.priceLocalizationService = priceLocalizationService;
 		this.productPageableFactory = productPageableFactory;
@@ -96,6 +103,36 @@ public class TuckShopController {
 			@Valid @RequestBody CreateTuckShopPurchaseRequest request,
 			@Parameter(hidden = true) Principal principal) {
 		return tuckShopService.createWorkerBarcodePurchase(request, principal.getName());
+	}
+
+	@GetMapping("/workers/online-purchases")
+	@Operation(summary = "List paid online product orders requiring barcode preparation or collection")
+	public List<TuckShopPurchaseResponse> workerOnlinePurchases(@Parameter(hidden = true) Principal principal) {
+		return collectionService.listWorkerOnlinePurchases(principal.getName());
+	}
+
+	@PostMapping("/workers/online-purchases/{transactionId}/products/{productId}/barcodes")
+	@Operation(summary = "Assign one scanned barcode to a paid online purchase product line")
+	public TuckShopPurchaseResponse assignOnlinePurchaseBarcode(
+			@PathVariable Long transactionId,
+			@PathVariable Long productId,
+			@Valid @RequestBody AssignTuckShopBarcodeRequest request,
+			@Parameter(hidden = true) Principal principal) {
+		return collectionService.assignBarcode(transactionId, productId, request.barcode(), principal.getName());
+	}
+
+	@GetMapping("/my-purchases")
+	@Operation(summary = "List the authenticated customer's online product orders and collection status")
+	public List<TuckShopPurchaseResponse> myPurchases(@Parameter(hidden = true) Principal principal) {
+		return collectionService.listCurrentUserPurchases(principal.getName());
+	}
+
+	@PostMapping("/my-purchases/collect")
+	@Operation(summary = "Verify the worker collection QR and mark the authenticated customer's order collected")
+	public TuckShopPurchaseResponse collectPurchase(
+			@Valid @RequestBody VerifyTuckShopCollectionRequest request,
+			@Parameter(hidden = true) Principal principal) {
+		return collectionService.verifyCollection(request.qrValue(), principal.getName());
 	}
 
 	private ProductResponse responseFrom(Product product, String actorUsername) {
