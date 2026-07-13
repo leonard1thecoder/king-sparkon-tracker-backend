@@ -6,9 +6,11 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.king_sparkon_tracker.backend.config.RedisCacheConfig;
 import com.king_sparkon_tracker.backend.dto.BillingDiscountDtos.BillingDiscountResponse;
 import com.king_sparkon_tracker.backend.dto.BillingDiscountDtos.UpsertBillingDiscountRequest;
 import com.king_sparkon_tracker.backend.exception.ResourceNotFoundException;
@@ -43,6 +45,7 @@ public class BillingPlanDiscountService {
 				.toList();
 	}
 
+	@CacheEvict(cacheNames = RedisCacheConfig.BILLING_PLANS_CACHE, allEntries = true)
 	public BillingDiscountResponse upsert(
 			BusinessPlan plan,
 			UpsertBillingDiscountRequest request,
