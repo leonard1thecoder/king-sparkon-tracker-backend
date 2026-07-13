@@ -11,10 +11,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.king_sparkon_tracker.backend.dto.BillingDiscountDtos.BillingDiscountResponse;
 import com.king_sparkon_tracker.backend.dto.BillingDiscountDtos.UpsertBillingDiscountRequest;
+import com.king_sparkon_tracker.backend.exception.ResourceNotFoundException;
 import com.king_sparkon_tracker.backend.model.BillingPlanDiscount;
 import com.king_sparkon_tracker.backend.model.BusinessPlan;
 import com.king_sparkon_tracker.backend.model.PrivilegeRole;
 import com.king_sparkon_tracker.backend.repository.BillingPlanDiscountRepository;
+import com.king_sparkon_tracker.backend.repository.TrackerUserRepository;
 
 @Service
 @Transactional
@@ -23,13 +25,13 @@ public class BillingPlanDiscountService {
 	private static final BigDecimal ONE_HUNDRED = new BigDecimal("100.00");
 
 	private final BillingPlanDiscountRepository discountRepository;
-	private final TrackerUserService trackerUserService;
+	private final TrackerUserRepository userRepository;
 
 	public BillingPlanDiscountService(
 			BillingPlanDiscountRepository discountRepository,
-			TrackerUserService trackerUserService) {
+			TrackerUserRepository userRepository) {
 		this.discountRepository = discountRepository;
-		this.trackerUserService = trackerUserService;
+		this.userRepository = userRepository;
 	}
 
 	@Transactional(readOnly = true)
@@ -88,7 +90,8 @@ public class BillingPlanDiscountService {
 	}
 
 	private void requireAdmin(String actorUsername) {
-		var user = trackerUserService.getUserByUsername(actorUsername);
+		var user = userRepository.findByUsername(actorUsername)
+				.orElseThrow(() -> new ResourceNotFoundException("User not found: " + actorUsername));
 		if (user.getPrivilege() == null || user.getPrivilege().getName() != PrivilegeRole.Admin) {
 			throw new IllegalArgumentException("Only administrators can manage plan discounts");
 		}
