@@ -103,6 +103,7 @@ public class BusinessPlanPolicyService {
 		}
 	}
 
+	@Cacheable(cacheNames = RedisCacheConfig.BILLING_PLANS_CACHE)
 	public List<BillingPlanResponse> billingPlans() {
 		return List.of(
 				planResponse(
