@@ -21,6 +21,10 @@ jobs:
       - name: Apply production-readiness patch
         run: |
           set -euo pipefail
+          if [ ! -f .agent/backend-patch/READY ]; then
+            echo "Patch chunks are still being staged."
+            exit 0
+          fi
           cat .agent/backend-patch/part-* | base64 --decode > /tmp/phase2.patch
           git apply --index /tmp/phase2.patch
           rm -rf .agent/backend-patch
