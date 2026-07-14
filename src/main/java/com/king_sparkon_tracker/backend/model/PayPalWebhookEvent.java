@@ -74,8 +74,15 @@ public class PayPalWebhookEvent {
 		}
 	}
 
+	public void receivedForRetry() {
+		this.status = PayPalWebhookProcessingStatus.RECEIVED;
+		this.failureReason = null;
+		this.processedDate = null;
+	}
+
 	public void processed() {
 		this.status = PayPalWebhookProcessingStatus.PROCESSED;
+		this.failureReason = null;
 		this.processedDate = LocalDateTime.now();
 	}
 
@@ -86,6 +93,7 @@ public class PayPalWebhookEvent {
 
 	public void ignored() {
 		this.status = PayPalWebhookProcessingStatus.IGNORED;
+		this.failureReason = null;
 		this.processedDate = LocalDateTime.now();
 	}
 
