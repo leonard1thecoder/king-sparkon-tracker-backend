@@ -21,6 +21,7 @@ public class PayPalWebhookService {
 	private final BusinessBillingService businessBillingService;
 	private final BillingAuditService billingAuditService;
 	private final PayPalWebhookEventRepository eventRepository;
+	private final WebhookEventClaimService eventClaimService;
 	private final ObjectMapper objectMapper;
 
 	public PayPalWebhookService(
@@ -28,11 +29,13 @@ public class PayPalWebhookService {
 			BusinessBillingService businessBillingService,
 			BillingAuditService billingAuditService,
 			PayPalWebhookEventRepository eventRepository,
+			WebhookEventClaimService eventClaimService,
 			ObjectMapper objectMapper) {
 		this.payPalBillingClient = payPalBillingClient;
 		this.businessBillingService = businessBillingService;
 		this.billingAuditService = billingAuditService;
 		this.eventRepository = eventRepository;
+		this.eventClaimService = eventClaimService;
 		this.objectMapper = objectMapper;
 	}
 
@@ -65,9 +68,18 @@ public class PayPalWebhookService {
 			);
 
 			if (!validSignature) {
-				PayPalWebhookEvent failedEvent = new PayPalWebhookEvent(eventId, eventType, paypalSubscriptionId, rawPayload);
-				failedEvent.signatureFailed("PayPal webhook signature verification failed");
-				eventRepository.save(failedEvent);
+				WebhookEventClaimService.Claim<PayPalWebhookEvent> claim = eventClaimService.claimPayPal(
+						eventId,
+						eventType,
+						paypalSubscriptionId,
+						rawPayload);
+				PayPalWebhookProcessingStatus status = claim.event().getStatus();
+				if (claim.created()
+						|| status == PayPalWebhookProcessingStatus.FAILED
+						|| status == PayPalWebhookProcessingStatus.SIGNATURE_FAILED) {
+					claim.event().signatureFailed("PayPal webhook signature verification failed");
+					eventRepository.save(claim.event());
+				}
 
 				billingAuditService.record(
 						null,
@@ -87,22 +99,28 @@ public class PayPalWebhookService {
 				);
 			}
 
-			if (eventRepository.existsByPaypalEventId(eventId)) {
-				return new PayPalWebhookResponse(
-						eventId,
-						eventType,
-						paypalSubscriptionId,
-						PayPalWebhookProcessingStatus.DUPLICATE,
-						"Duplicate PayPal webhook skipped"
-				);
-			}
-
-			PayPalWebhookEvent event = eventRepository.save(new PayPalWebhookEvent(
+			WebhookEventClaimService.Claim<PayPalWebhookEvent> claim = eventClaimService.claimPayPal(
 					eventId,
 					eventType,
 					paypalSubscriptionId,
-					rawPayload
-			));
+					rawPayload);
+			PayPalWebhookEvent event = claim.event();
+			if (!claim.created()) {
+				PayPalWebhookProcessingStatus existingStatus = event.getStatus();
+				boolean retryable = existingStatus == PayPalWebhookProcessingStatus.FAILED
+						|| existingStatus == PayPalWebhookProcessingStatus.SIGNATURE_FAILED;
+				if (!retryable) {
+					return new PayPalWebhookResponse(
+							eventId,
+							eventType,
+							paypalSubscriptionId,
+							PayPalWebhookProcessingStatus.DUPLICATE,
+							"Duplicate PayPal webhook skipped"
+					);
+				}
+				event.receivedForRetry();
+				event = eventRepository.save(event);
+			}
 
 			handleEvent(eventType, paypalSubscriptionId, eventId);
 			event.processed();
@@ -163,13 +181,11 @@ public class PayPalWebhookService {
 
 		Map<String, Object> resource = (Map<String, Object>) rawResource;
 
-		String subscriptionId = firstText(
+		return firstText(
 				stringValue(resource.get("billing_agreement_id")),
 				stringValue(resource.get("subscription_id")),
 				stringValue(resource.get("id"))
 		);
-
-		return subscriptionId;
 	}
 
 	private String firstText(String... values) {
