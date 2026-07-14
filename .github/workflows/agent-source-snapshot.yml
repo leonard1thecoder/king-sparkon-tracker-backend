@@ -1,0 +1,25 @@
+name: Agent Source Snapshot
+
+on:
+  push:
+    branches:
+      - "agent/production-readiness-phase2"
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Upload source snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-source-snapshot
+          path: |
+            .
+            !.git/**
+            !target/**
+          include-hidden-files: true
+          retention-days: 1
