@@ -70,7 +70,8 @@ class TipControllerTest {
 								  "tipAmount": 100.00,
 								  "callbackUrl": "https://app.example/tips/return"
 								}
-								"""))
+								""")
+						.principal(() -> "user"))
 				.andExpect(status().isCreated())
 				.andExpect(jsonPath("$.id").value(42))
 				.andExpect(jsonPath("$.workerId").value(10))

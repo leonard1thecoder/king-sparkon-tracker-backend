@@ -2,6 +2,7 @@ package com.king_sparkon_tracker.backend.idempotency;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -49,7 +50,7 @@ class IdempotencyServiceTest {
 		completed.complete("{\"id\":42}", "response", 201);
 		when(insertService.insert(any(IdempotencyRecord.class)))
 				.thenThrow(new DataIntegrityViolationException("duplicate"));
-		when(claimService.claimExisting("key-1", "transaction-create", "owner", "hash-1", any(Instant.class)))
+		when(claimService.claimExisting(eq("key-1"), eq("transaction-create"), eq("owner"), eq("hash-1"), any(Instant.class)))
 				.thenReturn(new IdempotencyService.Claim(completed, IdempotencyService.ClaimDisposition.REPLAY));
 
 		IdempotencyService.Claim claim = service.claim(
@@ -57,7 +58,7 @@ class IdempotencyServiceTest {
 
 		assertThat(claim.replay()).isTrue();
 		assertThat(claim.record().getHttpStatus()).isEqualTo(201);
-		verify(claimService).claimExisting("key-1", "transaction-create", "owner", "hash-1", any(Instant.class));
+		verify(claimService).claimExisting(eq("key-1"), eq("transaction-create"), eq("owner"), eq("hash-1"), any(Instant.class));
 	}
 
 	private IdempotencyRecord record(String key, String hash) {
