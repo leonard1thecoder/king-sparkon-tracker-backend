@@ -18,49 +18,30 @@ jobs:
         with:
           ref: agent/production-readiness-phase2
           fetch-depth: 0
-      - name: Update tests for Phase 2 collaborators
+      - name: Correct final Phase 2 test contracts
         run: |
           python - <<'PY'
           from pathlib import Path
 
-          p = Path('src/test/java/com/king_sparkon_tracker/backend/service/AppEmailServiceTest.java')
+          p = Path('src/test/java/com/king_sparkon_tracker/backend/idempotency/IdempotencyServiceTest.java')
           s = p.read_text()
-          s = s.replace('import org.springframework.mail.javamail.JavaMailSender;\n', '')
-          s = s.replace('import com.king_sparkon_tracker.backend.model.AdminBusinessOverrideAction;\n', 'import com.king_sparkon_tracker.backend.model.AdminBusinessOverrideAction;\nimport com.king_sparkon_tracker.backend.outbox.OutboxPayloads;\nimport com.king_sparkon_tracker.backend.outbox.OutboxPublisher;\n')
-          s = s.replace('\nimport jakarta.mail.Session;\nimport jakarta.mail.internet.MimeMessage;\n', '\n')
-          s = s.replace('\t@Mock\n\tprivate JavaMailSender mailSender;\n\n', '\t@Mock\n\tprivate OutboxPublisher outboxPublisher;\n\n')
-          s = s.replace('\t\tappEmailService = new AppEmailService(\n\t\t\t\tmailSender,\n\t\t\t\ttemplateEngine,\n\t\t\t\ttrue,\n\t\t\t\t"support@example.com",\n\t\t\t\t"http://localhost:3000/login");\n', '\t\tappEmailService = new AppEmailService(\n\t\t\t\ttemplateEngine,\n\t\t\t\toutboxPublisher,\n\t\t\t\t"support@example.com",\n\t\t\t\t"http://localhost:3000/login");\n')
-          s = s.replace('\t\twhen(mailSender.createMimeMessage()).thenAnswer(invocation -> new MimeMessage((Session) null));\n', '')
-          s = s.replace('\t\tverify(mailSender, times(14)).send(any(MimeMessage.class));\n', '\t\tverify(outboxPublisher, times(14)).email(anyString(), anyString(), any(OutboxPayloads.Email.class), anyString());\n')
+          if 'import static org.mockito.ArgumentMatchers.eq;' not in s:
+            s = s.replace('import static org.mockito.ArgumentMatchers.any;\n', 'import static org.mockito.ArgumentMatchers.any;\nimport static org.mockito.ArgumentMatchers.eq;\n')
+          s = s.replace(
+            'when(claimService.claimExisting("key-1", "transaction-create", "owner", "hash-1", any(Instant.class)))',
+            'when(claimService.claimExisting(eq("key-1"), eq("transaction-create"), eq("owner"), eq("hash-1"), any(Instant.class)))')
+          s = s.replace(
+            'verify(claimService).claimExisting("key-1", "transaction-create", "owner", "hash-1", any(Instant.class));',
+            'verify(claimService).claimExisting(eq("key-1"), eq("transaction-create"), eq("owner"), eq("hash-1"), any(Instant.class));')
           p.write_text(s)
 
-          p = Path('src/test/java/com/king_sparkon_tracker/backend/service/BusinessAccountServiceTest.java')
+          p = Path('src/test/java/com/king_sparkon_tracker/backend/tips/TipControllerTest.java')
           s = p.read_text()
-          s = s.replace('import com.king_sparkon_tracker.backend.model.Business;\n', 'import com.king_sparkon_tracker.backend.finance.FinancialLedgerService;\nimport com.king_sparkon_tracker.backend.model.Business;\n')
-          s = s.replace('\t@Mock\n\tprivate StripeService stripeService;\n\n', '\t@Mock\n\tprivate StripeService stripeService;\n\n\t@Mock\n\tprivate FinancialLedgerService financialLedgerService;\n\n')
-          s = s.replace('service = new BusinessAccountService(ledgerRepository, trackerUserService, stripeService);', 'service = new BusinessAccountService(ledgerRepository, trackerUserService, stripeService, financialLedgerService);')
-          p.write_text(s)
-
-          p = Path('src/test/java/com/king_sparkon_tracker/backend/service/BusinessBillingServiceTest.java')
-          s = p.read_text()
-          s = s.replace('import com.king_sparkon_tracker.backend.model.BillingAuditAction;\n', 'import com.king_sparkon_tracker.backend.model.BillingAuditAction;\nimport com.king_sparkon_tracker.backend.outbox.OutboxEventType;\nimport com.king_sparkon_tracker.backend.outbox.OutboxPayloads;\nimport com.king_sparkon_tracker.backend.outbox.OutboxPublisher;\n')
-          s = s.replace('\t@Mock\n\tprivate AffiliateService affiliateService;\n', '\t@Mock\n\tprivate OutboxPublisher outboxPublisher;\n')
-          s = s.replace('\t\t\t\taffiliateService,\n', '\t\t\t\toutboxPublisher,\n')
-          s = s.replace('\t\tverify(affiliateService).recordCommission(\n\t\t\t\tsubscription,\n\t\t\t\towner.getBusiness(),\n\t\t\t\tjava.time.LocalDateTime.of(2026, 6, 1, 12, 0));\n', '\t\tverify(outboxPublisher).publish(\n\t\t\t\teq("BUSINESS_SUBSCRIPTION"),\n\t\t\t\teq("99"),\n\t\t\t\teq(OutboxEventType.AFFILIATE_COMMISSION_CALCULATION),\n\t\t\t\tany(OutboxPayloads.AffiliateCalculation.class),\n\t\t\t\teq("affiliate-commission:99"));\n')
-          p.write_text(s)
-
-          p = Path('src/test/java/com/king_sparkon_tracker/backend/service/StripeWebhookServiceTest.java')
-          s = p.read_text()
-          s = s.replace('import com.king_sparkon_tracker.backend.repository.StripeWebhookEventRepository;\n', 'import com.king_sparkon_tracker.backend.repository.StripeWebhookEventRepository;\nimport com.king_sparkon_tracker.backend.tickets.service.TicketManagementService;\n')
-          s = s.replace('\t@Mock\n\tprivate BillingAuditService billingAuditService;\n', '\t@Mock\n\tprivate TicketManagementService ticketManagementService;\n\n\t@Mock\n\tprivate BillingAuditService billingAuditService;\n')
-          s = s.replace('\t\t\t\ttransactionService,\n\t\t\t\tbillingAuditService,', '\t\t\t\ttransactionService,\n\t\t\t\tticketManagementService,\n\t\t\t\tbillingAuditService,')
-          p.write_text(s)
-
-          p = Path('src/test/java/com/king_sparkon_tracker/backend/service/TransactionServiceTest.java')
-          s = p.read_text()
-          s = s.replace('import com.king_sparkon_tracker.backend.dto.CreateTransactionRequest;\n', 'import com.king_sparkon_tracker.backend.dto.CreateTransactionRequest;\nimport com.king_sparkon_tracker.backend.inventory.reservation.StockReservationService;\n')
-          s = s.replace('\t@Mock\n\tprivate StripeService stripeService;\n', '\t@Mock\n\tprivate StripeService stripeService;\n\n\t@Mock\n\tprivate StockReservationService stockReservationService;\n')
-          s = s.replace('\t\t\t\tappEmailService,\n\t\t\t\tstripeService);', '\t\t\t\tappEmailService,\n\t\t\t\tstripeService,\n\t\t\t\tstockReservationService);')
+          marker = '''\t\t\t\t\t\t\t\t"""))\n\t\t\t\t.andExpect(status().isCreated())'''
+          replacement = '''\t\t\t\t\t\t\t\t""")\n\t\t\t\t\t\t.principal(() -> "user"))\n\t\t\t\t.andExpect(status().isCreated())'''
+          if marker not in s:
+            raise SystemExit('TipControllerTest create-tip request marker not found')
+          s = s.replace(marker, replacement, 1)
           p.write_text(s)
           PY
           rm -f .agent/apply-test-contract-fixes
@@ -68,5 +49,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add src/test .agent/apply-test-contract-fixes
-          git commit -m "Update tests for Phase 2 collaborators"
+          git commit -m "Correct final Phase 2 test contracts"
           git push origin HEAD:agent/production-readiness-phase2
