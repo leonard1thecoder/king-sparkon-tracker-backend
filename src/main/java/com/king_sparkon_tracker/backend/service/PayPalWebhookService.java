@@ -5,13 +5,13 @@ import java.util.Map;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.king_sparkon_tracker.backend.dto.PayPalWebhookResponse;
 import com.king_sparkon_tracker.backend.model.BillingAuditAction;
 import com.king_sparkon_tracker.backend.model.PayPalWebhookEvent;
 import com.king_sparkon_tracker.backend.model.PayPalWebhookProcessingStatus;
 import com.king_sparkon_tracker.backend.repository.PayPalWebhookEventRepository;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Service
 @Transactional
@@ -122,17 +122,29 @@ public class PayPalWebhookService {
 				event = eventRepository.save(event);
 			}
 
-			handleEvent(eventType, paypalSubscriptionId, eventId);
-			event.processed();
-			eventRepository.save(event);
+			try {
+				handleEvent(eventType, paypalSubscriptionId, eventId);
+				event.processed();
+				eventRepository.save(event);
 
-			return new PayPalWebhookResponse(
-					eventId,
-					eventType,
-					paypalSubscriptionId,
-					event.getStatus(),
-					"Webhook processed"
-			);
+				return new PayPalWebhookResponse(
+						eventId,
+						eventType,
+						paypalSubscriptionId,
+						event.getStatus(),
+						"Webhook processed"
+				);
+			} catch (RuntimeException processingFailure) {
+				event.failed(processingFailure.getMessage());
+				eventRepository.save(event);
+				return new PayPalWebhookResponse(
+						eventId,
+						eventType,
+						paypalSubscriptionId,
+						event.getStatus(),
+						processingFailure.getMessage()
+				);
+			}
 		} catch (Exception exception) {
 			return new PayPalWebhookResponse(
 					null,
