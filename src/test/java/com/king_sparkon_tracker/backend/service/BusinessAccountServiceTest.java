@@ -15,6 +15,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import com.king_sparkon_tracker.backend.finance.FinancialLedgerService;
 import com.king_sparkon_tracker.backend.model.Business;
 import com.king_sparkon_tracker.backend.model.BusinessAccountEntryStatus;
 import com.king_sparkon_tracker.backend.model.BusinessAccountEntryType;
@@ -36,11 +37,14 @@ class BusinessAccountServiceTest {
 	@Mock
 	private StripeService stripeService;
 
+	@Mock
+	private FinancialLedgerService financialLedgerService;
+
 	private BusinessAccountService service;
 
 	@BeforeEach
 	void setUp() {
-		service = new BusinessAccountService(ledgerRepository, trackerUserService, stripeService);
+		service = new BusinessAccountService(ledgerRepository, trackerUserService, stripeService, financialLedgerService);
 	}
 
 	@Test
