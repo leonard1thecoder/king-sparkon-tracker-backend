@@ -30,6 +30,7 @@ import com.king_sparkon_tracker.backend.model.Tip;
 import com.king_sparkon_tracker.backend.model.TipStatus;
 import com.king_sparkon_tracker.backend.model.TrackerUser;
 import com.king_sparkon_tracker.backend.repository.TipRepository;
+import com.king_sparkon_tracker.backend.service.AuthenticatedActorService;
 import com.king_sparkon_tracker.backend.service.NotificationService;
 import com.king_sparkon_tracker.backend.service.StripeService;
 import com.king_sparkon_tracker.backend.service.SubscriberService;
@@ -46,6 +47,9 @@ class TipServiceTest {
 	private TrackerUserService trackerUserService;
 
 	@Mock
+	private AuthenticatedActorService authenticatedActorService;
+
+	@Mock
 	private StripeService stripeService;
 
 	@Mock
@@ -58,7 +62,13 @@ class TipServiceTest {
 
 	@BeforeEach
 	void setUp() {
-		tipService = new TipService(tipRepository, trackerUserService, stripeService, notificationService, subscriberService);
+		tipService = new TipService(
+				tipRepository,
+				trackerUserService,
+				authenticatedActorService,
+				stripeService,
+				notificationService,
+				subscriberService);
 	}
 
 	@Test
@@ -120,9 +130,13 @@ class TipServiceTest {
 		ReflectionTestUtils.setField(tip, "id", 7L);
 		when(tipRepository.findById(7L)).thenReturn(Optional.of(tip));
 
-		TipResponse response = tipService.updateTipStatus(7L, new UpdateTipStatusRequest(TipStatus.PAID));
+		TipResponse response = tipService.updateTipStatus(
+				7L,
+				new UpdateTipStatusRequest(TipStatus.PAID),
+				"owner");
 
 		assertThat(response.status()).isEqualTo(TipStatus.PAID);
+		verify(authenticatedActorService).requireBusinessAccess("owner", null);
 		verify(tipRepository).save(tip);
 	}
 
@@ -131,7 +145,10 @@ class TipServiceTest {
 		Tip tip = new Tip(worker(10L), new BigDecimal("100.00"));
 		when(tipRepository.findById(7L)).thenReturn(Optional.of(tip));
 
-		assertThatThrownBy(() -> tipService.updateTipStatus(7L, new UpdateTipStatusRequest(TipStatus.UNPAID)))
+		assertThatThrownBy(() -> tipService.updateTipStatus(
+				7L,
+				new UpdateTipStatusRequest(TipStatus.UNPAID),
+				"owner"))
 				.isInstanceOf(IllegalArgumentException.class)
 				.hasMessage("Only PAID status updates are supported");
 	}
@@ -142,7 +159,10 @@ class TipServiceTest {
 		tip.markPaid();
 		when(tipRepository.findById(7L)).thenReturn(Optional.of(tip));
 
-		assertThatThrownBy(() -> tipService.updateTipStatus(7L, new UpdateTipStatusRequest(TipStatus.PAID)))
+		assertThatThrownBy(() -> tipService.updateTipStatus(
+				7L,
+				new UpdateTipStatusRequest(TipStatus.PAID),
+				"owner"))
 				.isInstanceOf(IllegalArgumentException.class)
 				.hasMessage("Only UNPAID tips can be marked as PAID");
 	}
@@ -151,21 +171,27 @@ class TipServiceTest {
 	void updateTipStatusThrowsWhenTipIsMissing() {
 		when(tipRepository.findById(404L)).thenReturn(Optional.empty());
 
-		assertThatThrownBy(() -> tipService.updateTipStatus(404L, new UpdateTipStatusRequest(TipStatus.PAID)))
+		assertThatThrownBy(() -> tipService.updateTipStatus(
+				404L,
+				new UpdateTipStatusRequest(TipStatus.PAID),
+				"owner"))
 				.isInstanceOf(ResourceNotFoundException.class)
 				.hasMessage("Tip not found: 404");
 	}
 
 	@Test
 	void getTipsForWorkerMapsFinancialBreakdown() {
-		Tip tip = new Tip(worker(10L), new BigDecimal("200.00"));
+		TrackerUser worker = worker(10L);
+		Tip tip = new Tip(worker, new BigDecimal("200.00"));
+		when(trackerUserService.getUserById(10L)).thenReturn(worker);
 		when(tipRepository.findByWorker_IdOrderByCreatedDesc(10L)).thenReturn(List.of(tip));
 
-		List<TipResponse> responses = tipService.getTipsForWorker(10L);
+		List<TipResponse> responses = tipService.getTipsForWorker(10L, "owner");
 
 		assertThat(responses).hasSize(1);
 		assertThat(responses.getFirst().systemFee()).isEqualByComparingTo("0.00");
 		assertThat(responses.getFirst().netAmount()).isEqualByComparingTo("200.00");
+		verify(authenticatedActorService).requireBusinessAccess("owner", null);
 	}
 
 	private void stubTipSave() {
