@@ -193,6 +193,17 @@ public class InventoryTransaction {
 		}
 	}
 
+	public void markWebsitePaymentFailed(String paymentReference) {
+		if (this.paymentStatus == TransactionPaymentStatus.PAID) {
+			throw new IllegalStateException("Paid transactions cannot be marked as failed");
+		}
+		this.paymentType = TransactionPaymentType.WEBSITE_PAYMENT;
+		this.paymentStatus = TransactionPaymentStatus.FAILED;
+		if ((this.paymentReference == null || this.paymentReference.isBlank()) && paymentReference != null && !paymentReference.isBlank()) {
+			this.paymentReference = paymentReference;
+		}
+	}
+
 	public void prepareOnlineCollection(TrackerUser customer) {
 		this.customer = customer;
 		this.fulfilmentStatus = TuckShopFulfilmentStatus.AWAITING_BARCODE_ASSIGNMENT;

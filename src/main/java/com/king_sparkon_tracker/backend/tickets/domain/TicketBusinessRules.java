@@ -32,6 +32,7 @@ public final class TicketBusinessRules {
 
     public static String verificationMessage(UserTicketStatus status) {
         return switch (status) {
+            case PENDING_PAYMENT -> "Ticket payment is still pending.";
             case ACTIVE -> "Valid ticket. Entry approved.";
             case USED -> "Ticket already used.";
             case CANCELLED -> "Ticket cancelled.";

@@ -19,6 +19,7 @@ import com.king_sparkon_tracker.backend.dto.EmbeddedCartPaymentDtos.TicketItem;
 import com.king_sparkon_tracker.backend.dto.TuckShopPurchaseItemRequest;
 import com.king_sparkon_tracker.backend.dto.TuckShopPurchaseResponse;
 import com.king_sparkon_tracker.backend.exception.ResourceNotFoundException;
+import com.king_sparkon_tracker.backend.inventory.reservation.StockReservationService;
 import com.king_sparkon_tracker.backend.model.InventoryTransaction;
 import com.king_sparkon_tracker.backend.model.Product;
 import com.king_sparkon_tracker.backend.model.ProductBarcodeAvailabilityStatus;
@@ -58,6 +59,7 @@ public class EmbeddedCartPaymentService {
 	private final TicketPaymentRepository ticketPaymentRepository;
 	private final TicketProperties ticketProperties;
 	private final TrackerUserService trackerUserService;
+	private final StockReservationService stockReservationService;
 
 	public EmbeddedCartPaymentService(
 			StripeService stripeService,
@@ -70,7 +72,8 @@ public class EmbeddedCartPaymentService {
 			TicketEventRepository ticketEventRepository,
 			TicketPaymentRepository ticketPaymentRepository,
 			TicketProperties ticketProperties,
-			TrackerUserService trackerUserService) {
+			TrackerUserService trackerUserService,
+			StockReservationService stockReservationService) {
 		this.stripeService = stripeService;
 		this.productRepository = productRepository;
 		this.productPricingService = productPricingService;
@@ -82,9 +85,9 @@ public class EmbeddedCartPaymentService {
 		this.ticketPaymentRepository = ticketPaymentRepository;
 		this.ticketProperties = ticketProperties;
 		this.trackerUserService = trackerUserService;
+		this.stockReservationService = stockReservationService;
 	}
 
-	@Transactional(readOnly = true)
 	public CreateResponse create(CreateRequest request, String actorUsername) {
 		if (request.empty()) {
 			throw new IllegalArgumentException("Cart must contain at least one product or ticket");
@@ -102,6 +105,18 @@ public class EmbeddedCartPaymentService {
 				request.buyerEmail(),
 				metadata,
 				"cart:" + actor.getId() + ":" + request.idempotencyKey());
+		stockReservationService.reserveCart(
+				intent.paymentIntentId(),
+				request.idempotencyKey(),
+				safeProducts(request));
+		for (TicketItem item : safeTickets(request)) {
+			embeddedTicketFulfilmentService.reserve(
+					item,
+					actor,
+					request.buyerName(),
+					request.buyerEmail(),
+					intent.paymentIntentId());
+		}
 
 		return new CreateResponse(intent.paymentIntentId(), intent.clientSecret(), amount, CURRENCY, intent.status());
 	}
@@ -132,6 +147,11 @@ public class EmbeddedCartPaymentService {
 				productPurchases,
 				ticketPaymentIds,
 				message);
+	}
+
+	public void handlePaymentIntentFailed(String paymentIntentId) {
+		stockReservationService.releaseByPaymentReference(paymentIntentId);
+		embeddedTicketFulfilmentService.releaseAll(paymentIntentId);
 	}
 
 	public void handlePaymentIntentSucceeded(PaymentIntent intent, String stripeEventId) {
@@ -285,7 +305,7 @@ public class EmbeddedCartPaymentService {
 				.filter(candidate -> candidate.getType() == item.ticketType())
 				.findFirst()
 				.orElseThrow(() -> new IllegalArgumentException("Ticket type is unavailable for event: " + event.getName()));
-		TicketBusinessRules.requirePurchaseCapacity(ticketType.getCapacity(), ticketType.getSold(), item.quantity());
+		TicketBusinessRules.requirePurchaseCapacity(ticketType.getCapacity(), ticketType.getSold() + ticketType.getReserved(), item.quantity());
 		BigDecimal subtotal = TicketBusinessRules.money(ticketType.getPrice().multiply(BigDecimal.valueOf(item.quantity())));
 		BigDecimal fee = TicketBusinessRules.calculatePercentAmount(subtotal, ticketProperties.checkoutServiceFeePercent());
 		return TicketBusinessRules.money(subtotal.add(fee));

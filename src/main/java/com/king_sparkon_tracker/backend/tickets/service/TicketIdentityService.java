@@ -125,6 +125,7 @@ public class TicketIdentityService {
             return new GateVerificationResponse(false, false, "Invalid ticket.", null, null);
         }
 
+        requireWorkerBusinessAccess(worker, ticket);
         TicketEventResponse event = ticketManagementService.getEventById(ticket.getEventId());
         if (ticket.getStatus() != UserTicketStatus.ACTIVE) {
             String message = statusMessage(ticket.getStatus());
@@ -188,6 +189,26 @@ public class TicketIdentityService {
         }
     }
 
+    private void requireWorkerBusinessAccess(TrackerUser actor, UserTicket ticket) {
+        if (actor.getPrivilege() != null && actor.getPrivilege().getName() == PrivilegeRole.Admin) {
+            return;
+        }
+        if (actor.getBusiness() == null || actor.getBusiness().getId() == null) {
+            throw new IllegalArgumentException("Ticket verifier is not linked to a business.");
+        }
+        if (ticket.getBusinessId() != null && !ticket.getBusinessId().equals(actor.getBusiness().getId())) {
+            throw new IllegalArgumentException("Ticket belongs to another business.");
+        }
+        if (ticket.getBusinessId() == null) {
+            TicketEventResponse event = ticketManagementService.getEventById(ticket.getEventId());
+            String ownerId = actor.getBusiness().getOwner() == null || actor.getBusiness().getOwner().getId() == null
+                    ? null : String.valueOf(actor.getBusiness().getOwner().getId());
+            if (ownerId == null || !ownerId.equals(event.ownerId())) {
+                throw new IllegalArgumentException("Ticket belongs to another business.");
+            }
+        }
+    }
+
     private void requireGateRole(TrackerUser actor) {
         if (actor.getPrivilege() == null || actor.getPrivilege().getName() == null) {
             throw new IllegalArgumentException("Worker privilege is required for ticket verification.");
@@ -242,6 +263,7 @@ public class TicketIdentityService {
 
     private String statusMessage(UserTicketStatus status) {
         return switch (status) {
+            case PENDING_PAYMENT -> "Ticket payment is still pending. Entry denied.";
             case USED -> "Ticket already used. Entry denied.";
             case CANCELLED -> "Ticket cancelled. Entry denied.";
             case EXPIRED -> "Ticket expired. Entry denied.";

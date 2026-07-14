@@ -3,6 +3,9 @@ package com.king_sparkon_tracker.backend.tickets.service;
 import com.king_sparkon_tracker.backend.model.Business;
 import com.king_sparkon_tracker.backend.model.BusinessAccountEntryType;
 import com.king_sparkon_tracker.backend.model.BusinessAccountLedgerEntry;
+import com.king_sparkon_tracker.backend.model.PrivilegeRole;
+import com.king_sparkon_tracker.backend.model.TrackerUser;
+import com.king_sparkon_tracker.backend.repository.BusinessRepository;
 import com.king_sparkon_tracker.backend.service.BusinessAccountService;
 import com.king_sparkon_tracker.backend.service.StripeService;
 import com.king_sparkon_tracker.backend.service.StripeService.CreatedTicketPaymentLink;
@@ -45,6 +48,7 @@ import com.king_sparkon_tracker.backend.tickets.repository.TicketEventRepository
 import com.king_sparkon_tracker.backend.tickets.repository.TicketPaymentRepository;
 import com.king_sparkon_tracker.backend.tickets.repository.TicketWithdrawalRepository;
 import com.king_sparkon_tracker.backend.tickets.repository.UserTicketRepository;
+import com.king_sparkon_tracker.backend.tickets.reservation.TicketReservationService;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -77,9 +81,11 @@ public class TicketManagementService {
     private final TicketAuditLogRepository ticketAuditLogRepository;
     private final TicketEventBoostRepository ticketEventBoostRepository;
     private final BusinessAccountService businessAccountService;
+    private final BusinessRepository businessRepository;
     private final TrackerUserService trackerUserService;
     private final StripeService stripeService;
     private final TicketProperties ticketProperties;
+    private final TicketReservationService ticketReservationService;
 
     public TicketManagementService(
             TicketEventRepository ticketEventRepository,
@@ -90,9 +96,11 @@ public class TicketManagementService {
             TicketAuditLogRepository ticketAuditLogRepository,
             TicketEventBoostRepository ticketEventBoostRepository,
             BusinessAccountService businessAccountService,
+            BusinessRepository businessRepository,
             TrackerUserService trackerUserService,
             StripeService stripeService,
-            TicketProperties ticketProperties
+            TicketProperties ticketProperties,
+            TicketReservationService ticketReservationService
     ) {
         this.ticketEventRepository = ticketEventRepository;
         this.eventTicketTypeRepository = eventTicketTypeRepository;
@@ -102,9 +110,16 @@ public class TicketManagementService {
         this.ticketAuditLogRepository = ticketAuditLogRepository;
         this.ticketEventBoostRepository = ticketEventBoostRepository;
         this.businessAccountService = businessAccountService;
+        this.businessRepository = businessRepository;
         this.trackerUserService = trackerUserService;
         this.stripeService = stripeService;
         this.ticketProperties = ticketProperties;
+        this.ticketReservationService = ticketReservationService;
+    }
+
+    @Transactional(readOnly = true)
+    public TrackerUser currentActor(String actorUsername) {
+        return trackerUserService.getUserByUsername(actorUsername);
     }
 
     @Transactional(readOnly = true)
@@ -121,11 +136,14 @@ public class TicketManagementService {
         return toEventResponse(findEvent(eventId));
     }
 
-    public TicketEventResponse createEvent(CreateEventRequest request) {
+    public TicketEventResponse createEvent(CreateEventRequest request, String actorUsername) {
         requireTicketTypes(request.ticketTypes());
+        TrackerUser owner = requireOwner(actorUsername);
+        Business business = trackerUserService.businessForActor(actorUsername);
         TicketEvent event = new TicketEvent();
         event.setId(newId("event"));
-        event.setOwnerId(request.ownerId());
+        event.setOwnerId(String.valueOf(owner.getId()));
+        event.setBusinessId(business.getId());
         event.setName(request.name().trim());
         event.setDescription(request.description().trim());
         event.setLocation(request.location().trim());
@@ -142,12 +160,14 @@ public class TicketManagementService {
                 .forEach(ticketTypeRequest -> event.addTicketType(toTicketTypeEntity(event.getId(), ticketTypeRequest)));
 
         TicketEvent saved = ticketEventRepository.save(event);
-        audit(saved.getOwnerId(), saved.getId(), null, saved.getOwnerId(), "EVENT_CREATED", TicketAuditLevel.INFO, "Ticket event created: " + saved.getName());
+        audit(saved.getOwnerId(), saved.getId(), null, owner.getUsername(), "EVENT_CREATED", TicketAuditLevel.INFO, "Ticket event created: " + saved.getName());
         return toEventResponse(saved);
     }
 
-    public TicketEventResponse updateEvent(String eventId, UpdateEventRequest request) {
+    public TicketEventResponse updateEvent(String eventId, UpdateEventRequest request, String actorUsername) {
         TicketEvent event = findEvent(eventId);
+        Business business = trackerUserService.businessForActor(actorUsername);
+        requireOwnerControlsEvent(event, business);
         if (request.name() != null && !request.name().isBlank()) event.setName(request.name().trim());
         if (request.description() != null && !request.description().isBlank()) event.setDescription(request.description().trim());
         if (request.location() != null && !request.location().isBlank()) event.setLocation(request.location().trim());
@@ -164,21 +184,23 @@ public class TicketManagementService {
             for (EventTicketTypeRequest ticketTypeRequest : request.ticketTypes()) {
                 EventTicketType current = currentByType.get(ticketTypeRequest.type());
                 if (current == null) continue;
-                if (ticketTypeRequest.capacity() < current.getSold()) {
-                    throw new IllegalArgumentException("Capacity cannot be lower than tickets already sold for " + ticketTypeRequest.type());
+                if (ticketTypeRequest.capacity() < current.getSold() + current.getReserved()) {
+                    throw new IllegalArgumentException("Capacity cannot be lower than tickets already sold or reserved for " + ticketTypeRequest.type());
                 }
                 current.setPrice(TicketBusinessRules.money(ticketTypeRequest.price()));
                 current.setCapacity(ticketTypeRequest.capacity());
-                current.setAvailable(TicketBusinessRules.calculateAvailable(current.getCapacity(), current.getSold()));
+                current.setAvailable(Math.max(0, current.getCapacity() - current.getSold() - current.getReserved()));
             }
         }
 
         TicketEvent saved = ticketEventRepository.save(event);
-        audit(saved.getOwnerId(), saved.getId(), null, saved.getOwnerId(), "EVENT_UPDATED", TicketAuditLevel.INFO, "Ticket event updated: " + saved.getName());
+        audit(saved.getOwnerId(), saved.getId(), null, actorUsername, "EVENT_UPDATED", TicketAuditLevel.INFO, "Ticket event updated: " + saved.getName());
         return toEventResponse(saved);
     }
 
-    public TicketPurchaseResponse purchaseTickets(PurchaseTicketsRequest request) {
+    public TicketPurchaseResponse purchaseTickets(PurchaseTicketsRequest request, String actorUsername) {
+        TrackerUser buyer = trackerUserService.getUserByUsername(actorUsername);
+        String userId = String.valueOf(buyer.getId());
         TicketEvent event = findEvent(request.eventId());
         if (event.getStatus() != TicketEventStatus.PUBLISHED) {
             throw new IllegalStateException("Event is not published for ticket sales.");
@@ -186,16 +208,21 @@ public class TicketManagementService {
 
         EventTicketType ticketType = eventTicketTypeRepository.findLockedByEventIdAndType(event.getId(), request.ticketType())
                 .orElseThrow(() -> new IllegalArgumentException("Ticket type not found for event."));
-        TicketBusinessRules.requirePurchaseCapacity(ticketType.getCapacity(), ticketType.getSold(), request.quantity());
+        TicketBusinessRules.requirePurchaseCapacity(
+                ticketType.getCapacity(),
+                ticketType.getSold() + ticketType.getReserved(),
+                request.quantity());
 
         BigDecimal subtotal = TicketBusinessRules.money(ticketType.getPrice().multiply(BigDecimal.valueOf(request.quantity())));
         BigDecimal checkoutFee = TicketBusinessRules.calculatePercentAmount(subtotal, ticketProperties.checkoutServiceFeePercent());
         BigDecimal total = TicketBusinessRules.money(subtotal.add(checkoutFee));
+        Business business = businessForEvent(event);
 
         TicketPayment payment = new TicketPayment();
         payment.setId(newId("ticket-payment"));
         payment.setEventId(event.getId());
-        payment.setUserId(request.userId());
+        payment.setBusinessId(business == null ? event.getBusinessId() : business.getId());
+        payment.setUserId(userId);
         payment.setBuyerName(request.buyerName().trim());
         payment.setBuyerEmail(request.buyerEmail().trim().toLowerCase());
         payment.setTicketType(request.ticketType());
@@ -207,35 +234,45 @@ public class TicketManagementService {
         payment.setPaymentProvider(STRIPE_PROVIDER);
         payment.setPaymentReference("PENDING");
         TicketPayment savedPayment = ticketPaymentRepository.save(payment);
-        CreatedTicketPaymentLink paymentLink = stripeService.createTicketPaymentLink(savedPayment, event, request.callbackUrl());
-        savedPayment.setPaymentReference(paymentLink.stripeId());
-        savedPayment = ticketPaymentRepository.save(savedPayment);
 
-        List<UserTicket> createdTickets = new ArrayList<>();
+        List<UserTicket> pendingTickets = new ArrayList<>();
         for (int index = 0; index < request.quantity(); index++) {
             UserTicket ticket = new UserTicket();
             ticket.setId(newId("ticket"));
             ticket.setEventId(event.getId());
-            ticket.setUserId(request.userId());
+            ticket.setBusinessId(payment.getBusinessId());
+            ticket.setPaymentId(savedPayment.getId());
+            ticket.setUserId(userId);
             ticket.setBuyerName(request.buyerName().trim());
             ticket.setBuyerEmail(request.buyerEmail().trim().toLowerCase());
             ticket.setTicketType(request.ticketType());
-            ticket.setPricePaid(TicketBusinessRules.money(total.divide(BigDecimal.valueOf(request.quantity()), 2, java.math.RoundingMode.HALF_UP)));
+            ticket.setPricePaid(TicketBusinessRules.money(subtotal.divide(BigDecimal.valueOf(request.quantity()), 2, java.math.RoundingMode.HALF_UP)));
             ticket.setTicketReference(nextReference(event.getId()));
-            ticket.setStatus(UserTicketStatus.ACTIVE);
-            ticket.setQrCodeValue(qrPayload(ticket.getId(), event.getId(), ticket.getTicketReference(), request.userId()));
-            createdTickets.add(userTicketRepository.save(ticket));
+            ticket.setStatus(UserTicketStatus.PENDING_PAYMENT);
+            ticket.setQrCodeValue(null);
+            pendingTickets.add(userTicketRepository.save(ticket));
         }
 
-        ticketType.setSold(ticketType.getSold() + request.quantity());
-        ticketType.setAvailable(TicketBusinessRules.calculateAvailable(ticketType.getCapacity(), ticketType.getSold()));
-        eventTicketTypeRepository.save(ticketType);
+        ticketReservationService.reserve(business, ticketType, savedPayment, userId, request.quantity());
+        CreatedTicketPaymentLink paymentLink = stripeService.createTicketPaymentLink(savedPayment, event, request.callbackUrl());
+        savedPayment.setPaymentReference(paymentLink.stripeId());
+        savedPayment = ticketPaymentRepository.save(savedPayment);
 
-        audit(event.getOwnerId(), event.getId(), null, request.userId(), "TICKETS_CHECKOUT_CREATED", TicketAuditLevel.INFO,
-                request.quantity() + " " + request.ticketType() + " ticket checkout created for " + event.getName());
-        log.info("ticket_checkout_created eventId={} userId={} ticketType={} quantity={} total={} stripePaymentLink={}", event.getId(), request.userId(), request.ticketType(), request.quantity(), total, paymentLink.stripeId());
+        audit(event.getOwnerId(), event.getId(), null, actorUsername, "TICKETS_CHECKOUT_CREATED", TicketAuditLevel.INFO,
+                request.quantity() + " " + request.ticketType() + " ticket reservation created for " + event.getName());
+        log.info("ticket_reservation_created eventId={} userId={} ticketType={} quantity={} total={} stripePaymentLink={}", event.getId(), userId, request.ticketType(), request.quantity(), total, paymentLink.stripeId());
 
-        return new TicketPurchaseResponse(toPaymentResponse(savedPayment, paymentLink.paymentUrl(), paymentLink.qrCodeUrl()), createdTickets.stream().map(this::toUserTicketResponse).toList());
+        return new TicketPurchaseResponse(
+                toPaymentResponse(savedPayment, paymentLink.paymentUrl(), paymentLink.qrCodeUrl()),
+                pendingTickets.stream().map(this::toUserTicketResponse).toList());
+    }
+
+    public TicketPayment handlePaymentSucceeded(String paymentId, String providerReference) {
+        return ticketReservationService.confirm(paymentId, providerReference);
+    }
+
+    public void handlePaymentFailed(String paymentId, boolean expired) {
+        ticketReservationService.release(paymentId, expired);
     }
 
     public TicketEventPromotionResponse promoteEvent(String eventId, PromoteTicketEventRequest request, String actorUsername) {
@@ -267,8 +304,9 @@ public class TicketManagementService {
     }
 
     @Transactional(readOnly = true)
-    public List<TicketEventPromotionResponse> getOwnerEventPromotions(String ownerId) {
-        return ticketEventBoostRepository.findByOwnerIdOrderByCreatedAtDesc(ownerId).stream().map(this::toPromotionResponse).toList();
+    public List<TicketEventPromotionResponse> getOwnerEventPromotions(String actorUsername) {
+        TrackerUser owner = requireOwner(actorUsername);
+        return ticketEventBoostRepository.findByOwnerIdOrderByCreatedAtDesc(String.valueOf(owner.getId())).stream().map(this::toPromotionResponse).toList();
     }
 
     @Transactional(readOnly = true)
@@ -308,7 +346,9 @@ public class TicketManagementService {
     }
 
     @Transactional(readOnly = true)
-    public OwnerTicketDashboardResponse getOwnerDashboard(String ownerId) {
+    public OwnerTicketDashboardResponse getOwnerDashboard(String actorUsername) {
+        TrackerUser owner = requireOwner(actorUsername);
+        String ownerId = String.valueOf(owner.getId());
         List<TicketEvent> ownerEvents = ticketEventRepository.findByOwnerIdOrderByUpdatedAtDesc(ownerId);
         int totalCapacity = ownerEvents.stream().flatMap(event -> event.getTicketTypes().stream()).mapToInt(EventTicketType::getCapacity).sum();
         int totalSold = ownerEvents.stream().flatMap(event -> event.getTicketTypes().stream()).mapToInt(EventTicketType::getSold).sum();
@@ -337,12 +377,15 @@ public class TicketManagementService {
     }
 
     @Transactional(readOnly = true)
-    public List<TicketEventResponse> getOwnerEvents(String ownerId) {
-        return ticketEventRepository.findByOwnerIdOrderByUpdatedAtDesc(ownerId).stream().map(this::toEventResponse).toList();
+    public List<TicketEventResponse> getOwnerEvents(String actorUsername) {
+        TrackerUser owner = requireOwner(actorUsername);
+        return ticketEventRepository.findByOwnerIdOrderByUpdatedAtDesc(String.valueOf(owner.getId())).stream().map(this::toEventResponse).toList();
     }
 
-    public TicketWithdrawalResponse requestWithdrawal(TicketWithdrawalRequest request) {
-        OwnerTicketDashboardResponse dashboard = getOwnerDashboard(request.ownerId());
+    public TicketWithdrawalResponse requestWithdrawal(TicketWithdrawalRequest request, String actorUsername) {
+        TrackerUser owner = requireOwner(actorUsername);
+        String ownerId = String.valueOf(owner.getId());
+        OwnerTicketDashboardResponse dashboard = getOwnerDashboard(actorUsername);
         if (request.grossAmount().compareTo(ticketProperties.withdrawalMinimumZar()) < 0) {
             throw new IllegalArgumentException("Ticket withdrawal is below the configured minimum amount.");
         }
@@ -354,7 +397,7 @@ public class TicketManagementService {
         BigDecimal fee = TicketBusinessRules.calculatePercentAmount(gross, ticketProperties.withdrawalFeePercent());
         TicketWithdrawal withdrawal = new TicketWithdrawal();
         withdrawal.setId(newId("ticket-withdrawal"));
-        withdrawal.setOwnerId(request.ownerId());
+        withdrawal.setOwnerId(ownerId);
         withdrawal.setGrossAmount(gross);
         withdrawal.setServiceFeePercent(ticketProperties.withdrawalFeePercent());
         withdrawal.setServiceFeeAmount(fee);
@@ -362,14 +405,15 @@ public class TicketManagementService {
         withdrawal.setStatus(TicketWithdrawalStatus.REQUESTED);
         withdrawal.setNotes(blankToNull(request.notes()));
         TicketWithdrawal saved = ticketWithdrawalRepository.save(withdrawal);
-        audit(request.ownerId(), null, null, request.ownerId(), "TICKET_WITHDRAWAL_REQUESTED", TicketAuditLevel.INFO,
-                "Ticket withdrawal requested with 5% service fee: gross " + gross + ", net " + saved.getNetAmount());
+        audit(ownerId, null, null, actorUsername, "TICKET_WITHDRAWAL_REQUESTED", TicketAuditLevel.INFO,
+                "Ticket withdrawal requested: gross " + gross + ", net " + saved.getNetAmount());
         return toWithdrawalResponse(saved);
     }
 
     @Transactional(readOnly = true)
-    public List<TicketWithdrawalResponse> getWithdrawals(String ownerId) {
-        return ticketWithdrawalRepository.findByOwnerIdOrderByRequestedAtDesc(ownerId).stream().map(this::toWithdrawalResponse).toList();
+    public List<TicketWithdrawalResponse> getWithdrawals(String actorUsername) {
+        TrackerUser owner = requireOwner(actorUsername);
+        return ticketWithdrawalRepository.findByOwnerIdOrderByRequestedAtDesc(String.valueOf(owner.getId())).stream().map(this::toWithdrawalResponse).toList();
     }
 
     @Transactional(readOnly = true)
@@ -377,6 +421,30 @@ public class TicketManagementService {
         if (eventId.isPresent()) return ticketAuditLogRepository.findTop100ByEventIdOrderByCreatedAtDesc(eventId.get()).stream().map(this::toLogResponse).toList();
         if (ownerId.isPresent()) return ticketAuditLogRepository.findTop100ByOwnerIdOrderByCreatedAtDesc(ownerId.get()).stream().map(this::toLogResponse).toList();
         return ticketAuditLogRepository.findTop100ByOrderByCreatedAtDesc().stream().map(this::toLogResponse).toList();
+    }
+
+    private TrackerUser requireOwner(String actorUsername) {
+        TrackerUser actor = trackerUserService.getUserByUsername(actorUsername);
+        if (actor.getPrivilege() == null || actor.getPrivilege().getName() != PrivilegeRole.Owner) {
+            throw new IllegalArgumentException("Business owner privilege is required");
+        }
+        if (actor.getBusiness() == null || actor.getBusiness().getId() == null) {
+            throw new IllegalArgumentException("Business owner is not linked to a business");
+        }
+        return actor;
+    }
+
+    private Business businessForEvent(TicketEvent event) {
+        if (event.getBusinessId() != null) {
+            return businessRepository.findById(event.getBusinessId())
+                    .orElseThrow(() -> new IllegalStateException("Ticket event business no longer exists"));
+        }
+        try {
+            TrackerUser owner = trackerUserService.getUserById(Long.valueOf(event.getOwnerId()));
+            return owner.getBusiness();
+        } catch (RuntimeException ignored) {
+            return null;
+        }
     }
 
     private void requireTicketTypes(List<EventTicketTypeRequest> requestedTicketTypes) {
@@ -402,6 +470,7 @@ public class TicketManagementService {
         entity.setPrice(TicketBusinessRules.money(request.price()));
         entity.setCapacity(request.capacity());
         entity.setSold(0);
+        entity.setReserved(0);
         entity.setAvailable(TicketBusinessRules.calculateAvailable(request.capacity(), 0));
         return entity;
     }

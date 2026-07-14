@@ -7,6 +7,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import java.math.BigDecimal;
 import java.time.Instant;
 
@@ -20,6 +21,12 @@ public class UserTicket {
 
     @Column(nullable = false, length = 64)
     private String eventId;
+
+    @Column(name = "business_id")
+    private Long businessId;
+
+    @Column(name = "payment_id", length = 64)
+    private String paymentId;
 
     @Column(nullable = false, length = 64)
     private String userId;
@@ -37,7 +44,7 @@ public class UserTicket {
     @Column(nullable = false, precision = 14, scale = 2)
     private BigDecimal pricePaid;
 
-    @Column(nullable = false, length = 1024)
+    @Column(length = 1024)
     private String qrCodeValue;
 
     @Column(nullable = false, unique = true, length = 64)
@@ -68,6 +75,9 @@ public class UserTicket {
     @Column(nullable = false)
     private Integer ownershipVersion;
 
+    @Version
+    private long version;
+
     @PrePersist
     void prePersist() {
         if (purchasedAt == null) purchasedAt = Instant.now();
@@ -78,6 +88,10 @@ public class UserTicket {
     public void setId(String id) { this.id = id; }
     public String getEventId() { return eventId; }
     public void setEventId(String eventId) { this.eventId = eventId; }
+    public Long getBusinessId() { return businessId; }
+    public void setBusinessId(Long businessId) { this.businessId = businessId; }
+    public String getPaymentId() { return paymentId; }
+    public void setPaymentId(String paymentId) { this.paymentId = paymentId; }
     public String getUserId() { return userId; }
     public void setUserId(String userId) { this.userId = userId; }
     public String getBuyerName() { return buyerName; }
@@ -110,4 +124,5 @@ public class UserTicket {
     public void setTransferredFromUserId(String transferredFromUserId) { this.transferredFromUserId = transferredFromUserId; }
     public Integer getOwnershipVersion() { return ownershipVersion; }
     public void setOwnershipVersion(Integer ownershipVersion) { this.ownershipVersion = ownershipVersion; }
+    public long getVersion() { return version; }
 }

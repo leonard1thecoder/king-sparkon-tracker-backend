@@ -40,6 +40,9 @@ public class EventTicketType {
     @Column(nullable = false)
     private int available;
 
+    @Column(nullable = false)
+    private int reserved;
+
     @Version
     private long version;
 
@@ -97,6 +100,39 @@ public class EventTicketType {
 
     public void setAvailable(int available) {
         this.available = available;
+    }
+
+    public int getReserved() {
+        return reserved;
+    }
+
+    public void setReserved(int reserved) {
+        this.reserved = reserved;
+    }
+
+    public void reserve(int quantity) {
+        if (quantity <= 0 || available < quantity) {
+            throw new IllegalArgumentException("Ticket capacity is insufficient");
+        }
+        reserved += quantity;
+        available = capacity - sold - reserved;
+    }
+
+    public void consumeReservation(int quantity) {
+        if (quantity <= 0 || reserved < quantity) {
+            throw new IllegalStateException("Ticket reservation is inconsistent");
+        }
+        reserved -= quantity;
+        sold += quantity;
+        available = capacity - sold - reserved;
+    }
+
+    public void releaseReservation(int quantity) {
+        if (quantity <= 0 || reserved < quantity) {
+            throw new IllegalStateException("Ticket reservation is inconsistent");
+        }
+        reserved -= quantity;
+        available = capacity - sold - reserved;
     }
 
     public long getVersion() {

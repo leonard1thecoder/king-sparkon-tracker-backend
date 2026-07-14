@@ -1,7 +1,8 @@
 package com.king_sparkon_tracker.backend.service;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 import org.springframework.stereotype.Service;
 
 import com.king_sparkon_tracker.backend.model.AffiliateCommission;
@@ -9,54 +10,71 @@ import com.king_sparkon_tracker.backend.model.AffiliateWithdrawal;
 import com.king_sparkon_tracker.backend.model.Tip;
 import com.king_sparkon_tracker.backend.model.TipWithdrawal;
 import com.king_sparkon_tracker.backend.model.TransactionWithdrawal;
+import com.king_sparkon_tracker.backend.outbox.OutboxPublisher;
 
 @Service
 public class NotificationService {
 
-	private static final Logger log = LoggerFactory.getLogger(NotificationService.class);
+	private final OutboxPublisher outboxPublisher;
+
+	public NotificationService(OutboxPublisher outboxPublisher) {
+		this.outboxPublisher = outboxPublisher;
+	}
 
 	public void logTipPaymentLink(Tip tip, String paymentUrl) {
-		log.info("tip_payment_link_created tipId={} workerId={} paymentUrl={}",
-				tip.getId(),
-				tip.getWorkerId(),
-				paymentUrl);
+		outboxPublisher.notification("TIP", String.valueOf(tip.getId()), "tip_payment_link_created", attributes(
+				"tipId", tip.getId(),
+				"workerId", tip.getWorkerId(),
+				"paymentProvider", provider(paymentUrl)));
 	}
 
 	public void logWithdrawalRequested(TipWithdrawal withdrawal) {
-		log.info("tip_withdrawal_requested withdrawalId={} workerId={} amount={} paypalEmail={}",
-				withdrawal.getId(),
-				withdrawal.getWorkerId(),
-				withdrawal.getAmount(),
-				withdrawal.getPaypalEmail());
+		outboxPublisher.notification("TIP_WITHDRAWAL", String.valueOf(withdrawal.getId()), "tip_withdrawal_requested", attributes(
+				"withdrawalId", withdrawal.getId(),
+				"workerId", withdrawal.getWorkerId(),
+				"amount", withdrawal.getAmount()));
 	}
 
 	public void logTransactionWithdrawalRequested(TransactionWithdrawal withdrawal) {
-		log.info("transaction_withdrawal_requested withdrawalId={} ownerId={} businessId={} amount={} grossAmount={} feeAmount={} paypalEmail={}",
-				withdrawal.getId(),
-				withdrawal.getOwnerId(),
-				withdrawal.getBusinessId(),
-				withdrawal.getAmount(),
-				withdrawal.getGrossAmount(),
-				withdrawal.getFeeAmount(),
-				withdrawal.getPaypalEmail());
+		outboxPublisher.notification("TRANSACTION_WITHDRAWAL", String.valueOf(withdrawal.getId()), "transaction_withdrawal_requested", attributes(
+				"withdrawalId", withdrawal.getId(),
+				"ownerId", withdrawal.getOwnerId(),
+				"businessId", withdrawal.getBusinessId(),
+				"amount", withdrawal.getAmount(),
+				"grossAmount", withdrawal.getGrossAmount(),
+				"feeAmount", withdrawal.getFeeAmount()));
 	}
 
 	public void logAffiliateCommissionEarned(AffiliateCommission commission) {
-		log.info("affiliate_commission_earned commissionId={} affiliateId={} businessId={} subscriptionId={} amount={} rate={}",
-				commission.getId(),
-				commission.getAffiliateId(),
-				commission.getBusinessId(),
-				commission.getSubscriptionId(),
-				commission.getCommissionAmount(),
-				commission.getCommissionRatePercent());
+		outboxPublisher.notification("AFFILIATE_COMMISSION", String.valueOf(commission.getId()), "affiliate_commission_earned", attributes(
+				"commissionId", commission.getId(),
+				"affiliateId", commission.getAffiliateId(),
+				"businessId", commission.getBusinessId(),
+				"subscriptionId", commission.getSubscriptionId(),
+				"amount", commission.getCommissionAmount(),
+				"rate", commission.getCommissionRatePercent()));
 	}
 
 	public void logAffiliateWithdrawalRequested(AffiliateWithdrawal withdrawal) {
-		log.info("affiliate_withdrawal_requested withdrawalId={} affiliateId={} amount={} commissionCount={} paypalLink={}",
-				withdrawal.getId(),
-				withdrawal.getAffiliateId(),
-				withdrawal.getAmount(),
-				withdrawal.getCommissionCount(),
-				withdrawal.getPaypalLink());
+		outboxPublisher.notification("AFFILIATE_WITHDRAWAL", String.valueOf(withdrawal.getId()), "affiliate_withdrawal_requested", attributes(
+				"withdrawalId", withdrawal.getId(),
+				"affiliateId", withdrawal.getAffiliateId(),
+				"amount", withdrawal.getAmount(),
+				"commissionCount", withdrawal.getCommissionCount()));
+	}
+
+	private Map<String, Object> attributes(Object... values) {
+		Map<String, Object> attributes = new LinkedHashMap<>();
+		for (int index = 0; index < values.length; index += 2) {
+			attributes.put(String.valueOf(values[index]), values[index + 1]);
+		}
+		return attributes;
+	}
+
+	private String provider(String url) {
+		if (url == null) return "unknown";
+		if (url.contains("stripe")) return "stripe";
+		if (url.contains("paypal")) return "paypal";
+		return "external";
 	}
 }

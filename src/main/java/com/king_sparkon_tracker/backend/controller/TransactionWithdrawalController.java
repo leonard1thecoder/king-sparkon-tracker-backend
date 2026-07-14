@@ -1,5 +1,6 @@
 package com.king_sparkon_tracker.backend.controller;
 
+import com.king_sparkon_tracker.backend.idempotency.IdempotentRequest;
 import java.security.Principal;
 import java.util.List;
 
@@ -55,6 +56,7 @@ public class TransactionWithdrawalController {
 	@PostMapping
 	@ResponseStatus(HttpStatus.CREATED)
 	@Operation(summary = "Request transaction withdrawal", description = "Requests withdrawal of all eligible website-payment transactions, or a selected eligible subset.")
+	@IdempotentRequest(scope = "transaction-withdrawal")
 	public TransactionWithdrawalResponse requestWithdrawal(
 			@Valid @RequestBody(required = false) TransactionWithdrawalRequest request,
 			@Parameter(hidden = true) Principal principal) {

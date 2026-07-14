@@ -2,11 +2,13 @@ package com.king_sparkon_tracker.backend.tickets.repository;
 
 import com.king_sparkon_tracker.backend.tickets.model.TicketPayment;
 import com.king_sparkon_tracker.backend.tickets.model.TicketPaymentStatus;
+import jakarta.persistence.LockModeType;
 import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -14,6 +16,15 @@ public interface TicketPaymentRepository extends JpaRepository<TicketPayment, St
     List<TicketPayment> findByEventIdIn(Collection<String> eventIds);
     Optional<TicketPayment> findByPaymentReference(String paymentReference);
     List<TicketPayment> findAllByPaymentReferenceOrderByCreatedAtAsc(String paymentReference);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select payment from TicketPayment payment where payment.id = :paymentId")
+    Optional<TicketPayment> findLockedById(@Param("paymentId") String paymentId);
+
+    Optional<TicketPayment> findByPaymentReferenceAndEventIdAndTicketType(
+            String paymentReference,
+            String eventId,
+            com.king_sparkon_tracker.backend.tickets.model.TicketType ticketType);
 
     @Query("select coalesce(sum(payment.totalAmount), 0) from TicketPayment payment where payment.eventId in :eventIds and payment.status = :status")
     BigDecimal sumSuccessfulPaymentsByEventIds(@Param("eventIds") Collection<String> eventIds, @Param("status") TicketPaymentStatus status);

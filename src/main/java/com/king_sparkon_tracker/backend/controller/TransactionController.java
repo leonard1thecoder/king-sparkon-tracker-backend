@@ -1,5 +1,6 @@
 package com.king_sparkon_tracker.backend.controller;
 
+import com.king_sparkon_tracker.backend.idempotency.IdempotentRequest;
 import java.security.Principal;
 
 import org.springframework.data.domain.PageRequest;
@@ -62,6 +63,7 @@ public class TransactionController {
 	@PostMapping
 	@ResponseStatus(HttpStatus.CREATED)
 	@Operation(summary = "Create transaction", description = "Creates a BUY or SELL transaction with one or more product line items.")
+	@IdempotentRequest(scope = "transaction-create")
 	public TransactionResponse createTransaction(
 			@Valid @RequestBody CreateTransactionRequest request,
 			@Parameter(hidden = true) Principal principal) {

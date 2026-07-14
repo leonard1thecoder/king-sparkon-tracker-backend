@@ -42,6 +42,18 @@ public class GoogleStorageService {
 		return storeMultipartImage(file, folder, ownerKey, false);
 	}
 
+	public StoredImage storeGeneratedImage(
+			byte[] bytes,
+			String contentType,
+			String folder,
+			String ownerKey,
+			String extension) {
+		requireEnabled();
+		String normalizedType = normalizeContentType(contentType);
+		validateImage(normalizedType, bytes == null ? 0 : bytes.length);
+		return upload(bytes, normalizedType, objectName(folder, ownerKey, extension), true);
+	}
+
 	private StoredImage storeMultipartImage(MultipartFile file, String folder, String ownerKey, boolean publicAccess) {
 		requireEnabled();
 		if (file == null || file.isEmpty()) {
