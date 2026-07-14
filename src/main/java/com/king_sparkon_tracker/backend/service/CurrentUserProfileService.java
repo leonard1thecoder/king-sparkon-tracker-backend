@@ -2,15 +2,18 @@ package com.king_sparkon_tracker.backend.service;
 
 import java.util.Locale;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.king_sparkon_tracker.backend.dto.UpdateCurrentUserPasswordRequest;
 import com.king_sparkon_tracker.backend.dto.UpdateCurrentUserProfileRequest;
 import com.king_sparkon_tracker.backend.exception.DuplicateEmailAddressException;
 import com.king_sparkon_tracker.backend.exception.ResourceNotFoundException;
+import com.king_sparkon_tracker.backend.model.PrivilegeRole;
 import com.king_sparkon_tracker.backend.model.TrackerUser;
 import com.king_sparkon_tracker.backend.repository.TrackerUserRepository;
 
@@ -21,6 +24,7 @@ public class CurrentUserProfileService {
 	private final TrackerUserRepository userRepository;
 	private final PasswordEncoder passwordEncoder;
 	private final AuditLogService auditLogService;
+	private GoogleStorageService googleStorageService;
 
 	public CurrentUserProfileService(
 			TrackerUserRepository userRepository,
@@ -29,6 +33,11 @@ public class CurrentUserProfileService {
 		this.userRepository = userRepository;
 		this.passwordEncoder = passwordEncoder;
 		this.auditLogService = auditLogService;
+	}
+
+	@Autowired(required = false)
+	void setGoogleStorageService(GoogleStorageService googleStorageService) {
+		this.googleStorageService = googleStorageService;
 	}
 
 	public TrackerUser updateProfile(UpdateCurrentUserProfileRequest request, String actorUsername) {
@@ -58,6 +67,27 @@ public class CurrentUserProfileService {
 		return saved;
 	}
 
+	public TrackerUser updateProfilePicture(MultipartFile file, String actorUsername) {
+		if (googleStorageService == null) {
+			throw new IllegalStateException("Profile image storage service is unavailable");
+		}
+		TrackerUser user = currentUser(actorUsername);
+		GoogleStorageService.StoredImage image = googleStorageService.storeImage(
+				file,
+				profileFolder(user),
+				user.getUsername());
+		user.updateProfilePicture(image.url());
+		TrackerUser saved = userRepository.save(user);
+		auditLogService.record(
+				"CURRENT_USER_PROFILE_PICTURE_UPDATED",
+				"TrackerUser",
+				String.valueOf(saved.getId()),
+				actorUsername,
+				"User uploaded a profile picture to managed storage",
+				saved.getBusiness());
+		return saved;
+	}
+
 	public void updatePassword(UpdateCurrentUserPasswordRequest request, String actorUsername) {
 		TrackerUser user = currentUser(actorUsername);
 		String currentPassword = required(request.currentPassword(), "Current password is required");
@@ -83,6 +113,18 @@ public class CurrentUserProfileService {
 				actorUsername,
 				"User updated account password",
 				user.getBusiness());
+	}
+
+	private String profileFolder(TrackerUser user) {
+		PrivilegeRole role = user.getPrivilege() == null ? null : user.getPrivilege().getName();
+		if (role == null) return "profiles/users";
+		return switch (role) {
+			case Admin -> "profiles/admins";
+			case Owner -> "profiles/owners";
+			case Worker -> "profiles/workers";
+			case Affiliate -> "profiles/affiliates";
+			case User -> "profiles/users";
+		};
 	}
 
 	private TrackerUser currentUser(String actorUsername) {

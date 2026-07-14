@@ -2,6 +2,7 @@ package com.king_sparkon_tracker.backend.model;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.Locale;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -21,6 +22,8 @@ import jakarta.persistence.Table;
 @Table(name = "business_withdrawals")
 public class BusinessWithdrawal {
 
+	private static final BigDecimal ZERO_MONEY = new BigDecimal("0.00");
+
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long id;
@@ -35,6 +38,15 @@ public class BusinessWithdrawal {
 	@Column(nullable = false, precision = 14, scale = 2)
 	private BigDecimal amount;
 
+	@Column(name = "fee_amount", nullable = false, precision = 14, scale = 2)
+	private BigDecimal feeAmount;
+
+	@Column(name = "net_amount", nullable = false, precision = 14, scale = 2)
+	private BigDecimal netAmount;
+
+	@Column(name = "withdrawal_fee_percent", nullable = false, precision = 5, scale = 2)
+	private BigDecimal withdrawalFeePercent;
+
 	@Column(name = "payout_method", nullable = false, length = 40)
 	private String payoutMethod;
 
@@ -47,6 +59,21 @@ public class BusinessWithdrawal {
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false, length = 24)
 	private BusinessWithdrawalStatus status = BusinessWithdrawalStatus.REQUESTED;
+
+	@Column(length = 32)
+	private String provider;
+
+	@Column(name = "provider_batch_id", length = 120)
+	private String providerBatchId;
+
+	@Column(name = "provider_status", length = 40)
+	private String providerStatus;
+
+	@Column(name = "payout_amount", precision = 14, scale = 2)
+	private BigDecimal payoutAmount;
+
+	@Column(name = "payout_currency", length = 3)
+	private String payoutCurrency;
 
 	@Column(name = "ledger_entry_id")
 	private Long ledgerEntryId;
@@ -70,9 +97,25 @@ public class BusinessWithdrawal {
 			String payoutMethod,
 			String payoutDestination,
 			String notes) {
+		this(business, ownerId, amount, ZERO_MONEY, amount, ZERO_MONEY, payoutMethod, payoutDestination, notes);
+	}
+
+	public BusinessWithdrawal(
+			Business business,
+			Long ownerId,
+			BigDecimal amount,
+			BigDecimal feeAmount,
+			BigDecimal netAmount,
+			BigDecimal withdrawalFeePercent,
+			String payoutMethod,
+			String payoutDestination,
+			String notes) {
 		this.business = business;
 		this.ownerId = ownerId;
 		this.amount = amount;
+		this.feeAmount = feeAmount;
+		this.netAmount = netAmount;
+		this.withdrawalFeePercent = withdrawalFeePercent;
 		this.payoutMethod = payoutMethod;
 		this.payoutDestination = payoutDestination;
 		this.notes = notes;
@@ -82,6 +125,9 @@ public class BusinessWithdrawal {
 	@PrePersist
 	void beforeCreate() {
 		OffsetDateTime now = OffsetDateTime.now();
+		if (feeAmount == null) feeAmount = ZERO_MONEY;
+		if (netAmount == null) netAmount = amount;
+		if (withdrawalFeePercent == null) withdrawalFeePercent = ZERO_MONEY;
 		if (requestedAt == null) requestedAt = now;
 		if (updatedAt == null) updatedAt = now;
 		if (status == null) status = BusinessWithdrawalStatus.REQUESTED;
@@ -94,6 +140,41 @@ public class BusinessWithdrawal {
 
 	public void attachLedgerEntry(Long ledgerEntryId) {
 		this.ledgerEntryId = ledgerEntryId;
+	}
+
+	public void markPayoutSubmitted(
+			String provider,
+			String providerBatchId,
+			String providerStatus,
+			BigDecimal payoutAmount,
+			String payoutCurrency) {
+		this.provider = provider;
+		this.providerBatchId = providerBatchId;
+		this.payoutAmount = payoutAmount;
+		this.payoutCurrency = payoutCurrency;
+		applyProviderStatus(providerStatus);
+	}
+
+	public void applyProviderStatus(String nextProviderStatus) {
+		String normalized = nextProviderStatus == null
+				? "PENDING"
+				: nextProviderStatus.trim().toUpperCase(Locale.ROOT);
+		this.providerStatus = normalized;
+		if ("SUCCESS".equals(normalized)) {
+			this.status = BusinessWithdrawalStatus.PAID;
+			this.processedAt = OffsetDateTime.now();
+			return;
+		}
+		if ("DENIED".equals(normalized)
+				|| "CANCELED".equals(normalized)
+				|| "CANCELLED".equals(normalized)
+				|| "FAILED".equals(normalized)) {
+			this.status = BusinessWithdrawalStatus.FAILED;
+			this.processedAt = OffsetDateTime.now();
+			return;
+		}
+		this.status = BusinessWithdrawalStatus.PROCESSING;
+		this.processedAt = null;
 	}
 
 	public Long getId() {
@@ -112,6 +193,18 @@ public class BusinessWithdrawal {
 		return amount;
 	}
 
+	public BigDecimal getFeeAmount() {
+		return feeAmount;
+	}
+
+	public BigDecimal getNetAmount() {
+		return netAmount;
+	}
+
+	public BigDecimal getWithdrawalFeePercent() {
+		return withdrawalFeePercent;
+	}
+
 	public String getPayoutMethod() {
 		return payoutMethod;
 	}
@@ -126,6 +219,26 @@ public class BusinessWithdrawal {
 
 	public BusinessWithdrawalStatus getStatus() {
 		return status;
+	}
+
+	public String getProvider() {
+		return provider;
+	}
+
+	public String getProviderBatchId() {
+		return providerBatchId;
+	}
+
+	public String getProviderStatus() {
+		return providerStatus;
+	}
+
+	public BigDecimal getPayoutAmount() {
+		return payoutAmount;
+	}
+
+	public String getPayoutCurrency() {
+		return payoutCurrency;
 	}
 
 	public Long getLedgerEntryId() {

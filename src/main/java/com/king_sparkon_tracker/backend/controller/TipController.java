@@ -80,6 +80,11 @@ public class TipController {
 		return tipService.getTipsForCurrentWorker(principal.getName());
 	}
 
+	@GetMapping("/owner")
+	public List<TipResponse> getCurrentOwnerBusinessTips(Principal principal) {
+		return tipService.getTipsForCurrentOwner(principal.getName());
+	}
+
 	@GetMapping("/me/ai-confirm")
 	public AiTipConfirmationResponse aiConfirmMyWorkerTips(Principal principal) {
 		return aiTipConfirmationService.confirmMyWorkerTips(principal.getName());

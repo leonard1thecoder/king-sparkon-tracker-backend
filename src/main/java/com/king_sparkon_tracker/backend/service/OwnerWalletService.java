@@ -9,8 +9,11 @@ import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -25,7 +28,6 @@ import com.king_sparkon_tracker.backend.model.BusinessAccountEntryType;
 import com.king_sparkon_tracker.backend.model.BusinessAccountLedgerEntry;
 import com.king_sparkon_tracker.backend.model.BusinessWithdrawal;
 import com.king_sparkon_tracker.backend.model.BusinessWithdrawalStatus;
-import com.king_sparkon_tracker.backend.model.InventoryTransaction;
 import com.king_sparkon_tracker.backend.model.PrivilegeRole;
 import com.king_sparkon_tracker.backend.model.Tip;
 import com.king_sparkon_tracker.backend.model.TipStatus;
@@ -40,8 +42,9 @@ import com.king_sparkon_tracker.backend.repository.InventoryTransactionRepositor
 import com.king_sparkon_tracker.backend.repository.TipRepository;
 import com.king_sparkon_tracker.backend.repository.TipWithdrawalRepository;
 import com.king_sparkon_tracker.backend.repository.TransactionWithdrawalRepository;
+import com.king_sparkon_tracker.backend.service.PayPalPayoutService.PayoutQuote;
+import com.king_sparkon_tracker.backend.service.PayPalPayoutService.PayoutSubmission;
 import com.king_sparkon_tracker.backend.tickets.model.TicketEvent;
-import com.king_sparkon_tracker.backend.tickets.model.TicketPayment;
 import com.king_sparkon_tracker.backend.tickets.model.TicketPaymentStatus;
 import com.king_sparkon_tracker.backend.tickets.model.TicketWithdrawal;
 import com.king_sparkon_tracker.backend.tickets.repository.TicketEventRepository;
@@ -52,8 +55,11 @@ import com.king_sparkon_tracker.backend.tickets.repository.TicketWithdrawalRepos
 @Transactional
 public class OwnerWalletService {
 
+	private static final Logger LOGGER = LoggerFactory.getLogger(OwnerWalletService.class);
 	private static final int MONEY_SCALE = 2;
 	private static final String CURRENCY = "ZAR";
+	private static final String PAYPAL = "PAYPAL";
+	private static final BigDecimal ONE_HUNDRED = new BigDecimal("100");
 
 	private final BusinessAccountService businessAccountService;
 	private final TrackerUserService trackerUserService;
@@ -65,7 +71,9 @@ public class OwnerWalletService {
 	private final TipWithdrawalRepository tipWithdrawalRepository;
 	private final TicketWithdrawalRepository ticketWithdrawalRepository;
 	private final BusinessWithdrawalRepository businessWithdrawalRepository;
+	private final PayPalPayoutService payPalPayoutService;
 	private final BigDecimal minimumWithdrawalAmount;
+	private final BigDecimal withdrawalFeePercent;
 
 	public OwnerWalletService(
 			BusinessAccountService businessAccountService,
@@ -78,7 +86,9 @@ public class OwnerWalletService {
 			TipWithdrawalRepository tipWithdrawalRepository,
 			TicketWithdrawalRepository ticketWithdrawalRepository,
 			BusinessWithdrawalRepository businessWithdrawalRepository,
-			@Value("${app.business-account.withdrawal-minimum-zar:100}") BigDecimal minimumWithdrawalAmount) {
+			PayPalPayoutService payPalPayoutService,
+			@Value("${app.business-account.withdrawal-minimum-zar:100}") BigDecimal minimumWithdrawalAmount,
+			@Value("${app.business-account.withdrawal-fee-percent:7.35}") BigDecimal withdrawalFeePercent) {
 		this.businessAccountService = businessAccountService;
 		this.trackerUserService = trackerUserService;
 		this.transactionRepository = transactionRepository;
@@ -89,7 +99,9 @@ public class OwnerWalletService {
 		this.tipWithdrawalRepository = tipWithdrawalRepository;
 		this.ticketWithdrawalRepository = ticketWithdrawalRepository;
 		this.businessWithdrawalRepository = businessWithdrawalRepository;
+		this.payPalPayoutService = payPalPayoutService;
 		this.minimumWithdrawalAmount = money(minimumWithdrawalAmount);
+		this.withdrawalFeePercent = validFeePercent(withdrawalFeePercent);
 	}
 
 	public OwnerWalletSummaryResponse summary(String actorUsername) {
@@ -104,8 +116,16 @@ public class OwnerWalletService {
 		BigDecimal promotionSpend = negativeMagnitude(business.getId(), EnumSet.of(
 				BusinessAccountEntryType.PROMOTION_DEBIT,
 				BusinessAccountEntryType.TICKET_PROMOTION_DEBIT));
-		BigDecimal withdrawn = negativeMagnitude(business.getId(), EnumSet.of(BusinessAccountEntryType.OWNER_WITHDRAWAL_DEBIT));
-		BigDecimal balance = businessAccountService.availableBalance(business.getId()).max(BigDecimal.ZERO.setScale(MONEY_SCALE));
+		BigDecimal withdrawalDebits = negativeMagnitude(
+				business.getId(),
+				EnumSet.of(BusinessAccountEntryType.OWNER_WITHDRAWAL_DEBIT));
+		BigDecimal withdrawalReversals = positiveSum(
+				business.getId(),
+				BusinessAccountEntryType.OWNER_WITHDRAWAL_REVERSAL_CREDIT);
+		BigDecimal withdrawn = withdrawalDebits.subtract(withdrawalReversals)
+				.max(BigDecimal.ZERO.setScale(MONEY_SCALE));
+		BigDecimal balance = businessAccountService.availableBalance(business.getId())
+				.max(BigDecimal.ZERO.setScale(MONEY_SCALE));
 		long pendingWithdrawals = businessWithdrawalRepository.countByBusiness_IdAndStatusIn(
 				business.getId(),
 				List.of(BusinessWithdrawalStatus.REQUESTED, BusinessWithdrawalStatus.PROCESSING));
@@ -115,6 +135,7 @@ public class OwnerWalletService {
 				business.getName(),
 				balance,
 				minimumWithdrawalAmount,
+				withdrawalFeePercent,
 				productRevenue,
 				ticketRevenue,
 				tipRevenue,
@@ -122,7 +143,11 @@ public class OwnerWalletService {
 				promotionSpend,
 				withdrawn,
 				pendingWithdrawals,
-				businessAccountService.recentEntries(business.getId(), 12));
+				businessAccountService.recentEntries(business.getId(), 12),
+				PAYPAL,
+				payPalPayoutService.payoutCurrency(),
+				payPalPayoutService.zarPerPayoutUnit(),
+				payPalPayoutService.isConfigured());
 	}
 
 	public List<OwnerWithdrawalResponse> withdrawals(String actorUsername) {
@@ -147,31 +172,64 @@ public class OwnerWalletService {
 		Business business = business(owner);
 		reconcile(business, owner);
 
-		BigDecimal amount = money(request.amount());
-		if (amount.compareTo(minimumWithdrawalAmount) < 0) {
-			throw new IllegalArgumentException("Owner withdrawal amount must be at least R100.00");
+		BigDecimal grossAmount = money(request.amount());
+		if (grossAmount.compareTo(minimumWithdrawalAmount) < 0) {
+			throw new IllegalArgumentException("Owner withdrawal amount must be at least " + CURRENCY + " " + minimumWithdrawalAmount);
 		}
 		BigDecimal availableBalance = businessAccountService.availableBalance(business.getId());
-		if (availableBalance.compareTo(amount) < 0) {
+		if (availableBalance.compareTo(grossAmount) < 0) {
 			throw new IllegalStateException("Withdrawal amount is greater than the available King Sparkon balance");
 		}
 
-		String payoutMethod = required(request.payoutMethod(), "Payout method is required").toUpperCase();
+		BigDecimal feeAmount = withdrawalFee(grossAmount);
+		BigDecimal netAmount = money(grossAmount.subtract(feeAmount));
+		if (netAmount.signum() <= 0) {
+			throw new IllegalArgumentException("Withdrawal amount is too low after the 7.35% withdrawal fee");
+		}
+
+		String payoutMethod = required(request.payoutMethod(), "Payout method is required").toUpperCase(Locale.ROOT);
+		if (!PAYPAL.equals(payoutMethod)) {
+			throw new IllegalArgumentException("Owner withdrawals are PayPal-only");
+		}
 		String payoutDestination = optional(request.payoutDestination());
-		if (payoutDestination == null) payoutDestination = owner.getEmailAddress();
-		BusinessWithdrawal withdrawal = businessWithdrawalRepository.save(new BusinessWithdrawal(
+		if (payoutDestination == null) payoutDestination = optional(owner.getEmailAddress());
+		payoutDestination = paypalEmail(payoutDestination);
+
+		PayoutQuote quote = payPalPayoutService.quote(netAmount);
+		BusinessWithdrawal withdrawal = businessWithdrawalRepository.saveAndFlush(new BusinessWithdrawal(
 				business,
 				owner.getId(),
-				amount,
-				payoutMethod,
+				grossAmount,
+				feeAmount,
+				netAmount,
+				withdrawalFeePercent,
+				PAYPAL,
 				payoutDestination,
 				optional(request.notes())));
 
+		PayoutSubmission payout = payPalPayoutService.submitWithdrawal(
+				withdrawal.getId(),
+				netAmount,
+				payoutDestination);
+		withdrawal.markPayoutSubmitted(
+				PAYPAL,
+				payout.payoutBatchId(),
+				payout.batchStatus(),
+				payout.quote().payoutAmount(),
+				payout.quote().payoutCurrency());
+		if (withdrawal.getStatus() == BusinessWithdrawalStatus.FAILED) {
+			throw new IllegalStateException("PayPal rejected the payout batch before the balance was debited");
+		}
+
 		BusinessAccountLedgerEntry ledgerEntry = businessAccountService.postOwnerWithdrawal(
 				business,
-				amount,
-				"UNIFIED-WITHDRAWAL:" + withdrawal.getId(),
-				"Owner requested unified King Sparkon withdrawal via " + payoutMethod,
+				grossAmount,
+				"PAYPAL-PAYOUT:" + payout.payoutBatchId(),
+				"Owner PayPal withdrawal " + payout.payoutBatchId()
+						+ " · gross " + grossAmount + " ZAR"
+						+ " · fee " + feeAmount + " ZAR (" + withdrawalFeePercent + "%)"
+						+ " · net " + netAmount + " ZAR"
+						+ " · PayPal " + quote.payoutAmount() + " " + quote.payoutCurrency(),
 				actorUsername);
 		withdrawal.attachLedgerEntry(ledgerEntry.getId());
 		return fromUnified(businessWithdrawalRepository.save(withdrawal));
@@ -184,6 +242,40 @@ public class OwnerWalletService {
 		reconcileLegacyProductWithdrawals(business);
 		reconcileLegacyTipWithdrawals(business);
 		reconcileLegacyTicketWithdrawals(business, owner);
+		refreshPayPalWithdrawals(business);
+	}
+
+	private void refreshPayPalWithdrawals(Business business) {
+		if (!payPalPayoutService.isConfigured()) return;
+		List<BusinessWithdrawal> active = businessWithdrawalRepository
+				.findByBusiness_IdAndStatusInOrderByRequestedAtDesc(
+						business.getId(),
+						List.of(BusinessWithdrawalStatus.REQUESTED, BusinessWithdrawalStatus.PROCESSING));
+		for (BusinessWithdrawal withdrawal : active) {
+			if (!PAYPAL.equalsIgnoreCase(withdrawal.getProvider())
+					|| !StringUtils.hasText(withdrawal.getProviderBatchId())) {
+				continue;
+			}
+			try {
+				String providerStatus = payPalPayoutService.getBatchStatus(withdrawal.getProviderBatchId());
+				withdrawal.applyProviderStatus(providerStatus);
+				businessWithdrawalRepository.save(withdrawal);
+				if (withdrawal.getStatus() == BusinessWithdrawalStatus.FAILED
+						&& withdrawal.getLedgerEntryId() != null) {
+					businessAccountService.postOwnerWithdrawalReversalIfAbsent(
+							business,
+							withdrawal.getAmount(),
+							"PAYPAL-PAYOUT-REVERSAL:" + withdrawal.getId(),
+							"PayPal payout " + withdrawal.getProviderBatchId() + " failed; gross owner debit restored");
+				}
+			} catch (RuntimeException exception) {
+				LOGGER.warn(
+						"Could not refresh PayPal payout status for withdrawal {} and batch {}",
+						withdrawal.getId(),
+						withdrawal.getProviderBatchId(),
+						exception);
+			}
+		}
 	}
 
 	private void reconcileProductRevenue(Business business) {
@@ -279,11 +371,14 @@ public class OwnerWalletService {
 	}
 
 	private BigDecimal positiveSum(Long businessId, BusinessAccountEntryType entryType) {
-		return businessAccountService.sumByTypes(businessId, List.of(entryType)).max(BigDecimal.ZERO.setScale(MONEY_SCALE));
+		return businessAccountService.sumByTypes(businessId, List.of(entryType))
+				.max(BigDecimal.ZERO.setScale(MONEY_SCALE));
 	}
 
 	private BigDecimal negativeMagnitude(Long businessId, EnumSet<BusinessAccountEntryType> entryTypes) {
-		return businessAccountService.sumByTypes(businessId, entryTypes).min(BigDecimal.ZERO.setScale(MONEY_SCALE)).abs();
+		return businessAccountService.sumByTypes(businessId, entryTypes)
+				.min(BigDecimal.ZERO.setScale(MONEY_SCALE))
+				.abs();
 	}
 
 	private OwnerWithdrawalResponse fromUnified(BusinessWithdrawal withdrawal) {
@@ -292,15 +387,20 @@ public class OwnerWalletService {
 				"UNIFIED",
 				withdrawal.getBusiness().getId(),
 				money(withdrawal.getAmount()),
-				BigDecimal.ZERO.setScale(MONEY_SCALE),
-				money(withdrawal.getAmount()),
+				money(withdrawal.getFeeAmount()),
+				money(withdrawal.getNetAmount()),
 				CURRENCY,
 				withdrawal.getStatus().name(),
 				withdrawal.getPayoutMethod(),
 				withdrawal.getPayoutDestination(),
 				withdrawal.getNotes(),
 				withdrawal.getRequestedAt(),
-				withdrawal.getProcessedAt());
+				withdrawal.getProcessedAt(),
+				withdrawal.getProvider(),
+				withdrawal.getProviderBatchId(),
+				withdrawal.getProviderStatus(),
+				money(withdrawal.getPayoutAmount()),
+				withdrawal.getPayoutCurrency());
 	}
 
 	private OwnerWithdrawalResponse fromProduct(TransactionWithdrawal withdrawal) {
@@ -313,11 +413,16 @@ public class OwnerWalletService {
 				money(withdrawal.getAmount()),
 				withdrawal.getCurrency(),
 				withdrawal.getStatus().name(),
-				"PAYPAL",
+				PAYPAL,
 				withdrawal.getPaypalEmail(),
 				"Legacy product-payment withdrawal",
 				withdrawal.getRequestedAt(),
-				null);
+				null,
+				PAYPAL,
+				null,
+				withdrawal.getStatus().name(),
+				money(withdrawal.getAmount()),
+				withdrawal.getCurrency());
 	}
 
 	private OwnerWithdrawalResponse fromTip(TipWithdrawal withdrawal, BigDecimal grossAmount) {
@@ -331,11 +436,16 @@ public class OwnerWalletService {
 				netAmount,
 				withdrawal.getCurrency(),
 				withdrawal.getStatus().name(),
-				"PAYPAL",
+				PAYPAL,
 				withdrawal.getPaypalEmail(),
 				"Legacy worker-tip withdrawal",
 				withdrawal.getRequestedAt(),
-				null);
+				null,
+				PAYPAL,
+				null,
+				withdrawal.getStatus().name(),
+				netAmount,
+				withdrawal.getCurrency());
 	}
 
 	private OwnerWithdrawalResponse fromTicket(Long businessId, TicketWithdrawal withdrawal) {
@@ -352,7 +462,12 @@ public class OwnerWalletService {
 				null,
 				withdrawal.getNotes(),
 				withdrawal.getRequestedAt() == null ? null : OffsetDateTime.ofInstant(withdrawal.getRequestedAt(), ZoneOffset.UTC),
-				withdrawal.getProcessedAt() == null ? null : OffsetDateTime.ofInstant(withdrawal.getProcessedAt(), ZoneOffset.UTC));
+				withdrawal.getProcessedAt() == null ? null : OffsetDateTime.ofInstant(withdrawal.getProcessedAt(), ZoneOffset.UTC),
+				null,
+				null,
+				withdrawal.getStatus().name(),
+				money(withdrawal.getNetAmount()),
+				CURRENCY);
 	}
 
 	private TrackerUser owner(String actorUsername) {
@@ -368,6 +483,29 @@ public class OwnerWalletService {
 			throw new IllegalArgumentException("Owner is not linked to a business");
 		}
 		return owner.getBusiness();
+	}
+
+	private String paypalEmail(String value) {
+		String email = required(value, "A PayPal email address is required").toLowerCase(Locale.ROOT);
+		int at = email.indexOf('@');
+		if (at <= 0 || at == email.length() - 1 || email.indexOf('.', at) < at + 2) {
+			throw new IllegalArgumentException("Enter a valid PayPal email address");
+		}
+		return email;
+	}
+
+	private BigDecimal withdrawalFee(BigDecimal grossAmount) {
+		return money(grossAmount)
+				.multiply(withdrawalFeePercent)
+				.divide(ONE_HUNDRED, MONEY_SCALE, RoundingMode.HALF_UP);
+	}
+
+	private BigDecimal validFeePercent(BigDecimal value) {
+		BigDecimal normalized = value == null ? BigDecimal.ZERO : value.setScale(MONEY_SCALE, RoundingMode.HALF_UP);
+		if (normalized.signum() < 0 || normalized.compareTo(ONE_HUNDRED) >= 0) {
+			throw new IllegalArgumentException("Owner withdrawal fee percent must be between 0 and 100");
+		}
+		return normalized;
 	}
 
 	private BigDecimal money(BigDecimal amount) {

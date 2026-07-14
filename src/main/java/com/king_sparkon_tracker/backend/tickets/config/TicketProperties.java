@@ -7,7 +7,7 @@ import org.springframework.stereotype.Component;
 @Component
 @ConfigurationProperties(prefix = "app.tickets")
 public class TicketProperties {
-    private BigDecimal withdrawalFeePercent = new BigDecimal("5.00");
+    private BigDecimal withdrawalFeePercent = BigDecimal.ZERO;
     private BigDecimal checkoutServiceFeePercent = BigDecimal.ZERO;
     private BigDecimal withdrawalMinimumZar = new BigDecimal("100.00");
     private BigDecimal promotionPriceZar = new BigDecimal("1500.00");
@@ -17,7 +17,7 @@ public class TicketProperties {
     }
 
     public void setWithdrawalFeePercent(BigDecimal withdrawalFeePercent) {
-        this.withdrawalFeePercent = withdrawalFeePercent;
+        this.withdrawalFeePercent = BigDecimal.ZERO;
     }
 
     public BigDecimal checkoutServiceFeePercent() {
