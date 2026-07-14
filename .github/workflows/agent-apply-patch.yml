@@ -5,7 +5,7 @@ on:
     branches:
       - "agent/production-readiness-phase2"
     paths:
-      - ".agent/backend-patch/**"
+      - ".agent/backend-additions/**"
 
 permissions:
   contents: write
@@ -18,17 +18,17 @@ jobs:
         with:
           ref: agent/production-readiness-phase2
           fetch-depth: 0
-      - name: Apply production-readiness patch
+      - name: Apply missing production-readiness source files
         run: |
           set -euo pipefail
-          if [ ! -f .agent/backend-patch/READY ]; then
-            echo "Compressed patch is still being staged."
+          if [ ! -f .agent/backend-additions/READY ]; then
+            echo "Compressed additions are still being staged."
             exit 0
           fi
-          cat .agent/backend-patch/compressed-part-* | base64 --decode | gzip -d > /tmp/phase2.patch
-          git apply --index /tmp/phase2.patch
-          rm -rf .agent/backend-patch
+          cat .agent/backend-additions/compressed-part-* | base64 --decode | gzip -d > /tmp/phase2-additions.patch
+          git apply --index /tmp/phase2-additions.patch
+          rm -rf .agent/backend-additions .agent/backend-patch
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "Implement production integrity foundations"
+          git commit -m "Add production integrity domain foundations"
           git push origin HEAD:agent/production-readiness-phase2
