@@ -2,6 +2,7 @@ package com.king_sparkon_tracker.backend.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -132,6 +133,37 @@ class PayPalWebhookServiceTest {
 				"I-SUB-123",
 				"PayPal webhook signature verification failed");
 		verifyNoInteractions(businessBillingService);
+	}
+
+	@Test
+	void processBusinessFailurePersistsRetryableFailedEvent() {
+		String payload = payload("EVT-FAIL", "PAYMENT.SALE.COMPLETED", "I-SUB-123");
+		PayPalWebhookEvent event = new PayPalWebhookEvent(
+				"EVT-FAIL", "PAYMENT.SALE.COMPLETED", "I-SUB-123", payload);
+		when(payPalBillingClient.verifyWebhookSignature(any(), any(), any(), any(), any(), any())).thenReturn(true);
+		when(eventClaimService.claimPayPal(
+				"EVT-FAIL", "PAYMENT.SALE.COMPLETED", "I-SUB-123", payload))
+				.thenReturn(new WebhookEventClaimService.Claim<>(event, true));
+		when(eventRepository.save(any(PayPalWebhookEvent.class)))
+				.thenAnswer(invocation -> invocation.getArgument(0));
+		doThrow(new IllegalStateException("billing handler failed"))
+				.when(businessBillingService)
+				.handlePayPalPaymentCompleted("I-SUB-123", "EVT-FAIL");
+
+		PayPalWebhookResponse response = service.process(
+				payload,
+				"T-1",
+				"2026-06-01T10:00:00Z",
+				"https://paypal.example/cert",
+				"SHA256withRSA",
+				"signature");
+
+		assertThat(response.status()).isEqualTo(PayPalWebhookProcessingStatus.FAILED);
+		assertThat(response.eventId()).isEqualTo("EVT-FAIL");
+		assertThat(response.message()).isEqualTo("billing handler failed");
+		assertThat(event.getStatus()).isEqualTo(PayPalWebhookProcessingStatus.FAILED);
+		assertThat(event.getFailureReason()).isEqualTo("billing handler failed");
+		verify(eventRepository).save(event);
 	}
 
 	@Test
