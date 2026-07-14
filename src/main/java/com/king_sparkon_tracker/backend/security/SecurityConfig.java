@@ -122,7 +122,9 @@ public class SecurityConfig {
 									? new org.springframework.security.authorization.AuthorizationDecision(true)
 									: new org.springframework.security.authorization.AuthorizationDecision(false))
 							.requestMatchers(HttpMethod.GET, "/api/users/me").authenticated()
+							.requestMatchers(HttpMethod.PATCH, "/api/users/me", "/api/users/me/password").authenticated()
 							.requestMatchers(HttpMethod.PATCH, "/api/users/me/onboarding").authenticated()
+							.requestMatchers(HttpMethod.POST, "/api/users/me/profile-picture").authenticated()
 							.requestMatchers(HttpMethod.POST, "/api/users/workers").hasAuthority(ownerAuthority)
 							.requestMatchers("/api/users/**").hasAuthority(ownerAuthority)
 							.requestMatchers("/api/affiliates/**").hasAuthority(affiliateAuthority)
@@ -162,6 +164,7 @@ public class SecurityConfig {
 							.requestMatchers(HttpMethod.GET, "/api/v1/tickets/me/event-boosts").hasAuthority(ownerAuthority)
 							.requestMatchers("/api/user-dashboard", "/api/user-dashboard/**").authenticated()
 							.requestMatchers(HttpMethod.GET, "/api/tips/me", "/api/tips/me/ai-confirm").hasAuthority(workerAuthority)
+							.requestMatchers(HttpMethod.GET, "/api/tips").hasAnyAuthority(ownerAuthority, adminAuthority)
 							.requestMatchers("/api/tips", "/api/tips/**").hasAuthority(ownerAuthority)
 							.anyRequest().authenticated();
 				})
