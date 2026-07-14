@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.king_sparkon_tracker.backend.config.OpenApiConfig;
 import com.king_sparkon_tracker.backend.dto.CompleteOnboardingRequest;
@@ -93,11 +95,19 @@ public class UserController {
 	}
 
 	@PatchMapping("/me")
-	@Operation(summary = "Update current user profile", description = "Updates email, address, cellphone and profile picture for the authenticated account.")
+	@Operation(summary = "Update current user profile", description = "Updates email, address and cellphone for the authenticated account.")
 	public UserResponse updateCurrentUser(
 			@Valid @RequestBody UpdateCurrentUserProfileRequest request,
 			@Parameter(hidden = true) Principal principal) {
 		return UserResponse.from(profileService().updateProfile(request, principal.getName()));
+	}
+
+	@PostMapping(value = "/me/profile-picture", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+	@Operation(summary = "Upload profile picture", description = "Uploads a profile image file to managed storage and updates the authenticated account.")
+	public UserResponse uploadCurrentUserProfilePicture(
+			@RequestParam("file") MultipartFile file,
+			@Parameter(hidden = true) Principal principal) {
+		return UserResponse.from(profileService().updateProfilePicture(file, principal.getName()));
 	}
 
 	@PatchMapping("/me/password")
