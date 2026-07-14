@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.List;
 
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,6 +18,7 @@ import com.king_sparkon_tracker.backend.model.Tip;
 import com.king_sparkon_tracker.backend.model.TipStatus;
 import com.king_sparkon_tracker.backend.model.TrackerUser;
 import com.king_sparkon_tracker.backend.repository.TipRepository;
+import com.king_sparkon_tracker.backend.security.AuthenticatedActor;
 import com.king_sparkon_tracker.backend.service.StripeService.CreatedTipPaymentLink;
 
 @Service
@@ -26,6 +28,7 @@ public class TipService {
 
 	private final TipRepository tipRepository;
 	private final TrackerUserService trackerUserService;
+	private final AuthenticatedActorService authenticatedActorService;
 	private final StripeService stripeService;
 	private final NotificationService notificationService;
 	private final SubscriberService subscriberService;
@@ -33,11 +36,13 @@ public class TipService {
 	public TipService(
 			TipRepository tipRepository,
 			TrackerUserService trackerUserService,
+			AuthenticatedActorService authenticatedActorService,
 			StripeService stripeService,
 			NotificationService notificationService,
 			SubscriberService subscriberService) {
 		this.tipRepository = tipRepository;
 		this.trackerUserService = trackerUserService;
+		this.authenticatedActorService = authenticatedActorService;
 		this.stripeService = stripeService;
 		this.notificationService = notificationService;
 		this.subscriberService = subscriberService;
@@ -87,9 +92,10 @@ public class TipService {
 	}
 
 	@Transactional
-	public TipResponse updateTipStatus(Long tipId, UpdateTipStatusRequest request) {
+	public TipResponse updateTipStatus(Long tipId, UpdateTipStatusRequest request, String actorUsername) {
 		Tip tip = tipRepository.findById(tipId)
 				.orElseThrow(() -> new ResourceNotFoundException("Tip not found: " + tipId));
+		authenticatedActorService.requireBusinessAccess(actorUsername, businessIdFor(tip.getWorker()));
 
 		if (request.status() != TipStatus.PAID) {
 			throw new IllegalArgumentException("Only PAID status updates are supported");
@@ -101,11 +107,10 @@ public class TipService {
 	}
 
 	@Transactional(readOnly = true)
-	public List<TipResponse> getTipsForWorker(Long workerId) {
-		return tipRepository.findByWorker_IdOrderByCreatedDesc(workerId)
-				.stream()
-				.map(this::response)
-				.toList();
+	public List<TipResponse> getTipsForWorker(Long workerId, String actorUsername) {
+		TrackerUser worker = trackerUserService.getUserById(workerId);
+		authenticatedActorService.requireBusinessAccess(actorUsername, businessIdFor(worker));
+		return responsesForWorker(workerId);
 	}
 
 	@Transactional(readOnly = true)
@@ -115,19 +120,16 @@ public class TipService {
 			throw new IllegalArgumentException("Only workers can view their own tips");
 		}
 		requireWorkerTipsPrivilege(worker);
-		return getTipsForWorker(worker.getId());
+		return responsesForWorker(worker.getId());
 	}
 
 	@Transactional(readOnly = true)
 	public List<TipResponse> getTipsForCurrentOwner(String ownerUsername) {
-		TrackerUser owner = trackerUserService.getUserByUsername(ownerUsername);
-		if (owner.getPrivilege() == null || owner.getPrivilege().getName() != PrivilegeRole.Owner) {
-			throw new IllegalArgumentException("Only business owners can view business tips");
+		AuthenticatedActor owner = authenticatedActorService.current(ownerUsername);
+		if (owner.role() != PrivilegeRole.Owner) {
+			throw new AccessDeniedException("Only business owners can view business tips");
 		}
-		if (owner.getBusiness() == null || owner.getBusiness().getId() == null) {
-			throw new IllegalArgumentException("Owner is not linked to a business");
-		}
-		return tipRepository.findByWorker_Business_IdOrderByCreatedDesc(owner.getBusiness().getId())
+		return tipRepository.findByWorker_Business_IdOrderByCreatedDesc(owner.requireBusinessId())
 				.stream()
 				.map(this::response)
 				.toList();
@@ -137,15 +139,22 @@ public class TipService {
 	public List<TipResponse> getTipsForAffiliate(String affiliateUsername) {
 		TrackerUser affiliate = trackerUserService.getUserByUsername(affiliateUsername);
 		requireAffiliate(affiliate);
-		return tipRepository.findByWorker_IdOrderByCreatedDesc(affiliate.getId())
-				.stream()
-				.map(this::response)
-				.toList();
+		return responsesForWorker(affiliate.getId());
 	}
 
 	@Transactional(readOnly = true)
-	public List<TipResponse> getTipsByStatus(TipStatus status) {
-		return tipRepository.findByStatusOrderByCreatedDesc(status)
+	public List<TipResponse> getTipsByStatus(TipStatus status, String actorUsername) {
+		AuthenticatedActor actor = authenticatedActorService.current(actorUsername);
+		if (actor.isAdmin()) {
+			return tipRepository.findByStatusOrderByCreatedDesc(status)
+					.stream()
+					.map(this::response)
+					.toList();
+		}
+		if (actor.role() != PrivilegeRole.Owner) {
+			throw new AccessDeniedException("Only administrators and business owners can list tips by status");
+		}
+		return tipRepository.findByWorker_Business_IdAndStatusOrderByCreatedDesc(actor.requireBusinessId(), status)
 				.stream()
 				.map(this::response)
 				.toList();
@@ -157,6 +166,17 @@ public class TipService {
 
 	BigDecimal netAmount(BigDecimal tipAmount) {
 		return normalizeMoney(tipAmount);
+	}
+
+	private List<TipResponse> responsesForWorker(Long workerId) {
+		return tipRepository.findByWorker_IdOrderByCreatedDesc(workerId)
+				.stream()
+				.map(this::response)
+				.toList();
+	}
+
+	private Long businessIdFor(TrackerUser user) {
+		return user == null || user.getBusiness() == null ? null : user.getBusiness().getId();
 	}
 
 	private TipResponse response(Tip tip) {
