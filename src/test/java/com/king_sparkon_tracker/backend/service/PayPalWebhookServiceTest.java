@@ -13,12 +13,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.king_sparkon_tracker.backend.dto.PayPalWebhookResponse;
 import com.king_sparkon_tracker.backend.model.BillingAuditAction;
 import com.king_sparkon_tracker.backend.model.PayPalWebhookEvent;
 import com.king_sparkon_tracker.backend.model.PayPalWebhookProcessingStatus;
 import com.king_sparkon_tracker.backend.repository.PayPalWebhookEventRepository;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 @ExtendWith(MockitoExtension.class)
 class PayPalWebhookServiceTest {
@@ -35,6 +35,9 @@ class PayPalWebhookServiceTest {
 	@Mock
 	private PayPalWebhookEventRepository eventRepository;
 
+	@Mock
+	private WebhookEventClaimService eventClaimService;
+
 	private PayPalWebhookService service;
 
 	@BeforeEach
@@ -44,18 +47,24 @@ class PayPalWebhookServiceTest {
 				businessBillingService,
 				billingAuditService,
 				eventRepository,
+				eventClaimService,
 				new ObjectMapper());
 	}
 
 	@Test
 	void processVerifiedSubscriptionActivation() {
+		String payload = payload("EVT-1", "BILLING.SUBSCRIPTION.ACTIVATED", "I-SUB-123");
+		PayPalWebhookEvent event = new PayPalWebhookEvent(
+				"EVT-1", "BILLING.SUBSCRIPTION.ACTIVATED", "I-SUB-123", payload);
 		when(payPalBillingClient.verifyWebhookSignature(any(), any(), any(), any(), any(), any())).thenReturn(true);
-		when(eventRepository.existsByPaypalEventId("EVT-1")).thenReturn(false);
+		when(eventClaimService.claimPayPal(
+				"EVT-1", "BILLING.SUBSCRIPTION.ACTIVATED", "I-SUB-123", payload))
+				.thenReturn(new WebhookEventClaimService.Claim<>(event, true));
 		when(eventRepository.save(any(PayPalWebhookEvent.class)))
 				.thenAnswer(invocation -> invocation.getArgument(0));
 
 		PayPalWebhookResponse response = service.process(
-				payload("EVT-1", "BILLING.SUBSCRIPTION.ACTIVATED", "I-SUB-123"),
+				payload,
 				"T-1",
 				"2026-06-01T10:00:00Z",
 				"https://paypal.example/cert",
@@ -70,11 +79,17 @@ class PayPalWebhookServiceTest {
 
 	@Test
 	void processDuplicateSkipsBusinessHandling() {
+		String payload = payload("EVT-1", "PAYMENT.SALE.COMPLETED", "I-SUB-123");
+		PayPalWebhookEvent existing = new PayPalWebhookEvent(
+				"EVT-1", "PAYMENT.SALE.COMPLETED", "I-SUB-123", payload);
+		existing.processed();
 		when(payPalBillingClient.verifyWebhookSignature(any(), any(), any(), any(), any(), any())).thenReturn(true);
-		when(eventRepository.existsByPaypalEventId("EVT-1")).thenReturn(true);
+		when(eventClaimService.claimPayPal(
+				"EVT-1", "PAYMENT.SALE.COMPLETED", "I-SUB-123", payload))
+				.thenReturn(new WebhookEventClaimService.Claim<>(existing, false));
 
 		PayPalWebhookResponse response = service.process(
-				payload("EVT-1", "PAYMENT.SALE.COMPLETED", "I-SUB-123"),
+				payload,
 				"T-1",
 				"2026-06-01T10:00:00Z",
 				"https://paypal.example/cert",
@@ -89,12 +104,18 @@ class PayPalWebhookServiceTest {
 
 	@Test
 	void processInvalidSignaturePersistsFailedEventAndAudit() {
+		String payload = payload("EVT-BAD", "PAYMENT.SALE.COMPLETED", "I-SUB-123");
+		PayPalWebhookEvent event = new PayPalWebhookEvent(
+				"EVT-BAD", "PAYMENT.SALE.COMPLETED", "I-SUB-123", payload);
 		when(payPalBillingClient.verifyWebhookSignature(any(), any(), any(), any(), any(), any())).thenReturn(false);
+		when(eventClaimService.claimPayPal(
+				"EVT-BAD", "PAYMENT.SALE.COMPLETED", "I-SUB-123", payload))
+				.thenReturn(new WebhookEventClaimService.Claim<>(event, true));
 		when(eventRepository.save(any(PayPalWebhookEvent.class)))
 				.thenAnswer(invocation -> invocation.getArgument(0));
 
 		PayPalWebhookResponse response = service.process(
-				payload("EVT-BAD", "PAYMENT.SALE.COMPLETED", "I-SUB-123"),
+				payload,
 				"T-1",
 				"2026-06-01T10:00:00Z",
 				"https://paypal.example/cert",
@@ -130,7 +151,7 @@ class PayPalWebhookServiceTest {
 
 		assertThat(response.status()).isEqualTo(PayPalWebhookProcessingStatus.FAILED);
 		assertThat(response.message()).isEqualTo("PayPal webhook event id is missing");
-		verifyNoInteractions(eventRepository, businessBillingService, billingAuditService);
+		verifyNoInteractions(eventRepository, eventClaimService, businessBillingService, billingAuditService);
 	}
 
 	private String payload(String eventId, String eventType, String subscriptionId) {
