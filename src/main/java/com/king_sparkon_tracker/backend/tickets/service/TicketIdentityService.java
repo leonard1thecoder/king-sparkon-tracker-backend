@@ -107,12 +107,12 @@ public class TicketIdentityService {
     }
 
     public GateVerificationResponse verifyByQr(GateVerificationRequest request, String actorUsername) {
-        UserTicket ticket = userTicketRepository.findByQrCodeValue(request.value().trim()).orElse(null);
+        UserTicket ticket = userTicketRepository.findLockedByQrCodeValue(request.value().trim()).orElse(null);
         return verifyAtGate(ticket, request, actorUsername);
     }
 
     public GateVerificationResponse verifyByReference(GateVerificationRequest request, String actorUsername) {
-        UserTicket ticket = userTicketRepository.findByTicketReferenceIgnoreCase(request.value().trim()).orElse(null);
+        UserTicket ticket = userTicketRepository.findLockedByTicketReferenceIgnoreCase(request.value().trim()).orElse(null);
         return verifyAtGate(ticket, request, actorUsername);
     }
 
