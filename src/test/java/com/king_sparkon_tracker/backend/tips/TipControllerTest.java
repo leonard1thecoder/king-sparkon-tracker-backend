@@ -86,7 +86,7 @@ class TipControllerTest {
 
 	@Test
 	void updateTipStatusReturnsPaidTip() throws Exception {
-		when(tipService.updateTipStatus(org.mockito.ArgumentMatchers.eq(42L), any(UpdateTipStatusRequest.class)))
+		when(tipService.updateTipStatus(eq(42L), any(UpdateTipStatusRequest.class), eq("owner")))
 				.thenReturn(tipResponse(TipStatus.PAID));
 
 		mockMvc.perform(patch("/api/tips/42/status")
@@ -95,7 +95,8 @@ class TipControllerTest {
 								{
 								  "status": "PAID"
 								}
-								"""))
+								""")
+						.principal(() -> "owner"))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.id").value(42))
 				.andExpect(jsonPath("$.status").value("PAID"));
@@ -103,7 +104,7 @@ class TipControllerTest {
 
 	@Test
 	void updateTipStatusMapsInvalidTransitionToBadRequest() throws Exception {
-		when(tipService.updateTipStatus(org.mockito.ArgumentMatchers.eq(42L), any(UpdateTipStatusRequest.class)))
+		when(tipService.updateTipStatus(eq(42L), any(UpdateTipStatusRequest.class), eq("owner")))
 				.thenThrow(new IllegalArgumentException("Only UNPAID tips can be marked as PAID"));
 
 		mockMvc.perform(patch("/api/tips/42/status")
@@ -112,16 +113,17 @@ class TipControllerTest {
 								{
 								  "status": "PAID"
 								}
-								"""))
+								""")
+						.principal(() -> "owner"))
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.message").value("Only UNPAID tips can be marked as PAID"));
 	}
 
 	@Test
 	void getTipsForWorkerReturnsWorkerTips() throws Exception {
-		when(tipService.getTipsForWorker(10L)).thenReturn(List.of(tipResponse(TipStatus.PAID)));
+		when(tipService.getTipsForWorker(10L, "owner")).thenReturn(List.of(tipResponse(TipStatus.PAID)));
 
-		mockMvc.perform(get("/api/tips/worker/10"))
+		mockMvc.perform(get("/api/tips/worker/10").principal(() -> "owner"))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$[0].workerId").value(10))
 				.andExpect(jsonPath("$[0].status").value("PAID"));
@@ -139,9 +141,12 @@ class TipControllerTest {
 
 	@Test
 	void getTipsByStatusReturnsFilteredTips() throws Exception {
-		when(tipService.getTipsByStatus(TipStatus.UNPAID)).thenReturn(List.of(tipResponse(TipStatus.UNPAID)));
+		when(tipService.getTipsByStatus(TipStatus.UNPAID, "owner"))
+				.thenReturn(List.of(tipResponse(TipStatus.UNPAID)));
 
-		mockMvc.perform(get("/api/tips").param("status", "UNPAID"))
+		mockMvc.perform(get("/api/tips")
+						.param("status", "UNPAID")
+						.principal(() -> "owner"))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$[0].status").value("UNPAID"));
 	}

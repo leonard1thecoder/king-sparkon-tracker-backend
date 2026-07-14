@@ -31,6 +31,7 @@ on:
       - "src/main/java/com/king_sparkon_tracker/backend/service/StripeWebhookService.java"
       - "src/main/java/com/king_sparkon_tracker/backend/service/TuckShopService.java"
       - "pom.xml"
+      - ".github/workflows/stripe-embedded-payment-ci.yml"
 
 permissions:
   contents: read
@@ -55,4 +56,16 @@ jobs:
           cache: maven
 
       - name: Compile backend
-        run: ./mvnw --batch-mode --no-transfer-progress -DskipTests compile
+        run: |
+          set +e
+          bash ./mvnw --batch-mode --no-transfer-progress -DskipTests compile > stripe-compile.log 2>&1
+          status=$?
+          tail -n 200 stripe-compile.log
+          exit $status
+
+      - name: Upload Stripe compile log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: embedded-stripe-compile-log
+          path: stripe-compile.log

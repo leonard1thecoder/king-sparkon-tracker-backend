@@ -56,8 +56,9 @@ public class TipController {
 	@PatchMapping("/{tipId}/status")
 	public TipResponse updateTipStatus(
 			@PathVariable Long tipId,
-			@Valid @RequestBody UpdateTipStatusRequest request) {
-		return tipService.updateTipStatus(tipId, request);
+			@Valid @RequestBody UpdateTipStatusRequest request,
+			Principal principal) {
+		return tipService.updateTipStatus(tipId, request, principal.getName());
 	}
 
 	@GetMapping("/{tipId}/ai-confirm")
@@ -66,8 +67,8 @@ public class TipController {
 	}
 
 	@GetMapping("/worker/{workerId}")
-	public List<TipResponse> getTipsForWorker(@PathVariable Long workerId) {
-		return tipService.getTipsForWorker(workerId);
+	public List<TipResponse> getTipsForWorker(@PathVariable Long workerId, Principal principal) {
+		return tipService.getTipsForWorker(workerId, principal.getName());
 	}
 
 	@GetMapping("/worker/{workerId}/ai-confirm")
@@ -91,8 +92,8 @@ public class TipController {
 	}
 
 	@GetMapping
-	public List<TipResponse> getTipsByStatus(@RequestParam TipStatus status) {
-		return tipService.getTipsByStatus(status);
+	public List<TipResponse> getTipsByStatus(@RequestParam TipStatus status, Principal principal) {
+		return tipService.getTipsByStatus(status, principal.getName());
 	}
 
 	@PostMapping("/paypal/onboarding")

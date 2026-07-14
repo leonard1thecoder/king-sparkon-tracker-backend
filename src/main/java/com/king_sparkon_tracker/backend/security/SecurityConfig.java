@@ -117,7 +117,7 @@ public class SecurityConfig {
 							.requestMatchers(HttpMethod.POST, "/api/affiliate-links").hasAuthority(ownerAuthority)
 							.requestMatchers(HttpMethod.PATCH, "/api/affiliate-links/**").hasAuthority(ownerAuthority)
 							.requestMatchers(HttpMethod.GET, "/api/affiliate-links", "/api/affiliate-links/**").hasAuthority(ownerAuthority)
-							.requestMatchers(HttpMethod.POST, "/api/tips").hasAuthority(workerAuthority)
+							.requestMatchers(HttpMethod.POST, "/api/tips").authenticated()
 							.requestMatchers("/h2-console/**").access((authentication, context) -> h2ConsoleEnabled
 									? new org.springframework.security.authorization.AuthorizationDecision(true)
 									: new org.springframework.security.authorization.AuthorizationDecision(false))
