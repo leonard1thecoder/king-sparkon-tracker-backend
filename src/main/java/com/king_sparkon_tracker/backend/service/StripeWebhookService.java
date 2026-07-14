@@ -28,6 +28,7 @@ public class StripeWebhookService {
 	private final TransactionService transactionService;
 	private final BillingAuditService billingAuditService;
 	private final StripeWebhookEventRepository eventRepository;
+	private final WebhookEventClaimService eventClaimService;
 	private final ObjectMapper objectMapper;
 
 	public StripeWebhookService(
@@ -38,6 +39,7 @@ public class StripeWebhookService {
 			TransactionService transactionService,
 			BillingAuditService billingAuditService,
 			StripeWebhookEventRepository eventRepository,
+			WebhookEventClaimService eventClaimService,
 			ObjectMapper objectMapper) {
 		this.stripeBillingClient = stripeBillingClient;
 		this.stripeService = stripeService;
@@ -46,6 +48,7 @@ public class StripeWebhookService {
 		this.transactionService = transactionService;
 		this.billingAuditService = billingAuditService;
 		this.eventRepository = eventRepository;
+		this.eventClaimService = eventClaimService;
 		this.objectMapper = objectMapper;
 	}
 
@@ -81,8 +84,13 @@ public class StripeWebhookService {
 			return new StripeWebhookResponse(null, eventType, stripeSubscriptionId, StripeWebhookProcessingStatus.FAILED, "Stripe webhook event id is missing");
 		}
 
-		StripeWebhookEvent webhookEvent = eventRepository.findByStripeEventId(eventId).orElse(null);
-		if (webhookEvent != null) {
+		WebhookEventClaimService.Claim<StripeWebhookEvent> claim = eventClaimService.claimStripe(
+				eventId,
+				eventType,
+				stripeSubscriptionId,
+				rawPayload);
+		StripeWebhookEvent webhookEvent = claim.event();
+		if (!claim.created()) {
 			StripeWebhookProcessingStatus existingStatus = webhookEvent.getStatus();
 			boolean retryable = existingStatus == StripeWebhookProcessingStatus.FAILED
 					|| existingStatus == StripeWebhookProcessingStatus.SIGNATURE_FAILED;
@@ -93,8 +101,6 @@ public class StripeWebhookService {
 			webhookEvent.receivedForRetry();
 			webhookEvent = eventRepository.save(webhookEvent);
 			log.info("stripe_webhook_retry_started eventId={} type={} previousStatus={}", eventId, eventType, existingStatus);
-		} else {
-			webhookEvent = eventRepository.save(new StripeWebhookEvent(eventId, eventType, stripeSubscriptionId, rawPayload));
 		}
 
 		try {
@@ -177,10 +183,19 @@ public class StripeWebhookService {
 			String stripeSubscriptionId,
 			String rawPayload,
 			String reason) {
-		if (eventId != null && !eventId.isBlank() && !eventRepository.existsByStripeEventId(eventId)) {
-			StripeWebhookEvent failedEvent = new StripeWebhookEvent(eventId, eventType, stripeSubscriptionId, rawPayload);
-			failedEvent.signatureFailed(reason);
-			eventRepository.save(failedEvent);
+		if (eventId != null && !eventId.isBlank()) {
+			WebhookEventClaimService.Claim<StripeWebhookEvent> claim = eventClaimService.claimStripe(
+					eventId,
+					eventType,
+					stripeSubscriptionId,
+					rawPayload);
+			StripeWebhookProcessingStatus status = claim.event().getStatus();
+			if (claim.created()
+					|| status == StripeWebhookProcessingStatus.FAILED
+					|| status == StripeWebhookProcessingStatus.SIGNATURE_FAILED) {
+				claim.event().signatureFailed(reason);
+				eventRepository.save(claim.event());
+			}
 		}
 
 		billingAuditService.record(null, BillingAuditAction.WEBHOOK_SIGNATURE_FAILED, "stripe-webhook", eventId, stripeSubscriptionId, reason);
