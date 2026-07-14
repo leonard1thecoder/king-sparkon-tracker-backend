@@ -58,7 +58,7 @@ jobs:
       - name: Compile backend
         run: |
           set +e
-          ./mvnw --batch-mode --no-transfer-progress -DskipTests compile > stripe-compile.log 2>&1
+          bash ./mvnw --batch-mode --no-transfer-progress -DskipTests compile > stripe-compile.log 2>&1
           status=$?
           tail -n 200 stripe-compile.log
           exit $status
