@@ -9,6 +9,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
@@ -18,13 +19,10 @@ public final class EmbeddedCartPaymentDtos {
 	}
 
 	public record TicketItem(
-			@NotBlank @Size(max = 160) String eventId,
+			@NotBlank String eventId,
 			@NotNull TicketType ticketType,
 			@Min(1) int quantity
 	) {
-		public TicketItem {
-			eventId = eventId == null ? null : eventId.trim();
-		}
 	}
 
 	public record CreateRequest(
