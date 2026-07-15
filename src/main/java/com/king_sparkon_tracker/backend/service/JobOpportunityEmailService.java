@@ -4,22 +4,23 @@ import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
+import java.security.MessageDigest;
+import java.util.HexFormat;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
 import com.king_sparkon_tracker.backend.model.Business;
+import com.king_sparkon_tracker.backend.outbox.OutboxPayloads;
+import com.king_sparkon_tracker.backend.outbox.OutboxPublisher;
 import com.king_sparkon_tracker.backend.model.JobApplication;
 import com.king_sparkon_tracker.backend.model.JobInterview;
 import com.king_sparkon_tracker.backend.model.JobPost;
 import com.king_sparkon_tracker.backend.model.JobProfileAccessRequest;
 import com.king_sparkon_tracker.backend.model.TrackerUser;
 
-import jakarta.mail.internet.MimeMessage;
 
 @Service
 public class JobOpportunityEmailService {
@@ -27,16 +28,13 @@ public class JobOpportunityEmailService {
 	private static final Logger log = LoggerFactory.getLogger(JobOpportunityEmailService.class);
 	private static final DateTimeFormatter DATE_TIME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
-	private final JavaMailSender mailSender;
-	private final boolean mailEnabled;
 	private final String mailFrom;
+	private final OutboxPublisher outboxPublisher;
 
 	public JobOpportunityEmailService(
-			JavaMailSender mailSender,
-			@Value("${app.mail.enabled:false}") boolean mailEnabled,
+			OutboxPublisher outboxPublisher,
 			@Value("${app.mail.from:no-reply@kingsparkon-tracker.com}") String mailFrom) {
-		this.mailSender = mailSender;
-		this.mailEnabled = mailEnabled;
+		this.outboxPublisher = outboxPublisher;
 		this.mailFrom = mailFrom;
 	}
 
@@ -156,27 +154,22 @@ public class JobOpportunityEmailService {
 
 	private boolean sendHtmlEmail(String to, String subject, String html, String eventName) {
 		String normalizedTo = normalizeEmail(to);
-		if (!mailEnabled) {
-			log.warn("{}_preview mailEnabled=false recipient={} subject={}", eventName, AppEmailService.maskEmail(normalizedTo), subject);
-			return false;
-		}
+		String recipientHash = digest(normalizedTo);
+		outboxPublisher.email(
+				"JOB_EMAIL",
+				recipientHash,
+				new OutboxPayloads.Email(normalizedTo, subject, html, eventName),
+				"email:" + eventName + ":" + recipientHash + ":" + digest(subject + "|" + html));
+		log.info("job_email_queued event={} recipient={}", eventName, AppEmailService.maskEmail(normalizedTo));
+		return true;
+	}
 
+	private String digest(String value) {
 		try {
-			MimeMessage message = mailSender.createMimeMessage();
-			MimeMessageHelper helper = new MimeMessageHelper(
-					message,
-					MimeMessageHelper.MULTIPART_MODE_MIXED_RELATED,
-					StandardCharsets.UTF_8.name());
-			helper.setFrom(mailFrom);
-			helper.setTo(normalizedTo);
-			helper.setSubject(subject);
-			helper.setText(html, true);
-			mailSender.send(message);
-			log.info("{}_sent recipient={}", eventName, AppEmailService.maskEmail(normalizedTo));
-			return true;
-		} catch (Exception ex) {
-			log.error("{}_failed recipient={}", eventName, AppEmailService.maskEmail(normalizedTo), ex);
-			throw new IllegalStateException("Could not send job opportunity email. Please try again later.");
+			return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+					.digest(value.getBytes(StandardCharsets.UTF_8)));
+		} catch (Exception exception) {
+			throw new IllegalStateException("Could not hash job email outbox key", exception);
 		}
 	}
 

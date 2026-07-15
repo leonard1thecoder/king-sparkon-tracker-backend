@@ -1,0 +1,53 @@
+name: Agent Test Contract Fixes
+
+on:
+  push:
+    branches:
+      - "agent/production-readiness-phase2"
+    paths:
+      - ".agent/apply-test-contract-fixes"
+
+permissions:
+  contents: write
+
+jobs:
+  refactor-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/production-readiness-phase2
+          fetch-depth: 0
+      - name: Correct final Phase 2 test contracts
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          p = Path('src/test/java/com/king_sparkon_tracker/backend/idempotency/IdempotencyServiceTest.java')
+          s = p.read_text()
+          if 'import static org.mockito.ArgumentMatchers.eq;' not in s:
+            s = s.replace('import static org.mockito.ArgumentMatchers.any;\n', 'import static org.mockito.ArgumentMatchers.any;\nimport static org.mockito.ArgumentMatchers.eq;\n')
+          s = s.replace(
+            'when(claimService.claimExisting("key-1", "transaction-create", "owner", "hash-1", any(Instant.class)))',
+            'when(claimService.claimExisting(eq("key-1"), eq("transaction-create"), eq("owner"), eq("hash-1"), any(Instant.class)))')
+          s = s.replace(
+            'verify(claimService).claimExisting("key-1", "transaction-create", "owner", "hash-1", any(Instant.class));',
+            'verify(claimService).claimExisting(eq("key-1"), eq("transaction-create"), eq("owner"), eq("hash-1"), any(Instant.class));')
+          p.write_text(s)
+
+          p = Path('src/test/java/com/king_sparkon_tracker/backend/tips/TipControllerTest.java')
+          s = p.read_text()
+          marker = '''\t\t\t\t\t\t\t\t"""))\n\t\t\t\t.andExpect(status().isCreated())'''
+          replacement = '''\t\t\t\t\t\t\t\t""")\n\t\t\t\t\t\t.principal(() -> "user"))\n\t\t\t\t.andExpect(status().isCreated())'''
+          if marker not in s:
+            raise SystemExit('TipControllerTest create-tip request marker not found')
+          s = s.replace(marker, replacement, 1)
+          p.write_text(s)
+          PY
+          rm -f .agent/apply-test-contract-fixes
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/test .agent/apply-test-contract-fixes
+          git commit -m "Correct final Phase 2 test contracts"
+          git push origin HEAD:agent/production-readiness-phase2

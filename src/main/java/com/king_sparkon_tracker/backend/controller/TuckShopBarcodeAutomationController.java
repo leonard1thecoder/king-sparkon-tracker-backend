@@ -1,5 +1,6 @@
 package com.king_sparkon_tracker.backend.controller;
 
+import com.king_sparkon_tracker.backend.idempotency.IdempotentRequest;
 import java.security.Principal;
 import java.util.List;
 
@@ -38,6 +39,7 @@ public class TuckShopBarcodeAutomationController {
 	@PostMapping("/automatic-purchases")
 	@ResponseStatus(HttpStatus.CREATED)
 	@Operation(summary = "Create a worker checkout that automatically fills generated stock-unit codes")
+	@IdempotentRequest(scope = "worker-automatic-checkout")
 	public TuckShopPurchaseResponse createPurchase(
 			@Valid @RequestBody CreateTuckShopPurchaseRequest request,
 			@Parameter(hidden = true) Principal principal) {

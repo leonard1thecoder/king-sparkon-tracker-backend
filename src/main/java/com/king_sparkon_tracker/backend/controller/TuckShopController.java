@@ -1,5 +1,6 @@
 package com.king_sparkon_tracker.backend.controller;
 
+import com.king_sparkon_tracker.backend.idempotency.IdempotentRequest;
 import java.math.BigDecimal;
 import java.security.Principal;
 import java.util.List;
@@ -91,6 +92,7 @@ public class TuckShopController {
 
 	@PostMapping("/purchases")
 	@ResponseStatus(HttpStatus.CREATED)
+	@IdempotentRequest(scope = "tuck-shop-purchase")
 	public TuckShopPurchaseResponse createSelfServicePurchase(
 			@Valid @RequestBody CreateTuckShopPurchaseRequest request,
 			@Parameter(hidden = true) Principal principal) {
@@ -99,6 +101,7 @@ public class TuckShopController {
 
 	@PostMapping("/workers/barcode-purchases")
 	@ResponseStatus(HttpStatus.CREATED)
+	@IdempotentRequest(scope = "worker-checkout")
 	public TuckShopPurchaseResponse createWorkerBarcodePurchase(
 			@Valid @RequestBody CreateTuckShopPurchaseRequest request,
 			@Parameter(hidden = true) Principal principal) {
@@ -129,6 +132,7 @@ public class TuckShopController {
 
 	@PostMapping("/my-purchases/collect")
 	@Operation(summary = "Verify the worker collection QR and mark the authenticated customer's order collected")
+	@IdempotentRequest(scope = "tuck-shop-collection")
 	public TuckShopPurchaseResponse collectPurchase(
 			@Valid @RequestBody VerifyTuckShopCollectionRequest request,
 			@Parameter(hidden = true) Principal principal) {

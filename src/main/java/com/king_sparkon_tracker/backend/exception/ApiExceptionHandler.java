@@ -14,6 +14,8 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import com.king_sparkon_tracker.backend.idempotency.IdempotencyConflictException;
+
 import jakarta.servlet.http.HttpServletRequest;
 
 @RestControllerAdvice
@@ -69,6 +71,11 @@ public class ApiExceptionHandler {
 			message = "Malformed request body: " + sanitizeErrorMessage(mostSpecificCause.getMessage());
 		}
 		return error(HttpStatus.BAD_REQUEST, ErrorCode.VALIDATION_FAILED, message, request);
+	}
+
+	@ExceptionHandler(IdempotencyConflictException.class)
+	ResponseEntity<Map<String, Object>> handleIdempotencyConflict(IdempotencyConflictException exception, HttpServletRequest request) {
+		return error(HttpStatus.CONFLICT, ErrorCode.IDEMPOTENCY_CONFLICT, exception.getMessage(), request);
 	}
 
 	@ExceptionHandler(IllegalArgumentException.class)

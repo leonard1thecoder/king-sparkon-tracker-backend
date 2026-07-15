@@ -1,5 +1,6 @@
 package com.king_sparkon_tracker.backend.controller;
 
+import com.king_sparkon_tracker.backend.idempotency.IdempotentRequest;
 import java.security.Principal;
 import java.util.List;
 
@@ -49,7 +50,9 @@ public class TipController {
 
 	@PostMapping
 	@ResponseStatus(HttpStatus.CREATED)
-	public TipResponse createTip(@Valid @RequestBody TipRequest request) {
+	@IdempotentRequest(scope = "tip-create")
+	public TipResponse createTip(@Valid @RequestBody TipRequest request, Principal principal) {
+		principal.getName();
 		return tipService.createTip(request);
 	}
 
@@ -116,6 +119,7 @@ public class TipController {
 
 	@PostMapping("/withdrawals")
 	@ResponseStatus(HttpStatus.CREATED)
+	@IdempotentRequest(scope = "tip-withdrawal")
 	public WithdrawalResponse requestWithdrawal(@Valid @RequestBody WithdrawalRequest request, Principal principal) {
 		return withdrawalService.requestWithdrawal(request, principal.getName());
 	}

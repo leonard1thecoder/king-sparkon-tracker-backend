@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import com.king_sparkon_tracker.backend.dto.BusinessAccountDtos.BusinessAccountLedgerEntryResponse;
+import com.king_sparkon_tracker.backend.finance.FinancialLedgerService;
 import com.king_sparkon_tracker.backend.dto.BusinessAccountDtos.BusinessAccountSummaryResponse;
 import com.king_sparkon_tracker.backend.dto.BusinessAccountDtos.BusinessAccountTopUpRequest;
 import com.king_sparkon_tracker.backend.exception.ResourceNotFoundException;
@@ -30,14 +31,17 @@ public class BusinessAccountService {
 	private final BusinessAccountLedgerEntryRepository ledgerRepository;
 	private final TrackerUserService trackerUserService;
 	private final StripeService stripeService;
+	private final FinancialLedgerService financialLedgerService;
 
 	public BusinessAccountService(
 			BusinessAccountLedgerEntryRepository ledgerRepository,
 			TrackerUserService trackerUserService,
-			StripeService stripeService) {
+			StripeService stripeService,
+			FinancialLedgerService financialLedgerService) {
 		this.ledgerRepository = ledgerRepository;
 		this.trackerUserService = trackerUserService;
 		this.stripeService = stripeService;
+		this.financialLedgerService = financialLedgerService;
 	}
 
 	@Transactional(readOnly = true)
@@ -114,7 +118,9 @@ public class BusinessAccountService {
 		ledgerRepository.lockPostedEntries(business.getId(), BusinessAccountEntryStatus.POSTED);
 		BigDecimal newBalance = availableBalance(business.getId()).add(entry.getAmount());
 		entry.markPosted(normalizeMoney(newBalance));
-		return BusinessAccountLedgerEntryResponse.from(ledgerRepository.save(entry));
+		BusinessAccountLedgerEntry saved = ledgerRepository.save(entry);
+		financialLedgerService.postForBusinessAccountEntry(saved);
+		return BusinessAccountLedgerEntryResponse.from(saved);
 	}
 
 	public BusinessAccountLedgerEntry debitPromotion(
@@ -222,7 +228,9 @@ public class BusinessAccountService {
 				null,
 				normalizeOptional(description),
 				required(actorUsername, "Debit actor is required"));
-		return ledgerRepository.save(entry);
+		BusinessAccountLedgerEntry saved = ledgerRepository.save(entry);
+		financialLedgerService.postForBusinessAccountEntry(saved);
+		return saved;
 	}
 
 	private BusinessAccountLedgerEntry postSignedEntryIfAbsent(
@@ -251,7 +259,9 @@ public class BusinessAccountService {
 				null,
 				normalizeOptional(description),
 				actorUsername);
-		return ledgerRepository.save(entry);
+		BusinessAccountLedgerEntry saved = ledgerRepository.save(entry);
+		financialLedgerService.postForBusinessAccountEntry(saved);
+		return saved;
 	}
 
 	@Transactional(readOnly = true)

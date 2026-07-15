@@ -24,6 +24,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import com.king_sparkon_tracker.backend.dto.CreateTransactionRequest;
+import com.king_sparkon_tracker.backend.inventory.reservation.StockReservationService;
 import com.king_sparkon_tracker.backend.dto.TransactionItemRequest;
 import com.king_sparkon_tracker.backend.exception.ResourceNotFoundException;
 import com.king_sparkon_tracker.backend.model.Business;
@@ -64,6 +65,9 @@ class TransactionServiceTest {
 
 	@Mock
 	private StripeService stripeService;
+
+	@Mock
+	private StockReservationService stockReservationService;
 
 	private TransactionService transactionService;
 	private Business business;
@@ -293,7 +297,8 @@ class TransactionServiceTest {
 				new ProductPricingService(fixedClock),
 				productBarcodeRepository,
 				appEmailService,
-				stripeService);
+				stripeService,
+				stockReservationService);
 	}
 
 	private TrackerUser user(String username, PrivilegeRole role) {

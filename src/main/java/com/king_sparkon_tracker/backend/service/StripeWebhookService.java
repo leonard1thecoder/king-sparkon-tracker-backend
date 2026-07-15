@@ -10,6 +10,7 @@ import com.king_sparkon_tracker.backend.model.BillingAuditAction;
 import com.king_sparkon_tracker.backend.model.StripeWebhookEvent;
 import com.king_sparkon_tracker.backend.model.StripeWebhookProcessingStatus;
 import com.king_sparkon_tracker.backend.repository.StripeWebhookEventRepository;
+import com.king_sparkon_tracker.backend.tickets.service.TicketManagementService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.stripe.exception.SignatureVerificationException;
@@ -26,6 +27,7 @@ public class StripeWebhookService {
 	private final EmbeddedCartPaymentService embeddedCartPaymentService;
 	private final BusinessBillingService businessBillingService;
 	private final TransactionService transactionService;
+	private final TicketManagementService ticketManagementService;
 	private final BillingAuditService billingAuditService;
 	private final StripeWebhookEventRepository eventRepository;
 	private final WebhookEventClaimService eventClaimService;
@@ -37,6 +39,7 @@ public class StripeWebhookService {
 			EmbeddedCartPaymentService embeddedCartPaymentService,
 			BusinessBillingService businessBillingService,
 			TransactionService transactionService,
+			TicketManagementService ticketManagementService,
 			BillingAuditService billingAuditService,
 			StripeWebhookEventRepository eventRepository,
 			WebhookEventClaimService eventClaimService,
@@ -46,6 +49,7 @@ public class StripeWebhookService {
 		this.embeddedCartPaymentService = embeddedCartPaymentService;
 		this.businessBillingService = businessBillingService;
 		this.transactionService = transactionService;
+		this.ticketManagementService = ticketManagementService;
 		this.billingAuditService = billingAuditService;
 		this.eventRepository = eventRepository;
 		this.eventClaimService = eventClaimService;
@@ -126,11 +130,17 @@ public class StripeWebhookService {
 	private boolean handleEvent(String eventType, JsonNode object, String eventId) {
 		switch (eventType) {
 			case "checkout.session.completed" -> {
+				String providerReference = firstText(text(object, "payment_intent"), text(object, "payment_link"), text(object, "id"));
+				String ticketPaymentId = metadata(object, "ticketPaymentId");
+				if (ticketPaymentId != null) {
+					ticketManagementService.handlePaymentSucceeded(ticketPaymentId, providerReference);
+					return true;
+				}
 				String transactionId = metadata(object, "transactionId");
 				if (transactionId != null) {
 					transactionService.handleWebsitePaymentSucceeded(
 							longValue(transactionId, "Stripe transactionId metadata must be numeric"),
-							firstText(text(object, "payment_intent"), text(object, "payment_link"), text(object, "id")),
+							providerReference,
 							eventId);
 					return true;
 				}
@@ -140,6 +150,9 @@ public class StripeWebhookService {
 				businessBillingService.handleStripeCheckoutSessionCompleted(text(object, "id"), subscriptionId, eventId);
 				return true;
 			}
+			case "checkout.session.expired" -> {
+				return handlePaymentFailure(object, eventId, true);
+			}
 			case "payment_intent.succeeded" -> {
 				if ("true".equalsIgnoreCase(metadata(object, "embeddedCart"))) {
 					embeddedCartPaymentService.handlePaymentIntentSucceeded(
@@ -147,7 +160,11 @@ public class StripeWebhookService {
 							eventId);
 					return true;
 				}
-
+				String ticketPaymentId = metadata(object, "ticketPaymentId");
+				if (ticketPaymentId != null) {
+					ticketManagementService.handlePaymentSucceeded(ticketPaymentId, text(object, "id"));
+					return true;
+				}
 				String transactionId = metadata(object, "transactionId");
 				if (transactionId == null) return false;
 				transactionService.handleWebsitePaymentSucceeded(
@@ -156,8 +173,13 @@ public class StripeWebhookService {
 						eventId);
 				return true;
 			}
-			case "payment_intent.processing", "payment_intent.payment_failed", "payment_intent.canceled" -> {
-				return "true".equalsIgnoreCase(metadata(object, "embeddedCart"));
+			case "payment_intent.payment_failed", "payment_intent.canceled" -> {
+				return handlePaymentFailure(object, eventId, false);
+			}
+			case "payment_intent.processing" -> {
+				return "true".equalsIgnoreCase(metadata(object, "embeddedCart"))
+						|| metadata(object, "transactionId") != null
+						|| metadata(object, "ticketPaymentId") != null;
 			}
 			case "invoice.payment_succeeded" -> {
 				businessBillingService.handleStripeInvoicePaymentSucceeded(invoiceSubscriptionId(object), eventId);
@@ -175,6 +197,29 @@ public class StripeWebhookService {
 				return false;
 			}
 		}
+	}
+
+	private boolean handlePaymentFailure(JsonNode object, String eventId, boolean expired) {
+		boolean handled = false;
+		String paymentIntentId = text(object, "id");
+		if ("true".equalsIgnoreCase(metadata(object, "embeddedCart"))) {
+			embeddedCartPaymentService.handlePaymentIntentFailed(paymentIntentId);
+			handled = true;
+		}
+		String transactionId = metadata(object, "transactionId");
+		if (transactionId != null) {
+			transactionService.handleWebsitePaymentFailed(
+					longValue(transactionId, "Stripe transactionId metadata must be numeric"),
+					paymentIntentId,
+					eventId);
+			handled = true;
+		}
+		String ticketPaymentId = metadata(object, "ticketPaymentId");
+		if (ticketPaymentId != null) {
+			ticketManagementService.handlePaymentFailed(ticketPaymentId, expired);
+			handled = true;
+		}
+		return handled;
 	}
 
 	private StripeWebhookResponse signatureFailed(

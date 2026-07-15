@@ -22,6 +22,7 @@ import org.springframework.util.StringUtils;
 
 import com.king_sparkon_tracker.backend.dto.CreateTuckShopPurchaseRequest;
 import com.king_sparkon_tracker.backend.dto.TipRequest;
+import com.king_sparkon_tracker.backend.inventory.reservation.StockReservationService;
 import com.king_sparkon_tracker.backend.dto.TipResponse;
 import com.king_sparkon_tracker.backend.dto.TuckShopPurchaseItemRequest;
 import com.king_sparkon_tracker.backend.dto.TuckShopPurchaseResponse;
@@ -59,6 +60,7 @@ public class TuckShopService {
 	private final TipService tipService;
 	private final AuditLogService auditLogService;
 	private final AppEmailService appEmailService;
+	private final StockReservationService stockReservationService;
 
 	public TuckShopService(
 			ProductService productService,
@@ -70,7 +72,8 @@ public class TuckShopService {
 			StripeService stripeService,
 			TipService tipService,
 			AuditLogService auditLogService,
-			AppEmailService appEmailService) {
+			AppEmailService appEmailService,
+			StockReservationService stockReservationService) {
 		this.productService = productService;
 		this.productRepository = productRepository;
 		this.productBarcodeRepository = productBarcodeRepository;
@@ -81,6 +84,7 @@ public class TuckShopService {
 		this.tipService = tipService;
 		this.auditLogService = auditLogService;
 		this.appEmailService = appEmailService;
+		this.stockReservationService = stockReservationService;
 	}
 
 	@Transactional(readOnly = true)
@@ -212,9 +216,11 @@ public class TuckShopService {
 					: unitCodesForPurchase(product, quantity, itemRequest.barcodes(), requireScannedUnitCodes, paymentEmail);
 			BigDecimal unitPrice = productPricingService.priceForSale(product);
 
-			productService.applyStockMovement(product, TransactionType.SELL, quantity);
-			if (!deferBarcodeAssignment) {
-				markUnitCodesAsSold(product, unitCodes, paymentEmail);
+			if (paymentType != TransactionPaymentType.WEBSITE_PAYMENT) {
+				productService.applyStockMovement(product, TransactionType.SELL, quantity);
+				if (!deferBarcodeAssignment) {
+					markUnitCodesAsSold(product, unitCodes, paymentEmail);
+				}
 			}
 			transaction.addItem(new TransactionItem(product, quantity, unitPrice, unitCodes));
 		}
@@ -224,10 +230,12 @@ public class TuckShopService {
 			CreatedTransactionPaymentLink paymentLink = stripeService.createTransactionPaymentLink(savedTransaction);
 			savedTransaction.markWebsitePaymentPending(paymentEmail, paymentContact, paymentLink.stripeId(), paymentLink.paymentUrl());
 			savedTransaction = transactionRepository.save(savedTransaction);
+			stockReservationService.reserveTransaction(savedTransaction, null);
 			appEmailService.sendTransactionWebsitePaymentEmail(savedTransaction);
 		} else if (paymentType == TransactionPaymentType.WEBSITE_PAYMENT && StringUtils.hasText(embeddedPaymentReference)) {
 			savedTransaction.markWebsitePaymentPending(paymentEmail, paymentContact, embeddedPaymentReference, null);
 			savedTransaction = transactionRepository.save(savedTransaction);
+			stockReservationService.bindAndConsume(embeddedPaymentReference, savedTransaction);
 		}
 
 		auditLogService.record(

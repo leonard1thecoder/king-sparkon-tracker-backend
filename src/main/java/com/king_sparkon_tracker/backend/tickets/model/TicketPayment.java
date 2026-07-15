@@ -21,6 +21,9 @@ public class TicketPayment {
     @Column(nullable = false, length = 64)
     private String eventId;
 
+    @Column(name = "business_id")
+    private Long businessId;
+
     @Column(nullable = false, length = 64)
     private String userId;
 
@@ -68,6 +71,8 @@ public class TicketPayment {
     public void setId(String id) { this.id = id; }
     public String getEventId() { return eventId; }
     public void setEventId(String eventId) { this.eventId = eventId; }
+    public Long getBusinessId() { return businessId; }
+    public void setBusinessId(Long businessId) { this.businessId = businessId; }
     public String getUserId() { return userId; }
     public void setUserId(String userId) { this.userId = userId; }
     public String getBuyerName() { return buyerName; }

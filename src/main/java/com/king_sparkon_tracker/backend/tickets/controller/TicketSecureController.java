@@ -1,5 +1,6 @@
 package com.king_sparkon_tracker.backend.tickets.controller;
 
+import com.king_sparkon_tracker.backend.idempotency.IdempotentRequest;
 import com.king_sparkon_tracker.backend.tickets.dto.TicketDtos.PromoteTicketEventRequest;
 import com.king_sparkon_tracker.backend.tickets.dto.TicketDtos.PurchaseTicketsRequest;
 import com.king_sparkon_tracker.backend.tickets.dto.TicketDtos.TicketEventPromotionResponse;
@@ -32,17 +33,10 @@ public class TicketSecureController {
 
     @PostMapping("/purchase")
     @ResponseStatus(HttpStatus.CREATED)
+    @IdempotentRequest(scope = "ticket-purchase")
     public TicketPurchaseResponse purchase(@Valid @RequestBody PurchaseTicketsRequest request, Authentication authentication) {
-        String userId = ticketSecurityContext.currentUserId(authentication);
-        PurchaseTicketsRequest securedRequest = new PurchaseTicketsRequest(
-                request.eventId(),
-                userId,
-                request.buyerName(),
-                request.buyerEmail(),
-                request.ticketType(),
-                request.quantity(),
-                request.callbackUrl());
-        return ticketManagementService.purchaseTickets(securedRequest);
+        ticketSecurityContext.currentUserId(authentication);
+        return ticketManagementService.purchaseTickets(request, authentication.getName());
     }
 
     @GetMapping("/tickets")
@@ -61,6 +55,7 @@ public class TicketSecureController {
 
     @GetMapping("/event-boosts")
     public List<TicketEventPromotionResponse> eventBoosts(Authentication authentication) {
-        return ticketManagementService.getOwnerEventPromotions(ticketSecurityContext.currentUserId(authentication));
+        ticketSecurityContext.currentOwnerId(authentication);
+        return ticketManagementService.getOwnerEventPromotions(authentication.getName());
     }
 }

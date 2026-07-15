@@ -29,6 +29,9 @@ import com.king_sparkon_tracker.backend.model.SubscriptionPaymentStatus;
 import com.king_sparkon_tracker.backend.repository.TrackerUserRepository;
 import com.king_sparkon_tracker.backend.repository.BusinessRepository;
 import com.king_sparkon_tracker.backend.repository.BusinessSubscriptionRepository;
+import com.king_sparkon_tracker.backend.outbox.OutboxEventType;
+import com.king_sparkon_tracker.backend.outbox.OutboxPayloads;
+import com.king_sparkon_tracker.backend.outbox.OutboxPublisher;
 
 @Service
 @Transactional
@@ -45,7 +48,7 @@ public class BusinessBillingService {
 	private final BillingAuditService billingAuditService;
 	private final Clock clock;
 	private final AppEmailService appEmailService;
-	private final AffiliateService affiliateService;
+	private final OutboxPublisher outboxPublisher;
 	private final TrackerUserService trackerUserService;
 
 	public BusinessBillingService(
@@ -58,7 +61,7 @@ public class BusinessBillingService {
 			BillingAuditService billingAuditService,
 			Clock clock,
 			AppEmailService appEmailService,
-			AffiliateService affiliateService,
+			OutboxPublisher outboxPublisher,
 			TrackerUserService trackerUserService) {
 		this.businessRepository = businessRepository;
 		this.subscriptionRepository = subscriptionRepository;
@@ -69,7 +72,7 @@ public class BusinessBillingService {
 		this.billingAuditService = billingAuditService;
 		this.clock = clock;
 		this.appEmailService = appEmailService;
-		this.affiliateService = affiliateService;
+		this.outboxPublisher = outboxPublisher;
 		this.trackerUserService = trackerUserService;
 	}
 
@@ -500,7 +503,7 @@ public class BusinessBillingService {
 				message
 		);
 
-		affiliateService.recordCommission(subscription, business, now);
+		queueAffiliateCommission(subscription, business, now);
 		sendBillingActivatedNotification(business, subscription, message);
 	}
 
@@ -535,8 +538,20 @@ public class BusinessBillingService {
 				message
 		);
 
-		affiliateService.recordCommission(subscription, business, now);
+		queueAffiliateCommission(subscription, business, now);
 		sendBillingActivatedNotification(business, subscription, message);
+	}
+
+	private void queueAffiliateCommission(BusinessSubscription subscription, Business business, LocalDateTime earnedAt) {
+		if (subscription == null || subscription.getId() == null || business == null || business.getId() == null) {
+			return;
+		}
+		outboxPublisher.publish(
+				"BUSINESS_SUBSCRIPTION",
+				String.valueOf(subscription.getId()),
+				OutboxEventType.AFFILIATE_COMMISSION_CALCULATION,
+				new OutboxPayloads.AffiliateCalculation(subscription.getId(), business.getId(), earnedAt),
+				"affiliate-commission:" + subscription.getId());
 	}
 
 	private BusinessSubscription subscriptionByPayPalId(String paypalSubscriptionId) {

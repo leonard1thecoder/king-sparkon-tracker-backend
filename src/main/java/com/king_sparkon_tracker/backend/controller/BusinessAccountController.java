@@ -1,5 +1,6 @@
 package com.king_sparkon_tracker.backend.controller;
 
+import com.king_sparkon_tracker.backend.idempotency.IdempotentRequest;
 import java.security.Principal;
 import java.util.List;
 
@@ -14,6 +15,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.king_sparkon_tracker.backend.config.OpenApiConfig;
 import com.king_sparkon_tracker.backend.dto.BusinessAccountDtos.BusinessAccountLedgerEntryResponse;
+import com.king_sparkon_tracker.backend.finance.FinancialLedgerService;
+import com.king_sparkon_tracker.backend.finance.FinancialReconciliationResponse;
 import com.king_sparkon_tracker.backend.dto.BusinessAccountDtos.BusinessAccountSummaryResponse;
 import com.king_sparkon_tracker.backend.dto.BusinessAccountDtos.BusinessAccountTopUpRequest;
 import com.king_sparkon_tracker.backend.dto.OwnerWalletDtos.OwnerWalletSummaryResponse;
@@ -35,17 +38,15 @@ public class BusinessAccountController {
 
 	private final BusinessAccountService businessAccountService;
 	private final OwnerWalletService ownerWalletService;
+	private final FinancialLedgerService financialLedgerService;
 
-	public BusinessAccountController(BusinessAccountService businessAccountService) {
-		this(businessAccountService, null);
-	}
-
-	@org.springframework.beans.factory.annotation.Autowired
 	public BusinessAccountController(
 			BusinessAccountService businessAccountService,
-			OwnerWalletService ownerWalletService) {
+			OwnerWalletService ownerWalletService,
+			FinancialLedgerService financialLedgerService) {
 		this.businessAccountService = businessAccountService;
 		this.ownerWalletService = ownerWalletService;
+		this.financialLedgerService = financialLedgerService;
 	}
 
 	@GetMapping("/summary")
@@ -75,6 +76,7 @@ public class BusinessAccountController {
 	@PostMapping("/withdrawals")
 	@ResponseStatus(HttpStatus.CREATED)
 	@Operation(summary = "Request unified owner withdrawal", description = "Debits the unified business wallet. The minimum owner withdrawal is R100.")
+	@IdempotentRequest(scope = "owner-withdrawal")
 	public OwnerWithdrawalResponse requestWithdrawal(
 			@Valid @RequestBody OwnerWithdrawalRequest request,
 			Principal principal) {
@@ -84,6 +86,7 @@ public class BusinessAccountController {
 	@PostMapping("/top-ups")
 	@ResponseStatus(HttpStatus.CREATED)
 	@Operation(summary = "Create top-up", description = "Creates an in-app Stripe top-up checkout link for the owner business account.")
+	@IdempotentRequest(scope = "business-top-up")
 	public BusinessAccountLedgerEntryResponse createTopUp(
 			@Valid @RequestBody BusinessAccountTopUpRequest request,
 			Principal principal) {
@@ -96,6 +99,20 @@ public class BusinessAccountController {
 			@PathVariable Long entryId,
 			Principal principal) {
 		return businessAccountService.confirmTopUp(entryId, principal.getName());
+	}
+
+	@GetMapping("/reconciliation")
+	@Operation(summary = "Check financial reconciliation", description = "Compares the legacy wallet balance with the immutable double-entry journal.")
+	public FinancialReconciliationResponse reconciliation(Principal principal) {
+		Long businessId = businessAccountService.summary(principal.getName()).businessId();
+		return financialLedgerService.reconcile(businessId, false);
+	}
+
+	@PostMapping("/reconciliation")
+	@Operation(summary = "Repair and reconcile financial journal", description = "Backfills missing immutable journals from posted legacy entries, then verifies all debits equal credits.")
+	public FinancialReconciliationResponse repairReconciliation(Principal principal) {
+		Long businessId = businessAccountService.summary(principal.getName()).businessId();
+		return financialLedgerService.reconcile(businessId, true);
 	}
 
 	private OwnerWalletService requiredWalletService() {

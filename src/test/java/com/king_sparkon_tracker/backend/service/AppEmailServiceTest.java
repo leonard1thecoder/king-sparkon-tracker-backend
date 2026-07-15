@@ -17,12 +17,13 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
 
 import com.king_sparkon_tracker.backend.model.AdminBusinessOverrideAction;
+import com.king_sparkon_tracker.backend.outbox.OutboxPayloads;
+import com.king_sparkon_tracker.backend.outbox.OutboxPublisher;
 import com.king_sparkon_tracker.backend.model.BillingInterval;
 import com.king_sparkon_tracker.backend.model.Business;
 import com.king_sparkon_tracker.backend.model.BusinessPlan;
@@ -37,14 +38,12 @@ import com.king_sparkon_tracker.backend.model.TrackerUser;
 import com.king_sparkon_tracker.backend.model.TransactionItem;
 import com.king_sparkon_tracker.backend.model.TransactionType;
 
-import jakarta.mail.Session;
-import jakarta.mail.internet.MimeMessage;
 
 @ExtendWith(MockitoExtension.class)
 class AppEmailServiceTest {
 
 	@Mock
-	private JavaMailSender mailSender;
+	private OutboxPublisher outboxPublisher;
 
 	@Mock
 	private TemplateEngine templateEngine;
@@ -57,13 +56,11 @@ class AppEmailServiceTest {
 	@BeforeEach
 	void setUp() {
 		appEmailService = new AppEmailService(
-				mailSender,
 				templateEngine,
-				true,
+				outboxPublisher,
 				"support@example.com",
 				"http://localhost:3000/login");
 		when(templateEngine.process(anyString(), any(Context.class))).thenReturn("<html></html>");
-		when(mailSender.createMimeMessage()).thenAnswer(invocation -> new MimeMessage((Session) null));
 
 		owner = new TrackerUser("owner", "owner@example.com", "encoded", new Privilege(PrivilegeRole.Owner));
 		worker = new TrackerUser("worker", "worker@example.com", "encoded", new Privilege(PrivilegeRole.Worker));
@@ -113,7 +110,7 @@ class AppEmailServiceTest {
 		verify(templateEngine).process(eq("email/billing-expired"), any(Context.class));
 		verify(templateEngine).process(eq("email/business-deactivated"), any(Context.class));
 		verify(templateEngine).process(eq("email/admin-business-status-changed"), any(Context.class));
-		verify(mailSender, times(14)).send(any(MimeMessage.class));
+		verify(outboxPublisher, times(14)).email(anyString(), anyString(), any(OutboxPayloads.Email.class), anyString());
 	}
 
 	private Product product() {

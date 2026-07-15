@@ -30,6 +30,9 @@ public class TicketEvent {
     @Column(nullable = false, length = 64)
     private String ownerId;
 
+    @Column(name = "business_id")
+    private Long businessId;
+
     @Column(nullable = false, length = 160)
     private String name;
 
@@ -105,6 +108,14 @@ public class TicketEvent {
 
     public void setOwnerId(String ownerId) {
         this.ownerId = ownerId;
+    }
+
+    public Long getBusinessId() {
+        return businessId;
+    }
+
+    public void setBusinessId(Long businessId) {
+        this.businessId = businessId;
     }
 
     public String getName() {

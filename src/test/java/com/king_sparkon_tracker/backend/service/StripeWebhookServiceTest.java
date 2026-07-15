@@ -22,6 +22,7 @@ import com.king_sparkon_tracker.backend.model.BillingAuditAction;
 import com.king_sparkon_tracker.backend.model.StripeWebhookEvent;
 import com.king_sparkon_tracker.backend.model.StripeWebhookProcessingStatus;
 import com.king_sparkon_tracker.backend.repository.StripeWebhookEventRepository;
+import com.king_sparkon_tracker.backend.tickets.service.TicketManagementService;
 import com.stripe.exception.SignatureVerificationException;
 import com.stripe.model.Event;
 import com.stripe.model.PaymentIntent;
@@ -45,6 +46,9 @@ class StripeWebhookServiceTest {
 	private TransactionService transactionService;
 
 	@Mock
+	private TicketManagementService ticketManagementService;
+
+	@Mock
 	private BillingAuditService billingAuditService;
 
 	@Mock
@@ -63,6 +67,7 @@ class StripeWebhookServiceTest {
 				embeddedCartPaymentService,
 				businessBillingService,
 				transactionService,
+				ticketManagementService,
 				billingAuditService,
 				eventRepository,
 				eventClaimService,

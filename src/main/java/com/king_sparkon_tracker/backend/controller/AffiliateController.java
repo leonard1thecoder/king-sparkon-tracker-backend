@@ -1,5 +1,6 @@
 package com.king_sparkon_tracker.backend.controller;
 
+import com.king_sparkon_tracker.backend.idempotency.IdempotentRequest;
 import java.security.Principal;
 import java.util.List;
 
@@ -70,6 +71,7 @@ public class AffiliateController {
 	@PostMapping("/me/tips")
 	@ResponseStatus(HttpStatus.CREATED)
 	@Operation(summary = "Create affiliate tip payment", description = "Creates a tip payment link and QR code for the authenticated affiliate.")
+	@IdempotentRequest(scope = "affiliate-tip-create")
 	public TipResponse createTip(
 			@Valid @RequestBody AffiliateTipRequest request,
 			Principal principal) {
@@ -91,6 +93,7 @@ public class AffiliateController {
 	@PostMapping("/me/tip-withdrawals")
 	@ResponseStatus(HttpStatus.CREATED)
 	@Operation(summary = "Request affiliate tip withdrawal", description = "Requests withdrawal for all available paid affiliate tips.")
+	@IdempotentRequest(scope = "affiliate-tip-withdrawal")
 	public WithdrawalResponse requestTipWithdrawal(Principal principal) {
 		return affiliateService.requestTipWithdrawal(principal.getName());
 	}
@@ -110,6 +113,7 @@ public class AffiliateController {
 	@PostMapping("/me/withdrawals")
 	@ResponseStatus(HttpStatus.CREATED)
 	@Operation(summary = "Request affiliate withdrawal", description = "Requests withdrawal for all available affiliate commissions.")
+	@IdempotentRequest(scope = "affiliate-withdrawal")
 	public AffiliateWithdrawalResponse requestWithdrawal(Principal principal) {
 		return affiliateService.requestWithdrawal(principal.getName());
 	}

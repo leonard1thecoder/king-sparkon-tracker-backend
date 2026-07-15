@@ -27,6 +27,9 @@ import com.king_sparkon_tracker.backend.dto.CreateStripeCheckoutSessionResponse;
 import com.king_sparkon_tracker.backend.exception.ResourceNotFoundException;
 import com.king_sparkon_tracker.backend.model.TrackerUser;
 import com.king_sparkon_tracker.backend.model.BillingAuditAction;
+import com.king_sparkon_tracker.backend.outbox.OutboxEventType;
+import com.king_sparkon_tracker.backend.outbox.OutboxPayloads;
+import com.king_sparkon_tracker.backend.outbox.OutboxPublisher;
 import com.king_sparkon_tracker.backend.model.BillingInterval;
 import com.king_sparkon_tracker.backend.model.Business;
 import com.king_sparkon_tracker.backend.model.BusinessPlan;
@@ -64,7 +67,7 @@ class BusinessBillingServiceTest {
 	private AppEmailService appEmailService;
 
 	@Mock
-	private AffiliateService affiliateService;
+	private OutboxPublisher outboxPublisher;
 
 	@Mock
 	private TrackerUserService trackerUserService;
@@ -85,7 +88,7 @@ class BusinessBillingServiceTest {
 				billingAuditService,
 				fixedClock,
 				appEmailService,
-				affiliateService,
+				outboxPublisher,
 				trackerUserService);
 	}
 
@@ -194,10 +197,12 @@ class BusinessBillingServiceTest {
 				owner.getBusiness(),
 				subscription,
 				"Manual approval activation");
-		verify(affiliateService).recordCommission(
-				subscription,
-				owner.getBusiness(),
-				java.time.LocalDateTime.of(2026, 6, 1, 12, 0));
+		verify(outboxPublisher).publish(
+				eq("BUSINESS_SUBSCRIPTION"),
+				eq("99"),
+				eq(OutboxEventType.AFFILIATE_COMMISSION_CALCULATION),
+				any(OutboxPayloads.AffiliateCalculation.class),
+				eq("affiliate-commission:99"));
 	}
 
 	@Test

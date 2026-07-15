@@ -1,5 +1,6 @@
 package com.king_sparkon_tracker.backend.controller;
 
+import com.king_sparkon_tracker.backend.idempotency.IdempotentRequest;
 import java.security.Principal;
 
 import org.springframework.http.HttpStatus;
@@ -33,6 +34,7 @@ public class EmbeddedCartPaymentController {
 
 	@PostMapping("/payment-intents")
 	@ResponseStatus(HttpStatus.CREATED)
+	@IdempotentRequest(scope = "embedded-cart-payment")
 	public CreateResponse createPaymentIntent(@Valid @RequestBody CreateRequest request, Principal principal) {
 		return embeddedCartPaymentService.create(request, principal.getName());
 	}

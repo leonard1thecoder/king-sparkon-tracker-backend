@@ -20,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.king_sparkon_tracker.backend.dto.CreateTransactionRequest;
+import com.king_sparkon_tracker.backend.inventory.reservation.StockReservationService;
 import com.king_sparkon_tracker.backend.dto.TransactionItemRequest;
 import com.king_sparkon_tracker.backend.exception.ResourceNotFoundException;
 import com.king_sparkon_tracker.backend.model.Business;
@@ -51,6 +52,7 @@ public class TransactionService {
 	private final ProductBarcodeRepository productBarcodeRepository;
 	private final AppEmailService appEmailService;
 	private final StripeService stripeService;
+	private final StockReservationService stockReservationService;
 
 	public TransactionService(
 			InventoryTransactionRepository transactionRepository,
@@ -60,7 +62,8 @@ public class TransactionService {
 			ProductPricingService productPricingService,
 			ProductBarcodeRepository productBarcodeRepository,
 			AppEmailService appEmailService,
-			StripeService stripeService) {
+			StripeService stripeService,
+			StockReservationService stockReservationService) {
 		this.transactionRepository = transactionRepository;
 		this.productService = productService;
 		this.userService = userService;
@@ -69,6 +72,7 @@ public class TransactionService {
 		this.productBarcodeRepository = productBarcodeRepository;
 		this.appEmailService = appEmailService;
 		this.stripeService = stripeService;
+		this.stockReservationService = stockReservationService;
 	}
 
 	public InventoryTransaction createTransaction(CreateTransactionRequest request) {
@@ -120,10 +124,13 @@ public class TransactionService {
 
 			List<String> unitCodes = unitCodesForItem(product, type, quantity, itemRequest.barcodes());
 
-			productService.applyStockMovement(product, type, quantity);
-
-			if (type == TransactionType.SELL) {
-				markUnitCodesAsSold(product, unitCodes, referenceEmail);
+			boolean reserveUntilPayment = type == TransactionType.SELL
+					&& paymentType == TransactionPaymentType.WEBSITE_PAYMENT;
+			if (!reserveUntilPayment) {
+				productService.applyStockMovement(product, type, quantity);
+				if (type == TransactionType.SELL) {
+					markUnitCodesAsSold(product, unitCodes, referenceEmail);
+				}
 			}
 
 			transaction.addItem(new TransactionItem(product, quantity, unitPrice, unitCodes));
@@ -134,6 +141,7 @@ public class TransactionService {
 			CreatedTransactionPaymentLink paymentLink = stripeService.createTransactionPaymentLink(savedTransaction);
 			savedTransaction.markWebsitePaymentPending(paymentEmail, paymentLink.stripeId(), paymentLink.paymentUrl());
 			savedTransaction = transactionRepository.save(savedTransaction);
+			stockReservationService.reserveTransaction(savedTransaction, null);
 			sendTransactionWebsitePaymentEmail(savedTransaction, actorUsername);
 		}
 
@@ -229,9 +237,23 @@ public class TransactionService {
 			return;
 		}
 
+		stockReservationService.consumeTransaction(transactionId);
 		transaction.markWebsitePaymentPaid(paymentReference);
 		transactionRepository.save(transaction);
 		log.info("transaction_website_payment_paid transactionId={} stripeEventId={}", transactionId, stripeEventId);
+	}
+
+	public void handleWebsitePaymentFailed(Long transactionId, String paymentReference, String stripeEventId) {
+		InventoryTransaction transaction = transactionRepository.findById(transactionId)
+				.orElseThrow(() -> new ResourceNotFoundException("Transaction not found: " + transactionId));
+		if (transaction.getPaymentStatus() == TransactionPaymentStatus.PAID) {
+			log.warn("transaction_payment_failure_ignored_paid transactionId={} stripeEventId={}", transactionId, stripeEventId);
+			return;
+		}
+		stockReservationService.releaseByTransaction(transactionId);
+		transaction.markWebsitePaymentFailed(paymentReference);
+		transactionRepository.save(transaction);
+		log.info("transaction_website_payment_failed transactionId={} stripeEventId={}", transactionId, stripeEventId);
 	}
 
 	private TrackerUser requireUserWithRole(Long userId, PrivilegeRole role, String label) {
