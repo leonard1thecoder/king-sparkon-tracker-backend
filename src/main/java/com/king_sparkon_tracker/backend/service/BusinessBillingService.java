@@ -436,39 +436,7 @@ public class BusinessBillingService {
 	}
 
 	public void deactivateExpiredTrialsAndUnpaidBusinesses() {
-		LocalDateTime now = LocalDateTime.now(clock);
-
-		for (Business business : businessRepository.findByBusinessStatusAndTrialEndDateBefore(BusinessStatus.TRIAL, now)) {
-			business.deactivate();
-			businessRepository.save(business);
-
-			billingAuditService.record(
-					business,
-					BillingAuditAction.BUSINESS_DEACTIVATED,
-					"billing-scheduler",
-					null,
-					business.getPaypalSubscriptionId(),
-					"Free trial expired. Business deactivated"
-			);
-
-			sendBusinessDeactivatedNotification(business, "Free trial expired. Business deactivated");
-		}
-
-		for (Business business : businessRepository.findByBusinessStatusAndCurrentBillingPeriodEndDateBefore(BusinessStatus.ACTIVE, now)) {
-			business.deactivate();
-			businessRepository.save(business);
-
-			billingAuditService.record(
-					business,
-					BillingAuditAction.BUSINESS_DEACTIVATED,
-					"billing-scheduler",
-					null,
-					business.getPaypalSubscriptionId(),
-					"Billing period expired without confirmed payment. Business deactivated"
-			);
-
-			sendBusinessDeactivatedNotification(business, "Billing period expired without confirmed payment. Business deactivated");
-		}
+		// Application access is free and does not expire.
 	}
 
 	private void activateSubscription(
