@@ -21,6 +21,8 @@ import jakarta.persistence.Table;
 @Table(name = "businesses")
 public class Business {
 
+	private static final int FREE_TRIAL_DAYS = 14;
+
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long id;
@@ -40,11 +42,11 @@ public class Business {
 
 	@Enumerated(EnumType.STRING)
 	@Column(name = "business_plan", nullable = false, length = 32)
-	private BusinessPlan businessPlan = BusinessPlan.PRO;
+	private BusinessPlan businessPlan = BusinessPlan.FREE_TRIAL;
 
 	@Enumerated(EnumType.STRING)
 	@Column(name = "business_status", nullable = false, length = 32)
-	private BusinessStatus businessStatus = BusinessStatus.ACTIVE;
+	private BusinessStatus businessStatus = BusinessStatus.TRIAL;
 
 	@Column(name = "trial_start_date")
 	private LocalDateTime trialStartDate;
@@ -120,11 +122,19 @@ public class Business {
 		}
 
 		if (businessPlan == null) {
-			businessPlan = BusinessPlan.PRO;
+			businessPlan = BusinessPlan.FREE_TRIAL;
 		}
 
 		if (businessStatus == null) {
-			businessStatus = BusinessStatus.ACTIVE;
+			businessStatus = BusinessStatus.TRIAL;
+		}
+
+		if (trialStartDate == null) {
+			trialStartDate = now;
+		}
+
+		if (trialEndDate == null) {
+			trialEndDate = trialStartDate.plusDays(FREE_TRIAL_DAYS);
 		}
 
 		modifiedDate = now;
@@ -133,11 +143,11 @@ public class Business {
 	@PreUpdate
 	void beforeUpdate() {
 		if (businessPlan == null) {
-			businessPlan = BusinessPlan.PRO;
+			businessPlan = BusinessPlan.FREE_TRIAL;
 		}
 
 		if (businessStatus == null) {
-			businessStatus = BusinessStatus.ACTIVE;
+			businessStatus = BusinessStatus.TRIAL;
 		}
 
 		modifiedDate = LocalDateTime.now();
