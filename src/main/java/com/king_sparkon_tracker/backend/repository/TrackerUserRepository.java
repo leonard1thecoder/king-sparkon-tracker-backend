@@ -22,8 +22,6 @@ public interface TrackerUserRepository extends JpaRepository<TrackerUser, Long> 
 
 	long countByPrivilege_Name(PrivilegeRole privilegeName);
 
-	long countByBusiness_IdAndPrivilege_Name(Long businessId, PrivilegeRole privilegeName);
-
 	Page<TrackerUser> findByBusiness_Id(Long businessId, Pageable pageable);
 
 	List<TrackerUser> findByBusiness_IdAndPrivilege_NameOrderByUsernameAsc(Long businessId, PrivilegeRole privilegeName);

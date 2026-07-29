@@ -50,7 +50,6 @@ public class TrackerUserService {
 	private final PasswordEncoder passwordEncoder;
 	private final AuditLogService auditLogService;
 	private final EmailVerificationService emailVerificationService;
-	private final BusinessPlanPolicyService businessPlanPolicyService;
 	private final BusinessAccessService businessAccessService;
 	private final AppEmailService appEmailService;
 	private final String workerTipUrlTemplate;
@@ -63,7 +62,6 @@ public class TrackerUserService {
 			PasswordEncoder passwordEncoder,
 			AuditLogService auditLogService,
 			EmailVerificationService emailVerificationService,
-			BusinessPlanPolicyService businessPlanPolicyService,
 			BusinessAccessService businessAccessService,
 			AppEmailService appEmailService,
 			@Value("${app.tips.worker-tip-url-template:http://localhost:3000/tips/workers/{workerId}}") String workerTipUrlTemplate,
@@ -74,7 +72,6 @@ public class TrackerUserService {
 		this.privilegeService = privilegeService;
 		this.passwordEncoder = passwordEncoder;
 		this.auditLogService = auditLogService;
-		this.businessPlanPolicyService = businessPlanPolicyService;
 		this.businessAccessService = businessAccessService;
 		this.appEmailService = appEmailService;
 		this.workerTipUrlTemplate = workerTipUrlTemplate;
@@ -248,7 +245,6 @@ public class TrackerUserService {
 
 		Business business = requireBusiness(owner);
 		businessAccessService.requireFeature(actorUsername, BusinessFeature.CREATE_WORKERS);
-		requireWorkerLimitAvailable(business, actorUsername);
 
 		TrackerUser worker = createUser(
 				username,
@@ -271,19 +267,17 @@ public class TrackerUserService {
 				actorUsername,
 				"Worker created: " + worker.getUsername()
 						+ ", localizationCountry: " + worker.getLocalizationCountry()
-						+ ", businessPlan: " + business.getBusinessPlan()
-						+ ", workerLimit: " + workerLimitLabel(businessPlanPolicyService.maxWorkers(business)),
+						+ ", businessPlan: " + business.getBusinessPlan(),
 				business
 		);
 
 		log.info(
-				"worker_created userId={} username={} businessId={} localizationCountry={} businessPlan={} workerLimit={} actor={}",
+				"worker_created userId={} username={} businessId={} localizationCountry={} businessPlan={} actor={}",
 				worker.getId(),
 				worker.getUsername(),
 				business.getId(),
 				worker.getLocalizationCountry(),
 				business.getBusinessPlan(),
-				workerLimitLabel(businessPlanPolicyService.maxWorkers(business)),
 				actorUsername
 		);
 
@@ -429,35 +423,6 @@ public class TrackerUserService {
 				|| role == PrivilegeRole.Affiliate;
 	}
 
-	private void requireWorkerLimitAvailable(Business business, String actorUsername) {
-		int workerLimit = businessPlanPolicyService.maxWorkers(business);
-
-		if (workerLimit == BusinessPlanPolicyService.UNLIMITED) {
-			return;
-		}
-
-		long currentWorkers = userRepository.countByBusiness_IdAndPrivilege_Name(
-				business.getId(),
-				PrivilegeRole.Worker
-		);
-
-		if (currentWorkers >= workerLimit) {
-			log.warn(
-					"worker_create_rejected reason=worker_limit_reached businessId={} plan={} workerLimit={} currentWorkers={} actor={}",
-					business.getId(),
-					business.getBusinessPlan(),
-					workerLimit,
-					currentWorkers,
-					actorUsername
-			);
-
-			throw new IllegalArgumentException(
-					"Worker limit reached for " + business.getBusinessPlan()
-							+ " plan. Current limit: " + workerLimit
-			);
-		}
-	}
-
 	private String normalizeRequired(String value, String message) {
 		if (!StringUtils.hasText(value)) {
 			throw new IllegalArgumentException(message);
@@ -591,10 +556,6 @@ public class TrackerUserService {
 		if (user.getPrivilege().getName() != role) {
 			throw new IllegalArgumentException(message);
 		}
-	}
-
-	private String workerLimitLabel(int workerLimit) {
-		return workerLimit == BusinessPlanPolicyService.UNLIMITED ? "UNLIMITED" : String.valueOf(workerLimit);
 	}
 
 	private void sendWorkerCreatedNotification(TrackerUser worker, Business business) {

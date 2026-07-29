@@ -14,7 +14,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -50,9 +49,6 @@ class TrackerUserServiceAdministratorTest {
 	@Mock
 	private EmailVerificationService emailVerificationService;
 
-	@Spy
-	private BusinessPlanPolicyService businessPlanPolicyService = new BusinessPlanPolicyService();
-
 	@Mock
 	private BusinessAccessService businessAccessService;
 
@@ -70,7 +66,6 @@ class TrackerUserServiceAdministratorTest {
 				passwordEncoder,
 				auditLogService,
 				emailVerificationService,
-				businessPlanPolicyService,
 				businessAccessService,
 				appEmailService,
 				"https://app.example/tips/workers/{workerId}",

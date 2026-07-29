@@ -16,7 +16,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.Mockito;
-import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -54,9 +53,6 @@ class TrackerUserServiceTest {
 	@Mock
 	private EmailVerificationService emailVerificationService;
 
-	@Spy
-	private BusinessPlanPolicyService businessPlanPolicyService = new BusinessPlanPolicyService();
-
 	@Mock
 	private BusinessAccessService businessAccessService;
 
@@ -74,7 +70,6 @@ class TrackerUserServiceTest {
 				passwordEncoder,
 				auditLogService,
 				emailVerificationService,
-				businessPlanPolicyService,
 				businessAccessService,
 				appEmailService,
 				"https://app.example/tips/workers/{workerId}",
@@ -302,7 +297,6 @@ class TrackerUserServiceTest {
 		Privilege workerPrivilege = new Privilege(PrivilegeRole.Worker);
 		Business business = business();
 		when(userRepository.findByUsername("owner")).thenReturn(Optional.of(business.getOwner()));
-		when(userRepository.countByBusiness_IdAndPrivilege_Name(1L, PrivilegeRole.Worker)).thenReturn(1L);
 		when(userRepository.existsByUsername("worker")).thenReturn(false);
 		when(userRepository.existsByEmailAddress("worker@example.com")).thenReturn(false);
 		when(privilegeService.createPrivilege(PrivilegeRole.Worker)).thenReturn(workerPrivilege);
@@ -351,7 +345,6 @@ class TrackerUserServiceTest {
 		Privilege workerPrivilege = new Privilege(PrivilegeRole.Worker);
 		Business business = business();
 		when(userRepository.findByUsername("owner")).thenReturn(Optional.of(business.getOwner()));
-		when(userRepository.countByBusiness_IdAndPrivilege_Name(1L, PrivilegeRole.Worker)).thenReturn(1L);
 		when(userRepository.existsByUsername("worker")).thenReturn(false);
 		when(userRepository.existsByEmailAddress("worker@example.com")).thenReturn(false);
 		when(privilegeService.createPrivilege(PrivilegeRole.Worker)).thenReturn(workerPrivilege);
@@ -371,18 +364,6 @@ class TrackerUserServiceTest {
 				eq("owner"),
 				any(),
 				eq(business));
-	}
-
-	@Test
-	void createWorkerRejectsMoreThanTwoWorkers() {
-		Business business = business();
-		when(userRepository.findByUsername("owner")).thenReturn(Optional.of(business.getOwner()));
-		when(userRepository.countByBusiness_IdAndPrivilege_Name(1L, PrivilegeRole.Worker)).thenReturn(2L);
-
-		assertThatThrownBy(() -> userService.createWorker(
-				new CreateWorkerRequest("worker3", "worker3@example.com", "secret"), "owner"))
-				.isInstanceOf(IllegalArgumentException.class)
-				.hasMessage("Worker limit reached for FREE_TRIAL plan. Current limit: 2");
 	}
 
 	@Test

@@ -57,9 +57,9 @@ class BusinessAccessServiceTest {
 	}
 
 	@Test
-	void requireActiveBusinessAllowsTrialBusinesses() {
+	void requireActiveBusinessAllowsAnyLinkedBusinessStatus() {
 		when(userRepository.findByUsername("owner"))
-				.thenReturn(Optional.of(userWithBusiness("owner", BusinessPlan.FREE_TRIAL, BusinessStatus.TRIAL)));
+				.thenReturn(Optional.of(userWithBusiness("owner", BusinessPlan.FREE_TRIAL, BusinessStatus.DEACTIVATED)));
 
 		service.requireActiveBusiness("owner");
 
@@ -67,23 +67,13 @@ class BusinessAccessServiceTest {
 	}
 
 	@Test
-	void requireActiveBusinessRejectsDeactivatedBusinessWithActionableMessage() {
+	void requireFeatureAllowsAnyLinkedBusinessPlanFeature() {
 		when(userRepository.findByUsername("owner"))
 				.thenReturn(Optional.of(userWithBusiness("owner", BusinessPlan.PLUS, BusinessStatus.DEACTIVATED)));
 
-		assertThatThrownBy(() -> service.requireActiveBusiness("owner"))
-				.isInstanceOf(IllegalArgumentException.class)
-				.hasMessage("Business is deactivated. Please activate your subscription");
-	}
+		service.requireFeature("owner", BusinessFeature.BUSINESS_ANALYSIS_AI);
 
-	@Test
-	void requireFeatureRejectsUnavailablePlanFeature() {
-		when(userRepository.findByUsername("owner"))
-				.thenReturn(Optional.of(userWithBusiness("owner", BusinessPlan.PLUS, BusinessStatus.ACTIVE)));
-
-		assertThatThrownBy(() -> service.requireFeature("owner", BusinessFeature.BUSINESS_ANALYSIS_AI))
-				.isInstanceOf(IllegalArgumentException.class)
-				.hasMessage("Feature BUSINESS_ANALYSIS_AI is not available for this business plan");
+		verify(userRepository).findByUsername("owner");
 	}
 
 	private TrackerUser userWithBusiness(String username, BusinessPlan plan, BusinessStatus status) {

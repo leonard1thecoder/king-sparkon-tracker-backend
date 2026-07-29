@@ -64,15 +64,13 @@ class SecurityConfigAuthorizationRulesTest {
 	}
 
 	@Test
-	void businessAccessFilterOnlyRequiresBusinessForBusinessScopedRoles() throws Exception {
+	void businessAccessFilterDoesNotApplySubscriptionAccessGates() throws Exception {
 		String source = Files.readString(Path.of("src/main/java/com/king_sparkon_tracker/backend/security/BusinessAccessFilter.java"));
 
-		assertThat(source).contains("BUSINESS_SCOPED_AUTHORITIES");
-		assertThat(source).contains("PrivilegeRole.Owner.name()");
-		assertThat(source).contains("PrivilegeRole.Worker.name()");
-		assertThat(source).contains("PrivilegeRole.Affiliate.name()");
-		assertThat(source).doesNotContain("PrivilegeRole.User.name()");
-		assertThat(source).contains("/api/stripe/webhooks");
+		assertThat(source).contains("filterChain.doFilter(request, response)");
+		assertThat(source).doesNotContain("SC_PAYMENT_REQUIRED");
+		assertThat(source).doesNotContain("requireActiveBusiness");
+		assertThat(source).doesNotContain("BUSINESS_SCOPED_AUTHORITIES");
 	}
 
 	@Test
