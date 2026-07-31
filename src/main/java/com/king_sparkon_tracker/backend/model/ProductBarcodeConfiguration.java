@@ -19,70 +19,73 @@ import jakarta.persistence.Table;
 @Table(name = "product_barcode_configurations")
 public class ProductBarcodeConfiguration {
 
-	@Id
-private Long productId;
+    @Id
+    @Column(name = "product_id")
+    private Long productId;
 
-@MapsId
-@OneToOne(fetch = FetchType.LAZY, optional = false)
-@JoinColumn(name = "product_id")
-private Product product;
+    @MapsId
+    @OneToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "product_id", nullable = false)
+    private Product product;
 
-	@Enumerated(EnumType.STRING)
-	@Column(name = "barcode_mode", nullable = false, length = 32)
-	private ProductBarcodeMode barcodeMode = ProductBarcodeMode.AUTO_GENERATED;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "barcode_mode", nullable = false, length = 32)
+    private ProductBarcodeMode barcodeMode = ProductBarcodeMode.AUTO_GENERATED;
 
-	@Column(name = "created_at", nullable = false)
-	private LocalDateTime createdAt;
+    @Column(name = "created_at", nullable = false)
+    private LocalDateTime createdAt;
 
-	@Column(name = "updated_at", nullable = false)
-	private LocalDateTime updatedAt;
+    @Column(name = "updated_at", nullable = false)
+    private LocalDateTime updatedAt;
 
-	protected ProductBarcodeConfiguration() {
-	}
+    protected ProductBarcodeConfiguration() {
+    }
 
-	public ProductBarcodeConfiguration(Product product, ProductBarcodeMode barcodeMode) {
-		this.product = product;
-		this.barcodeMode = barcodeMode;
-	}
+    public ProductBarcodeConfiguration(Product product, ProductBarcodeMode barcodeMode) {
+        this.barcodeMode = barcodeMode;
+        setProduct(product);
+    }
 
-	@PrePersist
-void prePersist() {
+    @PrePersist
+    void prePersist() {
+        LocalDateTime now = LocalDateTime.now();
+        createdAt = now;
+        updatedAt = now;
+    }
 
-  
-    LocalDateTime now = LocalDateTime.now();
+    @PreUpdate
+    void preUpdate() {
+        updatedAt = LocalDateTime.now();
+    }
 
-    createdAt = now;
-    updatedAt = now;
+    public Long getProductId() {
+        return productId;
+    }
+
+    public Product getProduct() {
+        return product;
+    }
+
+    public void setProduct(Product product) {
+        this.product = product;
+    }
+
+    public ProductBarcodeMode getBarcodeMode() {
+        return barcodeMode;
+    }
+
+    public void setBarcodeMode(ProductBarcodeMode barcodeMode) {
+        this.barcodeMode = barcodeMode;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public LocalDateTime getUpdatedAt() {
+        return updatedAt;
+    }
 }
 
-	@PreUpdate
-	void preUpdate() {
-		updatedAt = LocalDateTime.now();
-	}
 
-	public Long getProductId() {
-		return productId;
-	}
-
-	public Product getProduct() {
-		return product;
-	}
-
-	public ProductBarcodeMode getBarcodeMode() {
-		return barcodeMode;
-	}
-
-	public void setBarcodeMode(ProductBarcodeMode barcodeMode) {
-		this.barcodeMode = barcodeMode;
-	}
-
-	public LocalDateTime getCreatedAt() {
-		return createdAt;
-	}
-
-	public LocalDateTime getUpdatedAt() {
-		return updatedAt;
-	} public void setProduct(Product product) {
-    this.product = product;
-}
-}
+	
