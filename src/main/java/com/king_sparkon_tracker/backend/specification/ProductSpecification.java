@@ -19,6 +19,18 @@ public final class ProductSpecification {
     private ProductSpecification() {
     }
 
+    public static Specification<Product> filter(
+        Long businessId,
+        ProductCategory category,
+        ProductStatus status,
+        String search) {
+
+    return Specification.where(hasBusiness(businessId))
+            .and(hasCategory(category))
+            .and(hasStatus(status))
+            .and(search(search));
+}
+
     public static Specification<Product> hasBusiness(Long businessId) {
         return (root, query, cb) ->
                 cb.equal(root.get("business").get("id"), businessId);
