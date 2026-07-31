@@ -96,8 +96,7 @@ public class ProductBarcodeAutomationService {
 		}
 
 		ProductBarcodeConfiguration configuration =
-        configurationRepository
-                .findById(productId)
+       configurationRepository.findByProduct_Id(productId)
                 .orElse(null);
 
 if (configuration == null) {
