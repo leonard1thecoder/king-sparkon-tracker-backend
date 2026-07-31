@@ -76,59 +76,71 @@ public class ProductBarcodeAutomationService {
 				.toList();
 	}
 
-	public ProductBarcodeModeResponse configure(Long productId, ProductBarcodeModeRequest request, String actorUsername) {
-		businessAccessService.requireFeature(actorUsername, BusinessFeature.CREATE_PRODUCTS);
-		Business business = userService.businessForActor(actorUsername);
-		Product product = productRepository.findWithBarcodesByIdAndBusiness_Id(productId, business.getId())
-				.orElseThrow(() -> new ResourceNotFoundException("Product not found: " + productId));
-		ProductBarcodeMode mode = Objects.requireNonNull(request.barcodeMode(), "Barcode mode is required");
+	public ProductBarcodeModeResponse configure(
+        Long productId,
+        ProductBarcodeModeRequest request,
+        String actorUsername) {
 
-		if (mode == ProductBarcodeMode.BRANDED) {
-			String manufacturerBarcode = required(request.manufacturerBarcode(), "Manufacturer barcode is required for a barcoded brand");
-			if (!manufacturerBarcode.equals(product.getProductBarcode())
-					&& productRepository.existsByBusiness_IdAndProductBarcode(business.getId(), manufacturerBarcode)) {
-				throw new DuplicateBarcodeException(manufacturerBarcode);
-			}
-			product.setProductBarcode(manufacturerBarcode);
-		} else {
-			product.setProductBarcode(null);
-			product.setBarcodeCatalog(null);
-		}
+    businessAccessService.requireFeature(actorUsername, BusinessFeature.CREATE_PRODUCTS);
 
-		ProductBarcodeConfiguration configuration =
-       configurationRepository.findByProduct_Id(productId)
-                .orElse(null);
+    Business business = userService.businessForActor(actorUsername);
 
-if (configuration == null) {
+    Product product = productRepository
+            .findWithBarcodesByIdAndBusiness_Id(productId, business.getId())
+            .orElseThrow(() ->
+                    new ResourceNotFoundException("Product not found: " + productId));
 
-    if (product.getId() == null) {
-        throw new IllegalStateException(
-                "Cannot create barcode configuration for unsaved product.");
+    ProductBarcodeMode mode = Objects.requireNonNull(
+            request.barcodeMode(),
+            "Barcode mode is required");
+
+    if (mode == ProductBarcodeMode.BRANDED) {
+
+        String manufacturerBarcode =
+                required(
+                        request.manufacturerBarcode(),
+                        "Manufacturer barcode is required for a barcoded brand");
+
+        if (!manufacturerBarcode.equals(product.getProductBarcode())
+                && productRepository.existsByBusiness_IdAndProductBarcode(
+                        business.getId(),
+                        manufacturerBarcode)) {
+
+            throw new DuplicateBarcodeException(manufacturerBarcode);
+        }
+
+        product.setProductBarcode(manufacturerBarcode);
+
+    } else {
+
+        product.setProductBarcode(null);
+        product.setBarcodeCatalog(null);
     }
 
-    configuration = new ProductBarcodeConfiguration(product, mode);
+    ProductBarcodeConfiguration configuration =
+            product.getBarcodeConfiguration();
 
-    // force MapsId
-    configuration.setProduct(product);
+    if (configuration == null) {
+
+        configuration = new ProductBarcodeConfiguration(product, mode);
+
+        product.setBarcodeConfiguration(configuration);
+    }
+
+    configuration.setBarcodeMode(mode);
+
+    product = productRepository.save(product);
+
+    auditLogService.record(
+            "PRODUCT_BARCODE_MODE_CONFIGURED",
+            "Product",
+            String.valueOf(productId),
+            actorUsername,
+            "Barcode mode changed to " + mode,
+            business);
+
+    return ProductBarcodeModeResponse.from(product, mode);
 }
-
-
-		configuration.setBarcodeMode(mode);
-		product = productRepository.saveAndFlush(product);
-
-configuration.setProduct(product);
-
-configurationRepository.save(configuration);
-		auditLogService.record(
-				"PRODUCT_BARCODE_MODE_CONFIGURED",
-				"Product",
-				String.valueOf(productId),
-				actorUsername,
-				"Barcode mode changed to " + mode,
-				business);
-		return ProductBarcodeModeResponse.from(product, mode);
-	}
-
 	public ProductBarcodeModeResponse fillAutomaticStock(Long productId, String actorUsername) {
 		businessAccessService.requireFeature(actorUsername, BusinessFeature.ADD_BARCODES);
 		Business business = userService.businessForActor(actorUsername);
