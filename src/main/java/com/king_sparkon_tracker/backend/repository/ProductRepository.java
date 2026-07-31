@@ -21,24 +21,42 @@ public interface ProductRepository extends JpaRepository<Product, Long>,
         JpaSpecificationExecutor<Product> {
 
 	@Override
-	@EntityGraph(attributePaths = "barcodes")
+	@EntityGraph(attributePaths = {
+    "barcodes",
+    "barcodeConfiguration"
+})
 	Page<Product> findAll(Pageable pageable);
 
-	@EntityGraph(attributePaths = "barcodes")
+	@EntityGraph(attributePaths = {
+    "barcodes",
+    "barcodeConfiguration"
+})
 	@Query("select product from Product product where product.id = :id")
 	Optional<Product> findWithBarcodesById(@Param("id") Long id);
 
-	@EntityGraph(attributePaths = "barcodes")
+	@EntityGraph(attributePaths = {
+    "barcodes",
+    "barcodeConfiguration"
+})
 	Page<Product> findByBusiness_Id(Long businessId, Pageable pageable);
 
-	@EntityGraph(attributePaths = "barcodes")
+	@EntityGraph(attributePaths = {
+    "barcodes",
+    "barcodeConfiguration"
+})
 	@Query("select product from Product product where product.id = :id and product.business.id = :businessId")
 	Optional<Product> findWithBarcodesByIdAndBusiness_Id(@Param("id") Long id, @Param("businessId") Long businessId);
 
-	@EntityGraph(attributePaths = "barcodes")
+	@EntityGraph(attributePaths = {
+    "barcodes",
+    "barcodeConfiguration"
+})
 	Optional<Product> findFirstByProductBarcode(String productBarcode);
 
-	@EntityGraph(attributePaths = "barcodes")
+	@EntityGraph(attributePaths = {
+    "barcodes",
+    "barcodeConfiguration"
+})
 	Optional<Product> findFirstByProductBarcodeAndBusiness_Id(String productBarcode, Long businessId);
 
 	boolean existsByBusiness_IdAndProductBarcode(Long businessId, String productBarcode);
@@ -46,7 +64,10 @@ public interface ProductRepository extends JpaRepository<Product, Long>,
 
 
 
-	@EntityGraph(attributePaths = "barcodes")
+	@EntityGraph(attributePaths = {
+    "barcodes",
+    "barcodeConfiguration"
+})
 	@Query("""
 			select product
 			from Product product
@@ -61,7 +82,10 @@ public interface ProductRepository extends JpaRepository<Product, Long>,
 			@Param("category") ProductCategory category,
 			Pageable pageable);
 
-	@EntityGraph(attributePaths = "barcodes")
+	@EntityGraph(attributePaths = {
+    "barcodes",
+    "barcodeConfiguration"
+})
 	@Query("""
 			select product
 			from Product product
