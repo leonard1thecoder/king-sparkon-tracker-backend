@@ -242,13 +242,19 @@ configurationRepository.save(configuration);
 				&& transaction.getPaymentStatus() == TransactionPaymentStatus.PAID;
 	}
 
-	public ProductBarcodeMode modeFor(Product product) {
-		return configurationRepository.findById(product.getId())
-				.map(ProductBarcodeConfiguration::getBarcodeMode)
-				.orElseGet(() -> StringUtils.hasText(product.getProductBarcode())
-						? ProductBarcodeMode.BRANDED
-						: ProductBarcodeMode.AUTO_GENERATED);
-	}
+public ProductBarcodeMode modeFor(Product product) {
+
+    ProductBarcodeConfiguration configuration =
+            product.getBarcodeConfiguration();
+
+    if (configuration != null) {
+        return configuration.getBarcodeMode();
+    }
+
+    return StringUtils.hasText(product.getProductBarcode())
+            ? ProductBarcodeMode.BRANDED
+            : ProductBarcodeMode.AUTO_GENERATED;
+}
 
 	private int ensureAutomaticUnits(Product product, int targetCount) {
 		requireAutomatic(product);
