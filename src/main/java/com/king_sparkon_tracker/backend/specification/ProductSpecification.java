@@ -2,7 +2,8 @@ package com.king_sparkon_tracker.backend.specification;
 
 import java.util.ArrayList;
 import java.util.List;
-
+import com.king_sparkon_tracker.backend.model.ProductCategory;
+import com.king_sparkon_tracker.backend.model.ProductStatus;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.util.StringUtils;
 
