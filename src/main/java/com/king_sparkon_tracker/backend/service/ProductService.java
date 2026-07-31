@@ -3,7 +3,8 @@ package com.king_sparkon_tracker.backend.service;
 import java.math.BigDecimal;
 import java.time.LocalTime;
 import java.util.List;
-
+import org.springframework.data.jpa.domain.Specification;
+import com.king_sparkon_tracker.backend.specification.ProductSpecification;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.cache.annotation.CacheEvict;
@@ -329,16 +330,29 @@ public class ProductService {
 	}
 
 	@Transactional(readOnly = true)
-	@Cacheable(cacheNames = "products", key = "'search:' + #actorUsername + ':' + #pageable.pageNumber + ':' + #pageable.pageSize + ':' + #pageable.sort + ':' + #category + ':' + #status + ':' + #search")
-	public Page<Product> searchProducts(Pageable pageable, String actorUsername, ProductCategory category, ProductStatus status, String search) {
-		Business business = userService.businessForActor(actorUsername);
-		return productRepository.searchBusinessProducts(
-				business.getId(),
-				category,
-				status,
-				normalizeOptional(search),
-				pageable);
-	}
+@Cacheable(
+        cacheNames = "products",
+        key = "'search:' + #actorUsername + ':' + #pageable.pageNumber + ':' + #pageable.pageSize + ':' + #pageable.sort + ':' + #category + ':' + #status + ':' + #search"
+)
+public Page<Product> searchProducts(
+        Pageable pageable,
+        String actorUsername,
+        ProductCategory category,
+        ProductStatus status,
+        String search) {
+
+    Business business = userService.businessForActor(actorUsername);
+
+    Specification<Product> specification =
+            ProductSpecification.filter(
+                    business.getId(),
+                    category,
+                    status,
+                    normalizeOptional(search)
+            );
+
+    return productRepository.findAll(specification, pageable);
+}
 
 	@Transactional(readOnly = true)
 	@Cacheable(cacheNames = "tuckShopProducts", key = "#pageable.pageNumber + ':' + #pageable.pageSize + ':' + #pageable.sort + ':' + #businessId + ':' + #category + ':' + #search")
