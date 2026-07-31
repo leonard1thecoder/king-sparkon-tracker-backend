@@ -4,7 +4,7 @@ import java.util.List;
 
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
-
+import java.util.Optional;
 import com.king_sparkon_tracker.backend.model.ProductBarcodeConfiguration;
 
 public interface ProductBarcodeConfigurationRepository extends JpaRepository<ProductBarcodeConfiguration, Long> {
