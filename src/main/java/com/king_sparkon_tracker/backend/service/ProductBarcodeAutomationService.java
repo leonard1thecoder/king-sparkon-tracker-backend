@@ -95,12 +95,31 @@ public class ProductBarcodeAutomationService {
 			product.setBarcodeCatalog(null);
 		}
 
-		ProductBarcodeConfiguration configuration = configurationRepository.findById(productId)
-				.orElseGet(() -> new ProductBarcodeConfiguration(product, mode));
-		configuration.setBarcodeMode(mode);
-		productRepository.save(product);
-		configurationRepository.save(configuration);
+		ProductBarcodeConfiguration configuration =
+        configurationRepository
+                .findById(productId)
+                .orElse(null);
 
+if (configuration == null) {
+
+    if (product.getId() == null) {
+        throw new IllegalStateException(
+                "Cannot create barcode configuration for unsaved product.");
+    }
+
+    configuration = new ProductBarcodeConfiguration(product, mode);
+
+    // force MapsId
+    configuration.setProduct(product);
+}
+
+
+		configuration.setBarcodeMode(mode);
+		product = productRepository.saveAndFlush(product);
+
+configuration.setProduct(product);
+
+configurationRepository.save(configuration);
 		auditLogService.record(
 				"PRODUCT_BARCODE_MODE_CONFIGURED",
 				"Product",
