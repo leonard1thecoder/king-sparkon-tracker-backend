@@ -20,13 +20,12 @@ import jakarta.persistence.Table;
 public class ProductBarcodeConfiguration {
 
 	@Id
-	@Column(name = "product_id")
-	private Long productId;
+private Long productId;
 
-	@MapsId
-	@OneToOne(fetch = FetchType.LAZY, optional = false)
-	@JoinColumn(name = "product_id", nullable = false)
-	private Product product;
+@MapsId
+@OneToOne(fetch = FetchType.LAZY, optional = false)
+@JoinColumn(name = "product_id")
+private Product product;
 
 	@Enumerated(EnumType.STRING)
 	@Column(name = "barcode_mode", nullable = false, length = 32)
@@ -43,17 +42,13 @@ public class ProductBarcodeConfiguration {
 
 	public ProductBarcodeConfiguration(Product product, ProductBarcodeMode barcodeMode) {
 		this.product = product;
-		this.productId = product == null ? null : product.getId();
 		this.barcodeMode = barcodeMode;
 	}
 
 	@PrePersist
 void prePersist() {
 
-    if (productId == null && product != null) {
-        productId = product.getId();
-    }
-
+  
     LocalDateTime now = LocalDateTime.now();
 
     createdAt = now;
@@ -89,6 +84,5 @@ void prePersist() {
 		return updatedAt;
 	} public void setProduct(Product product) {
     this.product = product;
-    this.productId = product == null ? null : product.getId();
 }
 }
