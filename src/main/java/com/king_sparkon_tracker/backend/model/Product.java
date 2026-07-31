@@ -166,10 +166,21 @@ private ProductBarcodeConfiguration barcodeConfiguration;
 
 public void setBarcodeConfiguration(ProductBarcodeConfiguration configuration) {
 
+    if (this.barcodeConfiguration != null) {
+        this.barcodeConfiguration.setProduct(null);
+    }
+
     this.barcodeConfiguration = configuration;
 
-    if (configuration != null) {
+    if (configuration != null && configuration.getProduct() != this) {
         configuration.setProduct(this);
+    }
+}
+
+	public void removeBarcodeConfiguration() {
+    if (barcodeConfiguration != null) {
+        barcodeConfiguration.setProduct(null);
+        barcodeConfiguration = null;
     }
 }
 
