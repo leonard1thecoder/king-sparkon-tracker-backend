@@ -45,6 +45,13 @@ public class Product {
 	@JoinColumn(name = "barcode_catalog_id")
 	private BarcodeCatalog barcodeCatalog;
 
+@OneToOne(
+        mappedBy = "product",
+        cascade = CascadeType.ALL,
+        orphanRemoval = true,
+        fetch = FetchType.LAZY)
+private ProductBarcodeConfiguration barcodeConfiguration;
+	
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false)
 	private ProductCategory category;
@@ -152,6 +159,19 @@ public class Product {
 				business
 		);
 	}
+
+	public ProductBarcodeConfiguration getBarcodeConfiguration() {
+    return barcodeConfiguration;
+}
+
+public void setBarcodeConfiguration(ProductBarcodeConfiguration configuration) {
+
+    this.barcodeConfiguration = configuration;
+
+    if (configuration != null) {
+        configuration.setProduct(this);
+    }
+}
 
 	public Product(
 			String name,
