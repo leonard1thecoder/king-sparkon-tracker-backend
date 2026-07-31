@@ -48,11 +48,17 @@ public class ProductBarcodeConfiguration {
 	}
 
 	@PrePersist
-	void prePersist() {
-		LocalDateTime now = LocalDateTime.now();
-		createdAt = now;
-		updatedAt = now;
-	}
+void prePersist() {
+
+    if (productId == null && product != null) {
+        productId = product.getId();
+    }
+
+    LocalDateTime now = LocalDateTime.now();
+
+    createdAt = now;
+    updatedAt = now;
+}
 
 	@PreUpdate
 	void preUpdate() {
@@ -81,5 +87,8 @@ public class ProductBarcodeConfiguration {
 
 	public LocalDateTime getUpdatedAt() {
 		return updatedAt;
-	}
+	} public void setProduct(Product product) {
+    this.product = product;
+    this.productId = product == null ? null : product.getId();
+}
 }
