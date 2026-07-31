@@ -14,7 +14,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
-
+import org.hibernate.Hibernate;
 import com.king_sparkon_tracker.backend.dto.AddProductBarcodeRequest;
 import com.king_sparkon_tracker.backend.dto.ProductRequest;
 import com.king_sparkon_tracker.backend.dto.UpdateProductQuantityRequest;
@@ -340,18 +340,22 @@ public Page<Product> searchProducts(
         ProductCategory category,
         ProductStatus status,
         String search) {
+Business business = userService.businessForActor(actorUsername);
 
-    Business business = userService.businessForActor(actorUsername);
+Specification<Product> specification =
+        ProductSpecification.filter(
+                business.getId(),
+                category,
+                status,
+                normalizeOptional(search));
 
-    Specification<Product> specification =
-            ProductSpecification.filter(
-                    business.getId(),
-                    category,
-                    status,
-                    normalizeOptional(search)
-            );
+Page<Product> page = productRepository.findAll(specification, pageable);
 
-    return productRepository.findAll(specification, pageable);
+// Initialize lazy collection before leaving the transaction
+page.getContent().forEach(product ->
+        Hibernate.initialize(product.getBarcodes()));
+
+return page;
 }
 
 	@Transactional(readOnly = true)
