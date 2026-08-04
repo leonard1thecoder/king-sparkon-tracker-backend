@@ -448,12 +448,22 @@ public class TicketManagementService {
     }
 
     private void requireTicketTypes(List<EventTicketTypeRequest> requestedTicketTypes) {
-        EnumSet<TicketType> requiredTypes = EnumSet.allOf(TicketType.class);
-        requestedTicketTypes.forEach(ticketType -> requiredTypes.remove(ticketType.type()));
-        if (!requiredTypes.isEmpty()) {
-            throw new IllegalArgumentException("Regular, VIP, and VVIP ticket types are required.");
-        }
+    EnumSet<TicketType> requiredTypes = EnumSet.of(
+            TicketType.REGULAR,
+            TicketType.VIP,
+            TicketType.VVIP
+    );
+
+    requestedTicketTypes.forEach(ticketType ->
+            requiredTypes.remove(ticketType.type().canonical())
+    );
+
+    if (!requiredTypes.isEmpty()) {
+        throw new IllegalArgumentException(
+                "Regular, VIP, and VVIP ticket types are required."
+        );
     }
+}
 
     private void requireOwnerControlsEvent(TicketEvent event, Business business) {
         String businessOwnerId = business.getOwner() == null || business.getOwner().getId() == null ? null : String.valueOf(business.getOwner().getId());
