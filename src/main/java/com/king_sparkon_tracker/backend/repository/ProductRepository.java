@@ -114,19 +114,13 @@ public interface ProductRepository extends JpaRepository<Product, Long>,
 			@Param("search") String search,
 			Pageable pageable);
 
-	@EntityGraph(attributePaths = {
-    "barcodes",
-    "barcodeConfiguration"
-})
+	
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	@Query("select product from Product product where product.id = :id")
 	Optional<Product> findLockedById(@Param("id") Long id);
 
 
-	@EntityGraph(attributePaths = {
-		"barcodes",
-		"barcodeConfiguration"
-})
+
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	@Query("select product from Product product where product.id = :id and product.business.id = :businessId")
 	Optional<Product> findLockedByIdAndBusiness_Id(@Param("id") Long id, @Param("businessId") Long businessId);
